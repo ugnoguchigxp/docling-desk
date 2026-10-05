@@ -1,0 +1,8 @@
+body[data-unit] :is(p,span,td,th,text,tspan){-webkit-user-select:text;user-select:text}
+/* SVG glyph gaps and decorative shapes must not swallow a text drag. */
+body[data-unit^="slide-"] svg :is(path,rect,image,use,polygon,polyline,line,circle,ellipse){pointer-events:none}
+body[data-unit^="slide-"] svg :is(text,tspan){pointer-events:bounding-box}
+body[data-unit^="sheet-"] :is(.sheet-column-axis,.sheet-row-axis){-webkit-user-select:none;user-select:none}
+body[data-unit^="document-"]{margin:0;background:#e8edf2}
+body[data-unit^="document-"]>div{margin-left:auto;margin-right:auto;background:white}
+body[data-unit] ::selection{background:#90c9e8;color:inherit}

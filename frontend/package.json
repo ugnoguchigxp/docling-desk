@@ -1,0 +1,58 @@
+{
+  "name": "docling-desk",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.24.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test:run": "vitest run",
+    "build": "pnpm typecheck && vite build",
+    "export:static": "node scripts/export-static.mjs",
+    "test:e2e": "playwright test --project=operations",
+    "test:e2e:synthetic": "UI_SYNTHETIC=1 playwright test --project=wiki --project=printing --project=operations",
+    "test:e2e:saved": "playwright test --project=saved",
+    "test:e2e:dev": "UI_DEV=1 playwright test --project=operations",
+    "test:visual": "playwright test --project=layout",
+    "visual:baseline": "UI_BASELINE=1 playwright test --project=layout",
+    "visual:prepare": "node scripts/prepare-visual.mjs",
+    "pretest:e2e": "pnpm visual:prepare",
+    "pretest:e2e:dev": "pnpm visual:prepare",
+    "pretest:visual": "pnpm visual:prepare",
+    "previsual:baseline": "pnpm visual:prepare"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.104.1",
+    "ag-grid-community": "35.2.1",
+    "ag-grid-react": "35.2.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.63.0",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
+    "@types/node": "26.6.4",
+    "@types/pngjs": "6.0.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "@vitest/coverage-v8": "5.0.3",
+    "eslint": "10.12.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "jsdom": "30.1.1",
+    "pixelmatch": "7.2.0",
+    "pngjs": "7.0.0",
+    "prettier": "3.9.9",
+    "typescript": "6.0.2",
+    "typescript-eslint": "8.71.0",
+    "vite": "8.3.2",
+    "vitest": "5.0.3"
+  }
+}

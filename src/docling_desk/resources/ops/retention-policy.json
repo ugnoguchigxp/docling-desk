@@ -1,0 +1,15 @@
+{
+  "cache_max_age_days": 14,
+  "thumbnail_max_age_days": 30,
+  "protected": [
+    "original.*",
+    "library.json",
+    "knowledge/local.sqlite",
+    "document.json",
+    "rag.jsonl",
+    "rag-index.jsonl",
+    "rag-docling.jsonl",
+    "job.json"
+  ],
+  "regenerable": [".cache", "thumbnails"]
+}

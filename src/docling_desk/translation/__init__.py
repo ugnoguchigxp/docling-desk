@@ -1,0 +1,1 @@
+"""Docling Desk translation components."""

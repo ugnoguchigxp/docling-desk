@@ -1,0 +1,101 @@
+#printPreviewDialog {
+  width: calc(100vw - 32px);
+  max-width: 1600px;
+  height: calc(100dvh - 32px);
+  max-height: none;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: inherit;
+  overflow: hidden;
+}
+#printPreviewDialog::backdrop {
+  background: #213a4866;
+}
+#printPreviewDialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+#printPreviewDialog .dialog-heading {
+  margin: 0;
+  flex-shrink: 0;
+}
+.print-filename {
+  margin: 8px 0 14px;
+  font-size: 12px;
+  color: #647681;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.print-preview-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 16px;
+}
+.print-settings {
+  width: 240px;
+  flex-shrink: 0;
+  overflow: auto;
+  padding-right: 4px;
+  font-size: 12px;
+}
+.print-settings label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.print-settings select,
+.print-settings input {
+  width: 100%;
+  font-size: 12px;
+  padding: 8px;
+}
+.print-settings p {
+  font-size: 12px;
+  line-height: 1.65;
+  color: #647681;
+}
+.print-settings .primary {
+  width: 100%;
+  padding: 10px;
+}
+#printPreviewFrame {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #e2e8ec;
+}
+@media (max-width: 650px) {
+  #printPreviewDialog {
+    padding: 12px;
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 16px);
+  }
+  .print-preview-layout {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .print-settings {
+    width: 100%;
+    max-height: 40%;
+    flex-shrink: 0;
+  }
+  .print-settings label {
+    display: inline-flex;
+    width: calc(50% - 8px);
+    margin-right: 8px;
+    margin-bottom: 8px;
+  }
+  .print-settings p {
+    margin: 6px 0;
+  }
+  #printPreviewFrame {
+    width: 100%;
+  }
+}

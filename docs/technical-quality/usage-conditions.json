@@ -1,0 +1,30 @@
+{
+  "recorded_at": "2026-10-04",
+  "measured": false,
+  "note": "検証計画の性能予算を測定前の利用条件として固定した値です。30回以上の耐久測定は今回の対象外であり、このファイルは合格実績ではありません。",
+  "profiles": {
+    "local_mac": "開発に使うMac。画面の冷温測定は別系列。",
+    "linux_api": "CPU 4コア、メモリ16 GiB、GPUなし、API所有者1、処理worker1。"
+  },
+  "scale": {
+    "documents": [100, 1000],
+    "search_chunks": 10000,
+    "wiki_articles": 100,
+    "pdf_pages": 100,
+    "embedding_dimensions": 1024,
+    "embedding_dimensions_boundary": 8192,
+    "concurrent_searches": 8,
+    "concurrent_uploads": 3
+  },
+  "budgets": {
+    "full_text_search_p95_ms": 300,
+    "cached_hybrid_p95_ms": 2000,
+    "parent_context_p95_ms": 500,
+    "eight_search_p95_ms": 1000,
+    "ninth_search": "search_busy",
+    "ui_warm_p95_ms": 1000,
+    "ui_cold_p95_ms": 2000,
+    "rss_bytes": 8589934592
+  },
+  "external": "Azureの待ち時間、最低15秒間隔、Retry-Afterはローカル予算に含めない。今回の試験はfake providerと合成データだけを使う。"
+}

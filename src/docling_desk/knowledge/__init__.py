@@ -1,0 +1,1 @@
+"""Docling Desk knowledge components."""

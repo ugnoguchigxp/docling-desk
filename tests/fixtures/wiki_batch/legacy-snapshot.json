@@ -1,0 +1,308 @@
+{
+  "original": "---\nid: \"R-1\"\ncollection: \"requirements\"\nlanguage: \"original\"\ntitle: \"Example Requirement\"\nsource_hash: \"39631bb5e5dc9326b23f8c00bf43440a84ce711315c6b799de554c56aa04d133\"\ntranslation_status: \"untranslated\"\n---\n\n# Example Requirement\n\n## Limits\nRecord 60 seconds and preserve AVG.\n\n| Field | Value |\n| --- | --- |\n| Time | 60 seconds |\n",
+  "ja": "---\nid: \"R-1\"\ncollection: \"requirements\"\nlanguage: \"ja\"\ntitle: \"Example Requirement\"\nsource_hash: \"39631bb5e5dc9326b23f8c00bf43440a84ce711315c6b799de554c56aa04d133\"\ntranslation_status: \"untranslated\"\n---\n\n# Untranslated\n",
+  "snapshot": {
+    "page": {
+      "key": "requirements/R-1",
+      "id": "R-1",
+      "collection": "requirements",
+      "collection_label": "Requirements",
+      "title_original": "Example Requirement",
+      "title_ja": null,
+      "original_path": "wiki/pages/original/requirements/R-1.md",
+      "ja_path": "wiki/pages/ja/requirements/R-1.md",
+      "translation_status": "untranslated",
+      "source_status": "complete",
+      "source_hash": "39631bb5e5dc9326b23f8c00bf43440a84ce711315c6b799de554c56aa04d133",
+      "sources": []
+    },
+    "meta": {
+      "id": "R-1",
+      "collection": "requirements",
+      "language": "ja",
+      "title": "Example Requirement",
+      "source_hash": "39631bb5e5dc9326b23f8c00bf43440a84ce711315c6b799de554c56aa04d133",
+      "translation_status": "untranslated"
+    },
+    "sourceBodyHash": "0479d24ec2203818d2f54fd0d56c4abbe344a7f3dc174253baf85a36d974d6d0",
+    "jaHash": "5d888efa60e6abe26aa5d096a55bc8265fc8e89609f21c9e08c69049b44d39e2",
+    "sourceText": "# Example Requirement\n\n## Limits\nRecord 60 seconds and preserve AVG.\n\n| Field | Value |\n| --- | --- |\n| Time | 60 seconds |",
+    "researchVersion": "wiki-fts-reading-v3-registered-terms",
+    "models": {
+      "draft": "draft",
+      "verify": "verify"
+    },
+    "inputHash": "3a7e246629dce2a5643335d67e510e4f3397023c7bb64ddb3649b7e0a0e5a560",
+    "units": [
+      {
+        "id": "u0",
+        "kind": "title",
+        "text": "Example Requirement",
+        "keep": {},
+        "prefix": "",
+        "suffix": "",
+        "literal": false,
+        "group": 0
+      },
+      {
+        "id": "u1",
+        "kind": "heading",
+        "text": "## Limits",
+        "keep": {},
+        "prefix": "",
+        "suffix": "\n",
+        "literal": false,
+        "group": 1
+      },
+      {
+        "id": "u2",
+        "kind": "paragraph",
+        "text": "Record ⟦KEEP_0⟧ seconds and preserve AVG.",
+        "keep": {
+          "⟦KEEP_0⟧": "60"
+        },
+        "prefix": "",
+        "suffix": "",
+        "literal": false,
+        "group": 2
+      },
+      {
+        "id": "u3",
+        "kind": "space",
+        "text": "",
+        "keep": {},
+        "prefix": "\n\n",
+        "suffix": "",
+        "literal": true,
+        "group": 3
+      },
+      {
+        "id": "u4",
+        "kind": "literal",
+        "text": "|",
+        "keep": {},
+        "prefix": "",
+        "suffix": "",
+        "literal": true,
+        "group": 4
+      },
+      {
+        "id": "u5",
+        "kind": "cell",
+        "text": "Field",
+        "keep": {},
+        "prefix": " ",
+        "suffix": " ",
+        "literal": false,
+        "group": 5
+      },
+      {
+        "id": "u6",
+        "kind": "literal",
+        "text": "|",
+        "keep": {},
+        "prefix": "",
+        "suffix": "",
+        "literal": true,
+        "group": 6
+      },
+      {
+        "id": "u7",
+        "kind": "cell",
+        "text": "Value",
+        "keep": {},
+        "prefix": " ",
+        "suffix": " ",
+        "literal": false,
+        "group": 7
+      },
+      {
+        "id": "u8",
+        "kind": "literal",
+        "text": "|",
+        "keep": {},
+        "prefix": "",
+        "suffix": "",
+        "literal": true,
+        "group": 8
+      },
+      {
+        "id": "u9",
+        "kind": "cell",
+        "text": "",
+        "keep": {},
+        "prefix": "\n",
+        "suffix": "",
+        "literal": true,
+        "group": 9
+      },
+      {
+        "id": "u10",
+        "kind": "literal",
+        "text": "| --- | --- |",
+        "keep": {},
+        "prefix": "",
+        "suffix": "\n",
+        "literal": true,
+        "group": 10
+      },
+      {
+        "id": "u11",
+        "kind": "literal",
+        "text": "|",
+        "keep": {},
+        "prefix": "",
+        "suffix": "",
+        "literal": true,
+        "group": 11
+      },
+      {
+        "id": "u12",
+        "kind": "cell",
+        "text": "Time",
+        "keep": {
+          "⟦KEEP_0⟧": "60"
+        },
+        "prefix": " ",
+        "suffix": " ",
+        "literal": false,
+        "group": 12
+      },
+      {
+        "id": "u13",
+        "kind": "literal",
+        "text": "|",
+        "keep": {},
+        "prefix": "",
+        "suffix": "",
+        "literal": true,
+        "group": 13
+      },
+      {
+        "id": "u14",
+        "kind": "cell",
+        "text": "⟦KEEP_0⟧ seconds",
+        "keep": {
+          "⟦KEEP_0⟧": "60"
+        },
+        "prefix": " ",
+        "suffix": " ",
+        "literal": false,
+        "group": 14
+      },
+      {
+        "id": "u15",
+        "kind": "literal",
+        "text": "|",
+        "keep": {},
+        "prefix": "",
+        "suffix": "",
+        "literal": true,
+        "group": 15
+      },
+      {
+        "id": "u16",
+        "kind": "cell",
+        "text": "",
+        "keep": {
+          "⟦KEEP_0⟧": "60"
+        },
+        "prefix": "\n",
+        "suffix": "",
+        "literal": true,
+        "group": 16
+      }
+    ],
+    "packets": [
+      {
+        "position": 0,
+        "units": [
+          {
+            "id": "u0",
+            "kind": "title",
+            "text": "Example Requirement",
+            "keep": {},
+            "prefix": "",
+            "suffix": "",
+            "literal": false,
+            "group": 0
+          },
+          {
+            "id": "u1",
+            "kind": "heading",
+            "text": "## Limits",
+            "keep": {},
+            "prefix": "",
+            "suffix": "\n",
+            "literal": false,
+            "group": 1
+          },
+          {
+            "id": "u2",
+            "kind": "paragraph",
+            "text": "Record ⟦KEEP_0⟧ seconds and preserve AVG.",
+            "keep": {
+              "⟦KEEP_0⟧": "60"
+            },
+            "prefix": "",
+            "suffix": "",
+            "literal": false,
+            "group": 2
+          },
+          {
+            "id": "u5",
+            "kind": "cell",
+            "text": "Field",
+            "keep": {},
+            "prefix": " ",
+            "suffix": " ",
+            "literal": false,
+            "group": 5
+          },
+          {
+            "id": "u7",
+            "kind": "cell",
+            "text": "Value",
+            "keep": {},
+            "prefix": " ",
+            "suffix": " ",
+            "literal": false,
+            "group": 7
+          },
+          {
+            "id": "u12",
+            "kind": "cell",
+            "text": "Time",
+            "keep": {
+              "⟦KEEP_0⟧": "60"
+            },
+            "prefix": " ",
+            "suffix": " ",
+            "literal": false,
+            "group": 12
+          },
+          {
+            "id": "u14",
+            "kind": "cell",
+            "text": "⟦KEEP_0⟧ seconds",
+            "keep": {
+              "⟦KEEP_0⟧": "60"
+            },
+            "prefix": " ",
+            "suffix": " ",
+            "literal": false,
+            "group": 14
+          }
+        ]
+      }
+    ],
+    "references": [],
+    "terminology": {
+      "version": "registered-terms-v2",
+      "registryHash": "e13d010a6007fa2889ca3ee584f5259a09ff8f9bf5f3ab62ff2f264eef882047",
+      "entries": [],
+      "occurrences": []
+    },
+    "recipeHash": "9924ecd0603024a2c52f645e73597fcda9b3d6280bc2e9ea9a670e7c30cfdfb3"
+  }
+}

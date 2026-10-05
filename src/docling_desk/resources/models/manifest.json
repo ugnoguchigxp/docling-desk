@@ -1,0 +1,20 @@
+[
+  {
+    "repo": "docling-project/docling-layout-heron",
+    "revision": "8f39ad3c0b4c58e9c2d2c84a38465abf757272d8",
+    "path": "docling-project--docling-layout-heron",
+    "patterns": null,
+    "declared_license": "Apache-2.0",
+    "license_source": "https://huggingface.co/docling-project/docling-layout-heron/blob/8f39ad3c0b4c58e9c2d2c84a38465abf757272d8/README.md"
+  },
+  {
+    "repo": "docling-project/docling-models",
+    "revision": "fc0f2d45e2218ea24bce5045f58a389aed16dc23",
+    "path": "docling-project--docling-models",
+    "patterns": [
+      "model_artifacts/tableformer/accurate/*"
+    ],
+    "declared_license": "CDLA-Permissive-2.0",
+    "license_source": "https://huggingface.co/docling-project/docling-models/blob/fc0f2d45e2218ea24bce5045f58a389aed16dc23/README.md"
+  }
+]

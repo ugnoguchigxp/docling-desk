@@ -1,0 +1,57 @@
+name: docling-knowledge
+services:
+  api:
+    build:
+      context: ../knowledge-api
+    env_file: ${KNOWLEDGE_CONTAINER_ENV:-../.knowledge-api/container.env}
+    environment:
+      KNOWLEDGE_STATE_DIR: /var/lib/knowledge
+      KNOWLEDGE_ARTIFACT_ROOT: /artifacts
+      KNOWLEDGE_WORKER_URL: http://processor:8765
+      KNOWLEDGE_HOST: 0.0.0.0
+      KNOWLEDGE_PORT: 18766
+      KNOWLEDGE_EMBEDDING_URL: ${KNOWLEDGE_EMBEDDING_URL:-}
+      KNOWLEDGE_EMBEDDING_PROFILE: ${KNOWLEDGE_EMBEDDING_PROFILE:-}
+      KNOWLEDGE_EMBEDDING_DIMENSIONS: ${KNOWLEDGE_EMBEDDING_DIMENSIONS:-}
+      KNOWLEDGE_ANSWER_URL: ${KNOWLEDGE_ANSWER_URL:-}
+      KNOWLEDGE_PROVIDER_TOKEN: ${KNOWLEDGE_PROVIDER_TOKEN:-}
+    ports:
+      - "127.0.0.1:${KNOWLEDGE_PORT:-18766}:18766"
+    volumes:
+      - knowledge-state:/var/lib/knowledge
+      - knowledge-artifacts:/artifacts
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    depends_on:
+      processor:
+        condition: service_healthy
+  processor:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    env_file:
+      - path: ../.env
+        required: false
+      - path: ${KNOWLEDGE_WORKER_ENV:-../.knowledge-api/worker.env}
+    environment:
+      KNOWLEDGE_ARTIFACT_ROOT: /var/lib/docling/data
+      KNOWLEDGE_API_INTERNAL_URL: http://api:18766
+    command: ["python", "-m", "uvicorn", "docling_desk.knowledge.worker:app_factory", "--factory", "--host", "0.0.0.0", "--port", "8765", "--workers", "1", "--no-access-log"]
+    volumes:
+      - knowledge-artifacts:/var/lib/docling/data
+    # The processor has no host port and receives neither the API database nor client signing keys.
+    expose:
+      - "8765"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health/ready', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 1920s
+volumes:
+  knowledge-state:
+  knowledge-artifacts:

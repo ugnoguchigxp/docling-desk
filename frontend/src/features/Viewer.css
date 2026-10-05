@@ -1,0 +1,29 @@
+#viewerToolbar:has(#saveMenu[open]) {
+  overflow: visible;
+}
+#saveMenu .menu-panel {
+  max-height: 70dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+#saveMenu .menu-panel > button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  border: 0;
+  border-radius: 4px;
+  padding: 8px 10px;
+  background: transparent;
+  color: #365666;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+#saveMenu .menu-panel > button:hover:not(:disabled) {
+  background: #f0f6f8;
+}
+#saveMenu .menu-panel > button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

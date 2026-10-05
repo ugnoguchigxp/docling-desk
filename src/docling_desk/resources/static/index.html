@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Docling Desk · 資料一覧</title>
+  <link rel="stylesheet" href="/static/vendor/ag-grid.min.css">
+  <link rel="stylesheet" href="/static/vendor/ag-theme-quartz.min.css">
+  <link rel="stylesheet" href="/static/table-ui.css">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/translation.css">
+  <link rel="stylesheet" href="/static/explanation.css">
+  <script src="/static/vendor/ag-grid-community.min.js" defer></script>
+  <script src="/static/tabulens-grid.js" defer></script>
+  <script src="/static/table-common.js" defer></script>
+  <script src="/static/tables.js" defer></script>
+  <script src="/static/slides.js" defer></script>
+  <script src="/static/rag.js" defer></script>
+  <script src="/static/library.js" defer></script>
+  <script src="/static/app.js" defer></script>
+  <script src="/static/translation.js" defer></script>
+  <script src="/static/explanation.js" defer></script>
+</head>
+<body>
+<svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m14 6-6 6 6 6"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="m10 6 6 6-6 6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-thumbnails" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="6" rx="1"/><rect x="3" y="14" width="5" height="6" rx="1"/><path d="M12 5h9v14h-9z"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/><rect x="8" y="8" width="8" height="8" rx="1"/></symbol>
+  <symbol id="i-open" viewBox="0 0 24 24"><path d="M14 3h7v7m0-7L11 13M10 5H4a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M13 3H5v18h14V9l-6-6Zm0 0v6h6M8 13h8M8 17h6"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5h7l2 2h9v13H3z"/></symbol>
+  <symbol id="i-delete" viewBox="0 0 24 24"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7"/></symbol>
+</defs></svg>
+<main>
+  <section id="library" aria-label="資料一覧">
+    <header class="library-bar">
+      <h1><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg>資料一覧</h1>
+      <label class="file-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input id="fileSearch" type="search" aria-label="このフォルダー内を検索" placeholder="このフォルダー内を検索" autocomplete="off"></label>
+      <button id="newFolder" type="button"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg>新しいフォルダー</button>
+      <button id="addFile" class="primary" type="button"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>資料を追加</button>
+    </header>
+    <div class="library-content">
+      <nav id="breadcrumbs" class="breadcrumbs" aria-label="現在のフォルダー"></nav>
+      <div id="selectionToolbar" class="selection-toolbar" hidden><span id="selectionCount"></span><button id="selectionClear" type="button">選択解除</button><button id="selectionRename" type="button">名前を変更</button><button id="selectionMove" type="button">移動先</button><button id="selectionCopy" type="button">コピー先</button><button id="selectionDownload" type="button">原本を保存</button><button id="selectionDelete" class="danger" type="button">削除</button></div>
+      <div class="library-tools"><span id="fileCount" role="status"></span><div class="list-filters"><select id="fileType" aria-label="ファイルの種類"><option value="">すべての種類</option><option value="pdf">PDF</option><option value="pptx">PowerPoint</option><option value="xlsx">Excel</option></select><select id="fileSort" aria-label="並べ替え"><option value="recent">追加日時：新しい順</option><option value="oldest">追加日時：古い順</option><option value="name">ファイル名順</option></select></div></div>
+      <p id="message" role="status" hidden></p>
+      <div class="file-list"><table aria-label="保存済みの資料"><thead><tr><th scope="col" class="select-column"><input id="selectAll" type="checkbox" aria-label="表示中の項目をすべて選択"></th><th scope="col" class="name-column">名前</th><th scope="col" class="state-column">状態</th><th scope="col" class="pages-column">ページ</th><th scope="col" class="date-column">追加日時</th><th scope="col" class="actions-column"><span class="sr-only">操作</span></th></tr></thead><tbody id="jobs"></tbody></table><div id="libraryEmpty" hidden><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg><p id="emptyText">このフォルダーは空です。</p><button id="emptyAdd" type="button">資料を追加</button></div></div>
+      <p id="libraryHint" class="library-hint">チェックボックスで複数選択。「…」または右クリックで操作できます。フォルダーへのドラッグで移動できます。</p>
+    </div>
+  </section>
+  <section id="detail" aria-label="文書ビューア" hidden>
+    <header id="viewerToolbar" class="viewer-toolbar">
+      <button id="backToFiles" class="icon-button" type="button" aria-label="資料一覧へ戻る" title="資料一覧へ戻る"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg></button>
+      <span id="filename"></span>
+      <div class="tabs" role="tablist" aria-label="文書の表示">
+        <button id="tab-preview" data-view="preview" class="active" role="tab" aria-controls="preview" aria-selected="true">原本プレビュー</button>
+        <button id="tab-tables" data-view="tables" role="tab" aria-controls="tables" aria-selected="false" tabindex="-1">表を操作</button>
+        <button id="tab-structure" data-view="structure" role="tab" aria-controls="structure" aria-selected="false" tabindex="-1">構造・参照</button>
+        <button id="tab-rag" data-view="rag" role="tab" aria-controls="rag" aria-selected="false" tabindex="-1">RAGデータ</button>
+      </div>
+      <div id="slideControls" class="slide-controls" hidden>
+        <button id="slideThumbnailsToggle" class="icon-button" type="button" aria-label="サムネイルを表示・非表示" aria-pressed="true" title="サムネイルを表示・非表示"><svg class="icon" aria-hidden="true"><use href="#i-thumbnails"/></svg></button>
+        <button id="slidePrevious" class="icon-button" type="button" aria-label="前のスライド" title="前のスライド"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg></button>
+        <select id="slidePicker" aria-label="スライド"></select>
+        <button id="slideNext" class="icon-button" type="button" aria-label="次のスライド" title="次のスライド"><svg class="icon" aria-hidden="true"><use href="#i-next"/></svg></button>
+        <span class="toolbar-divider"></span>
+        <button id="slideZoomOut" class="icon-button" type="button" aria-label="縮小" title="縮小"><svg class="icon" aria-hidden="true"><use href="#i-minus"/></svg></button>
+        <select id="slideZoomPreset" aria-label="ズーム倍率"><option value="current">100%</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option><option value="4">400%</option></select>
+        <button id="slideZoomIn" class="icon-button" type="button" aria-label="拡大" title="拡大"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
+        <button id="slideFit" type="button" aria-label="画面に合わせる" aria-pressed="true" title="画面に合わせる"><svg class="icon" aria-hidden="true"><use href="#i-fit"/></svg><span>Fit</span></button>
+      </div>
+      <div class="viewer-actions">
+        <button id="explainOpen" type="button" aria-controls="explanationPanel" aria-expanded="false" disabled>わかりやすく解説</button>
+        <button id="translateOpen" type="button" title="この資料を翻訳">翻訳</button>
+        <select id="translationLanguage" aria-label="文書の言語"><option value="original">原文</option><option value="en">英訳</option><option value="ja">日本語訳</option></select>
+        <a id="originalOpen" class="icon-button" target="_blank" rel="noopener" aria-label="プレビューを大きく開く" title="プレビューを大きく開く"><svg class="icon" aria-hidden="true"><use href="#i-open"/></svg></a>
+        <details id="saveMenu" class="toolbar-menu"><summary class="icon-button" aria-label="保存メニュー" title="保存"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg></summary><div class="menu-panel"><a id="originalDownload">原本を保存</a><div id="downloads" class="downloads"></div></div></details>
+        <details id="infoMenu" class="toolbar-menu"><summary class="icon-button" aria-label="文書情報" title="文書情報"><svg class="icon" aria-hidden="true"><use href="#i-more"/></svg></summary><div class="menu-panel"><strong>文書情報</strong><p id="stats"></p></div></details>
+      </div>
+    </header>
+    <p id="explanationDisclosure" class="explanation-disclosure" hidden></p>
+    <div id="viewerMessage" class="viewer-message" role="status" hidden></div>
+    <div id="documentPanels">
+      <div id="preview" role="tabpanel" aria-labelledby="tab-preview">
+        <aside id="explanationPanel" aria-label="詳しい解説" hidden tabindex="-1"><div class="explanation-heading"><strong id="explanationTitle">詳しい解説</strong><button id="explainClose" type="button" aria-label="解説を閉じる">×</button></div><p id="explanationStatus" role="status"></p><div id="explanationActions"><button id="explainRetry" type="button" hidden>解説を再試行</button><button id="explainRegenerate" type="button" hidden>解説を作り直す</button></div><div id="explanationText"></div></aside>
+        <div id="translationStatus" role="status" hidden></div>
+        <aside id="translationPanel" aria-label="このページの訳文" hidden><div class="translation-panel-heading"><strong id="translationPanelTitle"></strong><button id="translationPanelClose" type="button" aria-label="訳文を閉じる">×</button></div><div id="translationPanelText"></div></aside>
+        <p id="previewStatus" role="status" hidden></p>
+        <iframe id="original" title="原本プレビュー" sandbox></iframe>
+        <p id="noPreview" hidden>プレビューを生成できませんでした。保存メニューから原本を開いて確認してください。</p>
+        <div id="slides" hidden>
+          <nav id="slideThumbnails" aria-label="スライドのサムネイル"></nav>
+          <div id="slideStage" tabindex="0" role="region" aria-label="スライド表示領域"><div id="slideSurface"><div id="slideCanvas"></div></div></div>
+        </div>
+      </div>
+      <div id="tables" role="tabpanel" aria-labelledby="tab-tables" hidden>
+        <div class="table-browser-bar"><label>抽出表<select id="tablePicker" aria-label="抽出表"></select></label></div>
+        <p id="tableStatus" role="status"></p><div id="tableGrid" aria-label="操作できる抽出表"></div>
+        <p class="table-help">列見出しで並べ替え。列メニュー・右クリックで絞り込みや固定、矢印キーでセル移動、Shift＋クリック／矢印キーで範囲選択、⌘C／Ctrl+Cでコピーできます。</p>
+      </div>
+      <div id="structure" role="tabpanel" aria-labelledby="tab-structure" hidden></div>
+      <div id="rag" role="tabpanel" aria-labelledby="tab-rag" hidden>
+        <div class="rag-toolbar"><label>チャンクの表示<select id="ragMode" aria-label="チャンクの表示"><option value="context">文脈単位（標準）</option><option value="search">検索用の小分け（親文脈付き）</option><option value="docling">従来Docling分割（比較）</option></select></label></div>
+        <p id="ragStatus" role="status"></p><p id="ragNotice"></p><div id="ragCards"></div>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="fileDropOverlay" class="file-drop-overlay" hidden><div class="file-drop-card"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg><strong id="fileDropTitle">ここにドロップして抽出を開始</strong><p id="fileDropLocation"></p><span>PDF・PowerPoint・Excel · 複数ファイル対応</span></div></div>
+<dialog id="uploadDialog" aria-labelledby="uploadTitle"><form id="upload"><div class="dialog-heading"><h2 id="uploadTitle">資料を追加</h2><button id="closeUpload" class="icon-button" type="button" aria-label="閉じる">×</button></div><p id="uploadLocation" class="upload-hint"></p><label class="picker">PDF・PowerPoint・Excel<input type="file" name="file" accept=".pdf,.pptx,.xlsx" multiple required></label><p class="upload-hint">1ファイル50 MiBまで · PDFは最大100ページ · 待機込み3件まで</p><p id="uploadMessage" role="status" hidden></p><button class="primary" type="submit">抽出を開始</button></form></dialog>
+<dialog id="libraryDialog" class="library-dialog" aria-labelledby="libraryDialogTitle"><form id="libraryForm"><div class="dialog-heading"><h2 id="libraryDialogTitle"></h2><button id="closeLibraryDialog" class="icon-button" type="button" aria-label="閉じる">×</button></div><p id="operationDescription"></p><label id="operationNameLabel">名前<input id="operationName" type="text" maxlength="200" autocomplete="off"></label><div id="destinationBrowser" hidden><nav id="destinationBreadcrumbs" class="breadcrumbs" aria-label="移動先のフォルダー"></nav><div id="destinationFolders"></div><p id="destinationHint"></p></div><p id="operationError" role="alert" hidden></p><div class="dialog-actions"><button id="cancelOperation" type="button">キャンセル</button><button id="submitOperation" class="primary" type="submit"></button></div></form></dialog>
+<dialog id="translationDialog" aria-labelledby="translationTitle"><form id="translationForm">
+  <div class="dialog-heading"><h2 id="translationTitle">資料を翻訳</h2><button id="translationDialogClose" type="button" aria-label="閉じる">×</button></div>
+  <label>翻訳先<select id="translationTarget"><option value="en">英語</option><option value="ja">日本語</option></select></label>
+  <label>翻訳する範囲<select id="translationScope"><option value="current">現在のページ</option><option value="selected">選択した範囲</option><option value="all">資料全体</option></select></label>
+  <fieldset id="translationUnits" hidden><legend>翻訳するページ</legend><div id="translationUnitList"></div></fieldset>
+  <label>次の翻訳までの間隔（秒）<input id="translationInterval" type="number" min="0" max="3600" step="1" value="60" required></label>
+  <p id="translationQueueNote">1ページずつ順番に翻訳します。長いページを分割する場合も、この間隔を空けます。</p>
+  <label class="translation-check"><input id="translationForce" type="checkbox">保存済みの単位も再翻訳する</label>
+  <p id="translationDisclosure"></p><p>文字列だけを翻訳し、文字枠・図形・文字サイズを保ちます。長い訳文ははみ出す場合があります。画像内の文字はそのままです。</p>
+  <p id="translationDialogMessage" role="status" hidden></p><button id="translationSubmit" type="submit" class="primary">翻訳を開始</button>
+</form></dialog>
+</body>
+</html>

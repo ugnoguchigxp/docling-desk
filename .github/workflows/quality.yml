@@ -1,0 +1,154 @@
+name: quality
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  javascript:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: knowledge-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bun test
+      - run: bun run typecheck
+      - run: bun run lint
+      - run: bun run contract:check
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - working-directory: frontend
+        run: pnpm test:run
+      - working-directory: frontend
+        run: pnpm typecheck
+      - working-directory: frontend
+        run: pnpm lint
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-lock.txt
+      - name: Install locked dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.14.1 torchvision==0.29.1
+          pip install --no-cache-dir -r requirements-lock.txt
+          pip install --no-cache-dir --no-deps ./docling ./packages/docling-azure-ocr
+          pip install --no-cache-dir --no-deps --no-build-isolation -e .
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build frontend resources for Python tests
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm export:static
+      - name: Verify installed wheel and resources
+        run: python scripts/verify_package.py
+      - name: Install pinned models
+        env:
+          PYTHONPATH: src
+        run: python scripts/download_models.py
+      - name: Offline checks
+        env:
+          PYTHONPATH: src:packages/docling-azure-ocr/src
+        run: |
+          python -m ruff check . --exclude docling --exclude qa
+          DOCLING_ENV_FILE=/dev/null python -m pytest tests -q
+          python -m docling_desk.operations.models
+
+  distribution:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-lock.txt
+      - name: Install locked dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.14.1 torchvision==0.29.1
+          pip install --no-cache-dir -r requirements-lock.txt
+          pip install --no-cache-dir --no-deps ./docling ./packages/docling-azure-ocr
+          pip install --no-cache-dir --no-deps --no-build-isolation -e .
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Build the distributed frontend
+        id: frontend
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm export:static
+      - name: Install the browser
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium
+      - name: HTTP upload, search, context, and delete
+        id: http
+        env:
+          PYTHONPATH: src:packages/docling-azure-ocr/src
+        run: python -m pytest tests/test_distribution_http.py -q
+      - name: Synthetic browser checks
+        id: browser
+        working-directory: frontend
+        env:
+          UI_SYNTHETIC: "1"
+          DOCLING_PYTHON: python
+          CI: "true"
+        run: pnpm test:e2e:synthetic
+      - name: Record the commit and what did not run
+        if: always()
+        env:
+          PYTHONPATH: src:packages/docling-azure-ocr/src
+        run: |
+          python -m docling_desk.operations.distribution_evidence \
+            --commit "${GITHUB_SHA}" \
+            --frontend-build "${{ steps.frontend.outcome }}" \
+            --http "${{ steps.http.outcome }}" \
+            --browser "${{ steps.browser.outcome }}" \
+            --docker not_run \
+            --azure not_run \
+            --saved-documents not_run
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: distribution-evidence
+          path: qa/distribution/latest.json

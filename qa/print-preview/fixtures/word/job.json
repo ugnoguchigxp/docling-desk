@@ -1,0 +1,23 @@
+{
+  "id": "bce5330e4c64426da517c6f9d7b36611",
+  "filename": "synthetic-report.docx",
+  "original_filename": null,
+  "folder_id": null,
+  "state": "success",
+  "created": 1791032612.980871,
+  "duration": 0.25,
+  "pages": 0,
+  "tables": 1,
+  "pictures": 1,
+  "chunks": 9,
+  "search_chunks": 9,
+  "rag_policy": "context-v4",
+  "error": null,
+  "warnings": [
+    "原本側はMac Quick LookのHTML表示です。Officeでの表示とフォント・図形・グラフ・シート範囲が異なることがあります。",
+    "抽出HTMLは読み順・表・図を再構成した表示です。原本レイアウトや図と本文の意味関係の完全な保持は保証しません。"
+  ],
+  "preview": "quicklook/original.docx.qlpreview/Preview.html",
+  "slide_layout": false,
+  "synthetic": true
+}

@@ -1,0 +1,290 @@
+[
+  {
+    "ref": "#/texts/0",
+    "label": "section_header",
+    "text": "合成サンプル: 月別の件数",
+    "pages": [
+      1
+    ],
+    "provenance": [
+      {
+        "page_no": 1,
+        "bbox": {
+          "l": 45.0,
+          "t": 800.598,
+          "r": 298.616,
+          "b": 779.8006666666666,
+          "coord_origin": "BOTTOMLEFT"
+        },
+        "charspan": [
+          0,
+          13
+        ]
+      }
+    ],
+    "parent": "#/body",
+    "captions": []
+  },
+  {
+    "ref": "#/texts/1",
+    "label": "text",
+    "text": "これは抽出機能を確認するための架空の資料です。",
+    "pages": [
+      1
+    ],
+    "provenance": [
+      {
+        "page_no": 1,
+        "bbox": {
+          "l": 45.0,
+          "t": 757.508,
+          "r": 321.0,
+          "b": 746.164,
+          "coord_origin": "BOTTOMLEFT"
+        },
+        "charspan": [
+          0,
+          23
+        ]
+      }
+    ],
+    "parent": "#/body",
+    "captions": []
+  },
+  {
+    "ref": "#/texts/2",
+    "label": "text",
+    "text": "表1 区分ごとの件数。合計は450件です。",
+    "pages": [
+      1
+    ],
+    "provenance": [
+      {
+        "page_no": 1,
+        "bbox": {
+          "l": 45.0,
+          "t": 724.508,
+          "r": 273.0,
+          "b": 713.164,
+          "coord_origin": "BOTTOMLEFT"
+        },
+        "charspan": [
+          0,
+          21
+        ]
+      }
+    ],
+    "parent": "#/body",
+    "captions": []
+  },
+  {
+    "ref": "#/tables/0",
+    "label": "table",
+    "text": "| 区分   |   件数 |\n|------|------|\n| A    |  120 |\n| B    |  180 |\n| C    |  150 |\n| 合計   |  450 |",
+    "pages": [
+      1
+    ],
+    "provenance": [
+      {
+        "page_no": 1,
+        "bbox": {
+          "l": 43.717342376708984,
+          "t": 696.2629089355469,
+          "r": 425.8627014160156,
+          "b": 519.252197265625,
+          "coord_origin": "BOTTOMLEFT"
+        },
+        "charspan": [
+          0,
+          0
+        ]
+      }
+    ],
+    "parent": "#/body",
+    "captions": []
+  },
+  {
+    "ref": "#/pictures/0",
+    "label": "picture",
+    "text": "",
+    "pages": [
+      1
+    ],
+    "provenance": [
+      {
+        "page_no": 1,
+        "bbox": {
+          "l": 104.37242889404297,
+          "t": 465.22613525390625,
+          "r": 449.8870544433594,
+          "b": 289.7490234375,
+          "coord_origin": "BOTTOMLEFT"
+        },
+        "charspan": [
+          0,
+          0
+        ]
+      }
+    ],
+    "parent": "#/body",
+    "captions": [
+      "#/texts/3"
+    ]
+  },
+  {
+    "ref": "#/texts/3",
+    "label": "caption",
+    "text": "図1 表1の件数を棒グラフで示しました。",
+    "pages": [
+      1
+    ],
+    "provenance": [
+      {
+        "page_no": 1,
+        "bbox": {
+          "l": 45.0,
+          "t": 256.50800000000004,
+          "r": 273.0,
+          "b": 245.164,
+          "coord_origin": "BOTTOMLEFT"
+        },
+        "charspan": [
+          0,
+          20
+        ]
+      }
+    ],
+    "parent": "#/pictures/0",
+    "captions": []
+  },
+  {
+    "ref": "#/texts/10",
+    "label": "text",
+    "text": "Bの件数が最も多く、Aより60件多いことが分かります。",
+    "pages": [
+      1
+    ],
+    "provenance": [
+      {
+        "page_no": 1,
+        "bbox": {
+          "l": 45.0,
+          "t": 221.50800000000004,
+          "r": 349.668,
+          "b": 210.164,
+          "coord_origin": "BOTTOMLEFT"
+        },
+        "charspan": [
+          0,
+          27
+        ]
+      }
+    ],
+    "parent": "#/body",
+    "captions": []
+  },
+  {
+    "ref": "#/texts/12",
+    "label": "section_header",
+    "text": "図と表の参照を確認する",
+    "pages": [
+      2
+    ],
+    "provenance": [
+      {
+        "page_no": 2,
+        "bbox": {
+          "l": 45.0,
+          "t": 800.598,
+          "r": 287.0,
+          "b": 779.8006666666666,
+          "coord_origin": "BOTTOMLEFT"
+        },
+        "charspan": [
+          0,
+          11
+        ]
+      }
+    ],
+    "parent": "#/body",
+    "captions": []
+  },
+  {
+    "ref": "#/texts/13",
+    "label": "text",
+    "text": "前ページの表1と図1は同じ架空データを示しています。",
+    "pages": [
+      2
+    ],
+    "provenance": [
+      {
+        "page_no": 2,
+        "bbox": {
+          "l": 45.0,
+          "t": 748.508,
+          "r": 345.0,
+          "b": 737.164,
+          "coord_origin": "BOTTOMLEFT"
+        },
+        "charspan": [
+          0,
+          26
+        ]
+      }
+    ],
+    "parent": "#/body",
+    "captions": []
+  },
+  {
+    "ref": "#/texts/14",
+    "label": "text",
+    "text": "日本語の抽出、読み順、ページ番号、表構造を確認してください。",
+    "pages": [
+      2
+    ],
+    "provenance": [
+      {
+        "page_no": 2,
+        "bbox": {
+          "l": 45.0,
+          "t": 718.508,
+          "r": 405.0,
+          "b": 707.164,
+          "coord_origin": "BOTTOMLEFT"
+        },
+        "charspan": [
+          0,
+          30
+        ]
+      }
+    ],
+    "parent": "#/body",
+    "captions": []
+  },
+  {
+    "ref": "#/texts/15",
+    "label": "text",
+    "text": "意味関係が自動で完全に保持されるとは限りません。",
+    "pages": [
+      2
+    ],
+    "provenance": [
+      {
+        "page_no": 2,
+        "bbox": {
+          "l": 45.0,
+          "t": 688.508,
+          "r": 333.0,
+          "b": 677.164,
+          "coord_origin": "BOTTOMLEFT"
+        },
+        "charspan": [
+          0,
+          24
+        ]
+      }
+    ],
+    "parent": "#/body",
+    "captions": []
+  }
+]

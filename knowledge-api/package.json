@@ -1,0 +1,21 @@
+{
+  "name": "docling-desk-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "bun": "1.4.2" },
+  "scripts": {
+    "start": "bun src/server.ts",
+    "dev": "bun --watch src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src tests scripts",
+    "format": "biome check --write src tests scripts",
+    "test": "bun test",
+    "contract:check": "bun scripts/contract-check.ts",
+    "test:integration": "bun scripts/smoke.ts",
+    "setup:local": "bun scripts/setup-local.ts",
+    "test:docker": "bun scripts/smoke-docker.ts"
+  },
+  "dependencies": { "hono": "4.12.8", "zod": "4.3.6" },
+  "devDependencies": { "@biomejs/biome": "2.4.8", "@types/bun": "1.3.10", "typescript": "6.0.2" }
+}

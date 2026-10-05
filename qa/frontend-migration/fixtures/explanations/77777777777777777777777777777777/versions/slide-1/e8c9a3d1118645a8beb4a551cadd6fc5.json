@@ -1,0 +1,419 @@
+{
+  "source": {
+    "id": "slide-1",
+    "kind": "slide",
+    "number": 1,
+    "name": "",
+    "blocks": [
+      {
+        "id": "#/texts/0",
+        "text": "合成サンプル: 表と図の比較",
+        "kind": "paragraph",
+        "pages": [
+          1
+        ]
+      },
+      {
+        "id": "#/tables/0",
+        "text": "{\"header_rows\": 1, \"rows\": [[\"区分\", \"件数\"], [\"A\", \"120\"], [\"B\", \"180\"], [\"C\", \"150\"], [\"合計\", \"450\"]]}",
+        "kind": "table",
+        "pages": [
+          1
+        ]
+      },
+      {
+        "id": "#/texts/1",
+        "text": "図1: 表1の架空データを比較。BはAより60件多い。",
+        "kind": "paragraph",
+        "pages": [
+          1
+        ]
+      }
+    ],
+    "tables": [
+      {
+        "ref": "#/tables/0",
+        "label": "表 1",
+        "source_label": "スライド 1",
+        "pages": [
+          1
+        ],
+        "rows": [
+          [
+            "区分",
+            "件数"
+          ],
+          [
+            "A",
+            "120"
+          ],
+          [
+            "B",
+            "180"
+          ],
+          [
+            "C",
+            "150"
+          ],
+          [
+            "合計",
+            "450"
+          ]
+        ],
+        "columns": 2,
+        "header_rows": 1,
+        "merged": false,
+        "cells": [
+          {
+            "bbox": null,
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "区分",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": null,
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "件数",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": null,
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "A",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": null,
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "120",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": null,
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "B",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": null,
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "180",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": null,
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "C",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": null,
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "150",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": null,
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "合計",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": null,
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "450",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          }
+        ]
+      }
+    ],
+    "excluded_pictures": 1
+  },
+  "source_parts": [
+    {
+      "text": "合成サンプル: 表と図の比較",
+      "kind": "paragraph",
+      "pages": [
+        1
+      ],
+      "start": 0,
+      "end": 14,
+      "part_id": "#/texts/0:text:0",
+      "original_ref": "#/texts/0",
+      "numbers": []
+    },
+    {
+      "text": "{\"header_rows\": 1, \"rows\": [[\"区分\", \"件数\"], [\"A\", \"120\"], [\"B\", \"180\"], [\"C\", \"150\"], [\"合計\", \"450\"]]}",
+      "kind": "table",
+      "pages": [
+        1
+      ],
+      "start": 0,
+      "end": 99,
+      "part_id": "#/tables/0:text:0",
+      "original_ref": "#/tables/0",
+      "numbers": [
+        {
+          "value": "1",
+          "start": 16,
+          "end": 17,
+          "context": "{\"header_rows\": 1, \"rows\": [[\"区分\", \"件数\"], [\"A\","
+        },
+        {
+          "value": "120",
+          "start": 49,
+          "end": 52,
+          "context": "\"rows\": [[\"区分\", \"件数\"], [\"A\", \"120\"], [\"B\", \"180\"], [\"C\", \"150\"]"
+        },
+        {
+          "value": "180",
+          "start": 63,
+          "end": 66,
+          "context": ", \"件数\"], [\"A\", \"120\"], [\"B\", \"180\"], [\"C\", \"150\"], [\"合計\", \"450\""
+        },
+        {
+          "value": "150",
+          "start": 77,
+          "end": 80,
+          "context": " \"120\"], [\"B\", \"180\"], [\"C\", \"150\"], [\"合計\", \"450\"]]}"
+        },
+        {
+          "value": "450",
+          "start": 92,
+          "end": 95,
+          "context": "\"180\"], [\"C\", \"150\"], [\"合計\", \"450\"]]}"
+        }
+      ]
+    },
+    {
+      "text": "図1: 表1の架空データを比較。BはAより60件多い。",
+      "kind": "paragraph",
+      "pages": [
+        1
+      ],
+      "start": 0,
+      "end": 27,
+      "part_id": "#/texts/1:text:0",
+      "original_ref": "#/texts/1",
+      "numbers": [
+        {
+          "value": "1",
+          "start": 1,
+          "end": 2,
+          "context": "図1: 表1の架空データを比較。BはAより60件多い。"
+        },
+        {
+          "value": "1",
+          "start": 5,
+          "end": 6,
+          "context": "図1: 表1の架空データを比較。BはAより60件多い。"
+        },
+        {
+          "value": "60件",
+          "start": 21,
+          "end": 24,
+          "context": "図1: 表1の架空データを比較。BはAより60件多い。"
+        }
+      ]
+    }
+  ],
+  "outlines": [
+    {
+      "topics": [
+        {
+          "source_id": "#/texts/0:text:0",
+          "topic": "合成サンプル: 表と図の比較",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        },
+        {
+          "source_id": "#/tables/0:text:0",
+          "topic": "{\"header_rows\": 1, \"rows\": [[\"区分\", \"件数\"], [\"A\", \"120\"], [\"B\", \"180\"], [\"C\", \"150\"], [\"合計\", \"450\"]]}",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        },
+        {
+          "source_id": "#/texts/1:text:0",
+          "topic": "図1: 表1の架空データを比較。BはAより60件多い。",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        }
+      ]
+    }
+  ],
+  "output_language": "ja",
+  "reader_background": "13歳程度",
+  "source_hash": "e8869af918fbc5d6b5ac6fc1c708233fb6d78f0490bb501dbc7d564095d7ed82",
+  "hash_version": 1,
+  "source_name": "QA.pptx",
+  "extraction_state": "success",
+  "unlocated_count": 0,
+  "profile": {
+    "provider": "codex_sdk",
+    "model": "gpt-6-luna",
+    "web_provider": "disabled",
+    "prompt_version": 2,
+    "config_hash": "cef932056b2e572807e68da80c1d15101247013ee4c6841cee4a3ed3fae053ea"
+  },
+  "local_search": {
+    "status": "success",
+    "queries": [
+      "売上",
+      "比較"
+    ],
+    "evidence": [
+      {
+        "id": "local-1",
+        "kind": "document",
+        "chunk_id": "eb9e9df049b44b0193760203c3fb0f36:slide:1",
+        "pages": [
+          1
+        ],
+        "title": "合成サンプル: 表と図の比較",
+        "text": "スライド 1\n\n合成サンプル: 表と図の比較\n\n区分\t件数\nA\t120\nB\t180\nC\t150\n合計\t450\n\n図1: 表1の架空データを比較。BはAより60件多い。",
+        "source_start": 0,
+        "source_end": 83,
+        "truncated": false
+      }
+    ]
+  },
+  "web_search": {
+    "status": "disabled_by_policy",
+    "topics": [],
+    "queries": [],
+    "evidence": [],
+    "observations": []
+  },
+  "explanation": {
+    "sections": [
+      {
+        "title": "詳しい解説",
+        "text": "合成サンプル: 表と図の比較",
+        "source_ids": [
+          "#/texts/0:text:0"
+        ],
+        "evidence_ids": []
+      },
+      {
+        "title": "詳しい解説",
+        "text": "{\"header_rows\": 1, \"rows\": [[\"区分\", \"件数\"], [\"A\", \"120\"], [\"B\", \"180\"], [\"C\", \"150\"], [\"合計\", \"450\"]]}",
+        "source_ids": [
+          "#/tables/0:text:0"
+        ],
+        "evidence_ids": []
+      },
+      {
+        "title": "詳しい解説",
+        "text": "図1: 表1の架空データを比較。BはAより60件多い。",
+        "source_ids": [
+          "#/texts/1:text:0"
+        ],
+        "evidence_ids": []
+      }
+    ],
+    "glossary": [],
+    "supplements": [],
+    "limitations": []
+  },
+  "verification": {
+    "parts": 1,
+    "boundaries": 0,
+    "calls": 3
+  },
+  "schema_version": 1,
+  "source_format_version": 1,
+  "copy_mapping_version": 1,
+  "version_id": "e8c9a3d1118645a8beb4a551cadd6fc5",
+  "unit_id": "slide-1",
+  "document_id": "77777777777777777777777777777777",
+  "created_at": "2026-10-03T09:58:34.589031+00:00"
+}

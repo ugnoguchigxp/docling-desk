@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=84,<85"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docling-azure-ocr"
+version = "0.1.0"
+description = "Docling OCR plugin for Azure Document Intelligence Read"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+dependencies = ["docling-slim==2.132.0", "docling-core==2.99.0", "httpx==0.28.1"]
+
+[project.optional-dependencies]
+managed-identity = ["azure-identity==1.25.1"]
+
+[project.entry-points.docling]
+docling_azure_read = "docling_azure_ocr.plugin"
+
+[tool.setuptools.packages.find]
+where = ["src"]

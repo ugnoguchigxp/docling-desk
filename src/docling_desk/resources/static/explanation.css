@@ -1,0 +1,12 @@
+.explanation-disclosure{margin:0;padding:5px 16px;color:#586778;font-size:12px;border-bottom:1px solid #dce2e8;background:#f8fafc}
+#preview.explanation-open{padding-right:min(460px,48%)}
+#explanationPanel{position:absolute;right:0;top:0;bottom:0;width:min(460px,48%);z-index:7;background:#fff;border-left:1px solid #dce2e8;padding:18px;overflow:auto;box-sizing:border-box;color:#243245;line-height:1.8}
+.explanation-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;position:sticky;top:-18px;background:#fff;z-index:1;padding:8px 0}
+#explanationStatus{font-size:13px;color:#586778;white-space:pre-wrap}
+#explanationText h3{font-size:16px;margin:22px 0 8px}#explanationText h4{font-size:14px;margin:16px 0 4px}
+#explanationText p{white-space:pre-wrap;overflow-wrap:anywhere;margin:8px 0}
+#explanationText .explanation-refs{display:flex;gap:6px;flex-wrap:wrap;font-size:12px}#explanationText .explanation-refs button{font-size:12px;padding:3px 7px}
+#explanationText a{overflow-wrap:anywhere}#explanationText details{margin:12px 0}#explanationText summary{cursor:pointer;font-weight:600}
+.explanation-table-scroll{overflow:auto;max-height:360px}.explanation-table-scroll table{border-collapse:collapse;font-size:12px}.explanation-table-scroll td,.explanation-table-scroll th{border:1px solid #dce2e8;padding:6px;white-space:pre-wrap;min-width:70px}
+#explanationActions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:800px){#explanationPanel{width:100%}#preview.explanation-open{padding-right:0}.explanation-disclosure{font-size:11px}#explainOpen{font-size:12px}}

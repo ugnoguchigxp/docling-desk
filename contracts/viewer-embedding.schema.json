@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:docling-desk:viewer-embedding:1",
+  "title": "Docling Desk viewer embedding protocol v1",
+  "$defs": {
+    "Location": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "page",
+            "slide",
+            "sheet",
+            "document"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "number": {
+          "default": 1,
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Location",
+      "type": "object"
+    },
+    "DocumentReference": {
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1,
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uuid",
+          "title": "Source Revision",
+          "type": "string"
+        },
+        "evidence_revision": {
+          "format": "uuid",
+          "title": "Evidence Revision",
+          "type": "string"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Location"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "source_id",
+        "source_revision",
+        "evidence_revision"
+      ],
+      "title": "DocumentReference",
+      "type": "object"
+    },
+    "HostMessage": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "iframe:height"
+            },
+            "height": {
+              "type": "number",
+              "minimum": 600,
+              "maximum": 1100
+            }
+          },
+          "required": [
+            "type",
+            "height"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "input:prompt"
+            },
+            "text": {
+              "type": "string",
+              "maxLength": 14000
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ViewerManifest": {
+      "type": "object",
+      "properties": {
+        "reference": {
+          "$ref": "#/$defs/DocumentReference"
+        },
+        "job": {
+          "type": "object",
+          "required": [
+            "id",
+            "filename",
+            "state",
+            "preview",
+            "pages",
+            "slide_layout"
+          ],
+          "description": "Job ID is only an isolated document-message correlation ID; it cannot select an API source."
+        },
+        "kind": {
+          "enum": [
+            "page",
+            "slide",
+            "sheet",
+            "document"
+          ]
+        },
+        "units": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "reference",
+        "job",
+        "kind",
+        "units"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$ref": "#/$defs/DocumentReference"
+}

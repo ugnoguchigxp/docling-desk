@@ -1,0 +1,218 @@
+{
+  "captured_at": "2026-10-03T01:58:39.366039+00:00",
+  "url": "http://127.0.0.1:8765",
+  "scope": "synthetic samples only; no customer-file quality validation",
+  "latest_jobs": {
+    "synthetic-report.pdf": {
+      "id": "cdb93ad1297f406899ff983f8b97054b",
+      "filename": "synthetic-report.pdf",
+      "state": "success",
+      "created": 1790991518.5505059,
+      "duration": 24.5,
+      "pages": 2,
+      "tables": 1,
+      "pictures": 1,
+      "chunks": 8,
+      "search_chunks": 8,
+      "rag_policy": "context-v1",
+      "error": null,
+      "warnings": [
+        "抽出HTMLは読み順・表・図を再構成した表示です。原本レイアウトや図と本文の意味関係の完全な保持は保証しません。"
+      ],
+      "preview": "original.html",
+      "slide_layout": false,
+      "synthetic": true
+    },
+    "synthetic-slides.pptx": {
+      "id": "c021aaefd9594298ad2b1ddab56b67bc",
+      "filename": "synthetic-slides.pptx",
+      "state": "success",
+      "created": 1790998635.4491699,
+      "duration": 0.19,
+      "pages": 2,
+      "tables": 1,
+      "pictures": 1,
+      "chunks": 2,
+      "search_chunks": 2,
+      "rag_policy": "context-v1",
+      "error": null,
+      "warnings": [
+        "原本側はMac Quick LookのHTML表示です。Officeでの表示とフォント・図形・グラフ・シート範囲が異なることがあります。",
+        "抽出HTMLは読み順・表・図を再構成した表示です。原本レイアウトや図と本文の意味関係の完全な保持は保証しません。"
+      ],
+      "preview": "quicklook/original.pptx.qlpreview/Preview.html",
+      "slide_layout": true,
+      "synthetic": true
+    },
+    "synthetic-sheet.xlsx": {
+      "id": "536cfca7d87b49bfa9be5f4ddf218efb",
+      "filename": "synthetic-sheet.xlsx",
+      "state": "success",
+      "created": 1790991431.570462,
+      "duration": 0.15,
+      "pages": 2,
+      "tables": 3,
+      "pictures": 1,
+      "chunks": 2,
+      "search_chunks": 2,
+      "rag_policy": "context-v1",
+      "error": null,
+      "warnings": [
+        "原本側はMac Quick LookのHTML表示です。Officeでの表示とフォント・図形・グラフ・シート範囲が異なることがあります。",
+        "抽出HTMLは読み順・表・図を再構成した表示です。原本レイアウトや図と本文の意味関係の完全な保持は保証しません。",
+        "XLSXの数式再計算は行いません。保存済み値・表領域・画像の抽出で、セル装飾や全グラフの意味抽出は保証しません。"
+      ],
+      "preview": "quicklook/original.xlsx.qlpreview/Preview.html",
+      "slide_layout": false,
+      "synthetic": true
+    }
+  },
+  "checks": {
+    "pytest": "25 passed (1 existing Starlette httpx deprecation warning)",
+    "ruff": "passed",
+    "ruff_format": "passed",
+    "ty": "passed",
+    "browser": "PDF/PPTX/XLSX original and extraction, XLSX both sheets, image load, references/RAG, PPTX web upload succeeded",
+    "pagination_browser": "PDF page 1/2 headers and page 2 navigation; PPTX slide 1/2 headers; XLSX named sheet 1/2 headers; screenshot qa/extracted-boundaries.jpg",
+    "javascript": "node --check app.js, tables.js, slides.js, table-common.js, inline-tables.js, rag.js passed",
+    "table_browser": "numeric ascending/descending, column filter, full-table search, reset, column resize 180 to 240 px, expand table, sheet 2 source navigation, HTTP CSV download and exact display-order validation",
+    "slide_browser": "synthetic slide 1/2 navigation, source overlay, extracted table/figure relative positioning, selectable element detail; real PPTX 34 options, slide 1/2 source display and wide mode; fresh upload generates slide layout"
+  },
+  "translation": "not connected",
+  "checkout": "a1c5ff2a8c5ab2bf87d7c1eb896b5bc351f51220",
+  "pagination_updated_at": "2026-10-03T02:14:47.581685+00:00",
+  "pagination": {
+    "existing_results_reexported": true,
+    "model_conversion_rerun": false,
+    "pdf": "pages",
+    "pptx": "slides",
+    "xlsx": "sheets; print pagination unavailable",
+    "docx": "input unsupported",
+    "customer_file_quality_validated": false
+  },
+  "table_view_updated_at": "2026-10-03T02:30:16.381064+00:00",
+  "table_view": {
+    "package": "Tabulator 6.5.0 (MIT), local assets only",
+    "vendor_bytes": 475647,
+    "source_mutation": false,
+    "real_xlsx_ui_check": "17 tables; largest 167 rows x 24 columns; header 1 row, 166 body rows",
+    "real_document_quality_validated": false,
+    "screenshots": [
+      "qa/interactive-table.jpg"
+    ],
+    "csv_evidence": "qa/interactive-table.csv"
+  },
+  "slide_layout_updated_at": "2026-10-03T02:54:03.087869+00:00",
+  "slide_layout": {
+    "mode": "source Quick Look plus Docling position annotations by default; extracted coordinate layout optional",
+    "extra_dependencies": 0,
+    "extra_models": 0,
+    "source_mutation": false,
+    "real_pptx_ui_check": "34 generated slide frames; slides 1 and 2 inspected; navigation and wide mode checked",
+    "real_document_quality_validated": false,
+    "new_upload_job": "7c711839b26d4083a21676e7354553ec",
+    "screenshots": [
+      "qa/slide-layout.jpg",
+      "qa/slide-original-overlay.jpg"
+    ],
+    "limitations": [
+      "inherited fonts, rotation, overlapping/grouped shapes approximate in extracted layout",
+      "figure semantics and translation not automated"
+    ]
+  },
+  "disk": {
+    "dedicated_directory": "approximately 1.9 GiB",
+    "free_space_checked": "approximately 64 GiB",
+    "new_user_file_deletions": false
+  },
+  "inline_tables_updated_at": "2026-10-03T03:12:14.494411+00:00",
+  "inline_tables": {
+    "source": "native Docling HTML, stable data-docling-ref attributes from table serializer",
+    "viewer_route": "/view/<job-id>/extracted",
+    "browser_checks": [
+      "numeric ascending/descending",
+      "full-table search",
+      "column filter",
+      "native-table toggle with filter state retained",
+      "reset",
+      "slide 2 and sheet 2 navigation",
+      "PDF embedded image loaded",
+      "XLSX 3 tables across 2 sheets",
+      "real XLSX 17 tables; 167x24 largest table shown with 166 body rows and 360px viewport",
+      "standalone table view still renders",
+      "initial view=html link honored"
+    ],
+    "download_check": "Actual ~/Downloads/table-1.csv matched displayed descending values 450,180,150,120; copy in qa/inline-table.csv",
+    "source_mutation": false,
+    "real_document_quality_validated": false,
+    "new_dependencies": 0,
+    "new_models": 0,
+    "screenshots": [
+      "qa/inline-table.jpg"
+    ],
+    "security": "allowlisted markup and local app scripts only; opaque sandbox without allow-same-origin; raw file CSP remains script-blocked"
+  },
+  "rag_updated_at": "2026-10-03T03:46:14.830032+00:00",
+  "rag_context": {
+    "policy": "context-v1",
+    "pptx": "1 slide per parent context",
+    "xlsx": "1 sheet per parent context; table-row retrieval children only when needed",
+    "pdf": "previous Docling section boundaries retained",
+    "target_chars": 4000,
+    "model_token_limit_validated": false,
+    "retrieval_accuracy_validated": false,
+    "real_pptx": {
+      "previous": 715,
+      "parents": 34,
+      "search": 34,
+      "max_parent_chars": 2056
+    },
+    "real_xlsx": {
+      "previous": 15,
+      "parents": 5,
+      "search": 27,
+      "max_parent_chars": 70405,
+      "max_search_chars": 3984
+    },
+    "checks": [
+      "all table and image refs retained",
+      "all nonempty real XLSX cell values retained in compact escaped table text",
+      "all search parent IDs resolve",
+      "all existing real search chunks <=4000 characters",
+      "original Docling JSON hashes unchanged",
+      "previous RAG bytes retained in rag-docling.jsonl",
+      "synthetic slide title/table/image/caption in one parent",
+      "browser old split/context/search mode switching",
+      "browser search child to correct parent slide/sheet",
+      "fresh PPTX upload succeeds with 2 context and 2 search chunks"
+    ],
+    "screenshots": [
+      "qa/rag-context.jpg"
+    ],
+    "migration_evidence": "qa/rag-reexport.json",
+    "new_dependencies": 0,
+    "new_models": 0,
+    "fresh_upload_job": "c021aaefd9594298ad2b1ddab56b67bc"
+  },
+  "original_only_view": {
+    "date": "2026-10-03",
+    "tabs": [
+      "preview",
+      "tables",
+      "structure",
+      "rag"
+    ],
+    "browser_checks": [
+      "原本プレビューを全幅表示し、抽出HTML iframe・抽出配置・抽出枠の重ね合わせがない",
+      "実資料PPTXのスライド選択・前後移動・表の出典からスライド30への移動",
+      "構造915要素とRAG34文脈を別タブで表示",
+      "合成PDFの2ページ画像がロードされる",
+      "合成XLSXの2シートと検索用RAGを表示",
+      "旧view=htmlを原本プレビューにフォールバック"
+    ],
+    "pytest": "25 passed",
+    "javascript_syntax": "app.js / slides.js / tables.js passed",
+    "screenshot": "qa/original-only-view.jpg",
+    "limitation": "Quick Look自体のOffice描画差は未修正。原本・抽出データおよび互換用HTML出力は保持。"
+  }
+}

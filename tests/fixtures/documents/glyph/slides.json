@@ -1,0 +1,16 @@
+{
+  "slides": [
+    {
+      "number": 1,
+      "width": 864,
+      "height": 486,
+      "preview": "preview/slide-1.html"
+    },
+    {
+      "number": 2,
+      "width": 864,
+      "height": 486,
+      "preview": "preview/slide-2.html"
+    }
+  ]
+}

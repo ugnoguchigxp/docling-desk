@@ -1,0 +1,4 @@
+{
+  "note": "確認した項目だけ status を confirmed にし、reviewer と reviewed_on と version を残します。不明な項目をまとめて確認済みにしません。",
+  "records": []
+}

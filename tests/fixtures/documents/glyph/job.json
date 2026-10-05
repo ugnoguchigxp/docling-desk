@@ -1,0 +1,18 @@
+{
+  "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "filename": "synthetic-glyphs.pptx",
+  "state": "success",
+  "created": 1790992552.4016,
+  "duration": 0.2,
+  "pages": 2,
+  "tables": 0,
+  "pictures": 0,
+  "chunks": 2,
+  "search_chunks": 2,
+  "rag_policy": "context-v4",
+  "error": null,
+  "warnings": [],
+  "preview": "preview/slide-1.html",
+  "slide_layout": true,
+  "synthetic": true
+}

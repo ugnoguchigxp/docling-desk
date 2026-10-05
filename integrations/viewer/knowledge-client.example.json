@@ -1,0 +1,9 @@
+{
+  "id": "open-webui-viewer",
+  "token": "REPLACE_WITH_SAME_RANDOM_KNOWLEDGE_SERVICE_TOKEN_43_CHARS",
+  "issuer": "open-webui-viewer",
+  "keys": {"v1": "REPLACE_WITH_SAME_RANDOM_ACTOR_SIGNING_KEY_43_CHARS"},
+  "mode": "actor",
+  "scopes": [{"collection_id": "documents"}],
+  "actions": ["read"]
+}

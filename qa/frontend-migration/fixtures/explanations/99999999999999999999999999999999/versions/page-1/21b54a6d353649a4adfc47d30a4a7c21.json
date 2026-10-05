@@ -1,0 +1,540 @@
+{
+  "source": {
+    "id": "page-1",
+    "kind": "page",
+    "number": 1,
+    "name": "",
+    "blocks": [
+      {
+        "id": "#/texts/0",
+        "text": "合成サンプル: 月別の件数",
+        "kind": "section_header",
+        "pages": [
+          1
+        ]
+      },
+      {
+        "id": "#/texts/1",
+        "text": "これは抽出機能を確認するための架空の資料です。",
+        "kind": "text",
+        "pages": [
+          1
+        ]
+      },
+      {
+        "id": "#/texts/2",
+        "text": "表1 区分ごとの件数。合計は450件です。",
+        "kind": "text",
+        "pages": [
+          1
+        ]
+      },
+      {
+        "id": "#/tables/0",
+        "text": "{\"header_rows\": 0, \"rows\": [[\"区分\", \"件数\"], [\"A\", \"120\"], [\"B\", \"180\"], [\"C\", \"150\"], [\"合計\", \"450\"]]}",
+        "kind": "table",
+        "pages": [
+          1
+        ]
+      },
+      {
+        "id": "#/texts/10",
+        "text": "Bの件数が最も多く、Aより60件多いことが分かります。",
+        "kind": "text",
+        "pages": [
+          1
+        ]
+      }
+    ],
+    "tables": [
+      {
+        "ref": "#/tables/0",
+        "label": "表 1",
+        "source_label": "ページ 1",
+        "pages": [
+          1
+        ],
+        "rows": [
+          [
+            "区分",
+            "件数"
+          ],
+          [
+            "A",
+            "120"
+          ],
+          [
+            "B",
+            "180"
+          ],
+          [
+            "C",
+            "150"
+          ],
+          [
+            "合計",
+            "450"
+          ]
+        ],
+        "columns": 2,
+        "header_rows": 0,
+        "merged": false,
+        "cells": [
+          {
+            "bbox": {
+              "l": 58.0,
+              "t": 163.49199999999996,
+              "r": 82.0,
+              "b": 174.836,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "区分",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 248.0,
+              "t": 163.49199999999996,
+              "r": 272.0,
+              "b": 174.836,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "件数",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 58.0,
+              "t": 198.49199999999996,
+              "r": 66.664,
+              "b": 209.836,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "A",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 248.0,
+              "t": 198.49199999999996,
+              "r": 266.0,
+              "b": 209.836,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "120",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 58.0,
+              "t": 233.49199999999996,
+              "r": 66.004,
+              "b": 244.836,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "B",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 248.0,
+              "t": 233.49199999999996,
+              "r": 266.0,
+              "b": 244.836,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "180",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 58.0,
+              "t": 268.49199999999996,
+              "r": 66.004,
+              "b": 279.836,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "C",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 248.0,
+              "t": 268.49199999999996,
+              "r": 266.0,
+              "b": 279.836,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "150",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 58.0,
+              "t": 303.49199999999996,
+              "r": 82.0,
+              "b": 314.836,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "合計",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 248.0,
+              "t": 303.49199999999996,
+              "r": 266.0,
+              "b": 314.836,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 4,
+            "end_row_offset_idx": 5,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "450",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          }
+        ]
+      }
+    ],
+    "excluded_pictures": 1
+  },
+  "source_parts": [
+    {
+      "text": "合成サンプル: 月別の件数",
+      "kind": "section_header",
+      "pages": [
+        1
+      ],
+      "start": 0,
+      "end": 13,
+      "part_id": "#/texts/0:text:0",
+      "original_ref": "#/texts/0",
+      "numbers": []
+    },
+    {
+      "text": "これは抽出機能を確認するための架空の資料です。",
+      "kind": "text",
+      "pages": [
+        1
+      ],
+      "start": 0,
+      "end": 23,
+      "part_id": "#/texts/1:text:0",
+      "original_ref": "#/texts/1",
+      "numbers": []
+    },
+    {
+      "text": "表1 区分ごとの件数。合計は450件です。",
+      "kind": "text",
+      "pages": [
+        1
+      ],
+      "start": 0,
+      "end": 21,
+      "part_id": "#/texts/2:text:0",
+      "original_ref": "#/texts/2",
+      "numbers": [
+        {
+          "value": "1",
+          "start": 1,
+          "end": 2,
+          "context": "表1 区分ごとの件数。合計は450件です。"
+        },
+        {
+          "value": "450件",
+          "start": 14,
+          "end": 18,
+          "context": "表1 区分ごとの件数。合計は450件です。"
+        }
+      ]
+    },
+    {
+      "text": "{\"header_rows\": 0, \"rows\": [[\"区分\", \"件数\"], [\"A\", \"120\"], [\"B\", \"180\"], [\"C\", \"150\"], [\"合計\", \"450\"]]}",
+      "kind": "table",
+      "pages": [
+        1
+      ],
+      "start": 0,
+      "end": 99,
+      "part_id": "#/tables/0:text:0",
+      "original_ref": "#/tables/0",
+      "numbers": [
+        {
+          "value": "0",
+          "start": 16,
+          "end": 17,
+          "context": "{\"header_rows\": 0, \"rows\": [[\"区分\", \"件数\"], [\"A\","
+        },
+        {
+          "value": "120",
+          "start": 49,
+          "end": 52,
+          "context": "\"rows\": [[\"区分\", \"件数\"], [\"A\", \"120\"], [\"B\", \"180\"], [\"C\", \"150\"]"
+        },
+        {
+          "value": "180",
+          "start": 63,
+          "end": 66,
+          "context": ", \"件数\"], [\"A\", \"120\"], [\"B\", \"180\"], [\"C\", \"150\"], [\"合計\", \"450\""
+        },
+        {
+          "value": "150",
+          "start": 77,
+          "end": 80,
+          "context": " \"120\"], [\"B\", \"180\"], [\"C\", \"150\"], [\"合計\", \"450\"]]}"
+        },
+        {
+          "value": "450",
+          "start": 92,
+          "end": 95,
+          "context": "\"180\"], [\"C\", \"150\"], [\"合計\", \"450\"]]}"
+        }
+      ]
+    },
+    {
+      "text": "Bの件数が最も多く、Aより60件多いことが分かります。",
+      "kind": "text",
+      "pages": [
+        1
+      ],
+      "start": 0,
+      "end": 27,
+      "part_id": "#/texts/10:text:0",
+      "original_ref": "#/texts/10",
+      "numbers": [
+        {
+          "value": "60件",
+          "start": 13,
+          "end": 16,
+          "context": "Bの件数が最も多く、Aより60件多いことが分かります。"
+        }
+      ]
+    }
+  ],
+  "outlines": [
+    {
+      "topics": [
+        {
+          "source_id": "#/texts/0:text:0",
+          "topic": "合成サンプル: 月別の件数",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        },
+        {
+          "source_id": "#/texts/1:text:0",
+          "topic": "これは抽出機能を確認するための架空の資料です。",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        },
+        {
+          "source_id": "#/texts/2:text:0",
+          "topic": "表1 区分ごとの件数。合計は450件です。",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        },
+        {
+          "source_id": "#/tables/0:text:0",
+          "topic": "{\"header_rows\": 0, \"rows\": [[\"区分\", \"件数\"], [\"A\", \"120\"], [\"B\", \"180\"], [\"C\", \"150\"], [\"合計\", \"450\"]]}",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        },
+        {
+          "source_id": "#/texts/10:text:0",
+          "topic": "Bの件数が最も多く、Aより60件多いことが分かります。",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        }
+      ]
+    }
+  ],
+  "output_language": "ja",
+  "reader_background": "13歳程度",
+  "source_hash": "2529095be9690a39568738a1be70413a76a979c59ab176aaa4d75fa2c2dfb839",
+  "hash_version": 1,
+  "source_name": "QA.pdf",
+  "extraction_state": "success",
+  "unlocated_count": 0,
+  "profile": {
+    "provider": "codex_sdk",
+    "model": "gpt-6-luna",
+    "web_provider": "disabled",
+    "prompt_version": 2,
+    "config_hash": "cef932056b2e572807e68da80c1d15101247013ee4c6841cee4a3ed3fae053ea"
+  },
+  "local_search": {
+    "status": "no_results",
+    "queries": [
+      "売上",
+      "比較"
+    ],
+    "evidence": []
+  },
+  "web_search": {
+    "status": "disabled_by_policy",
+    "topics": [],
+    "queries": [],
+    "evidence": [],
+    "observations": []
+  },
+  "explanation": {
+    "sections": [
+      {
+        "title": "詳しい解説",
+        "text": "合成サンプル: 月別の件数",
+        "source_ids": [
+          "#/texts/0:text:0"
+        ],
+        "evidence_ids": []
+      },
+      {
+        "title": "詳しい解説",
+        "text": "これは抽出機能を確認するための架空の資料です。",
+        "source_ids": [
+          "#/texts/1:text:0"
+        ],
+        "evidence_ids": []
+      },
+      {
+        "title": "詳しい解説",
+        "text": "表1 区分ごとの件数。合計は450件です。",
+        "source_ids": [
+          "#/texts/2:text:0"
+        ],
+        "evidence_ids": []
+      },
+      {
+        "title": "詳しい解説",
+        "text": "{\"header_rows\": 0, \"rows\": [[\"区分\", \"件数\"], [\"A\", \"120\"], [\"B\", \"180\"], [\"C\", \"150\"], [\"合計\", \"450\"]]}",
+        "source_ids": [
+          "#/tables/0:text:0"
+        ],
+        "evidence_ids": []
+      },
+      {
+        "title": "詳しい解説",
+        "text": "Bの件数が最も多く、Aより60件多いことが分かります。",
+        "source_ids": [
+          "#/texts/10:text:0"
+        ],
+        "evidence_ids": []
+      }
+    ],
+    "glossary": [],
+    "supplements": [],
+    "limitations": []
+  },
+  "verification": {
+    "parts": 1,
+    "boundaries": 0,
+    "calls": 3
+  },
+  "schema_version": 1,
+  "source_format_version": 1,
+  "copy_mapping_version": 1,
+  "version_id": "21b54a6d353649a4adfc47d30a4a7c21",
+  "unit_id": "page-1",
+  "document_id": "99999999999999999999999999999999",
+  "created_at": "2026-10-03T09:58:35.003791+00:00"
+}

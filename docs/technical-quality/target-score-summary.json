@@ -1,0 +1,183 @@
+{
+  "rubric_version": "1.1.0",
+  "technical_profile": "balanced",
+  "mode": "technical",
+  "assessment_kind": "expected",
+  "target": {
+    "locator": ".",
+    "snapshot": "HYPOTHETICAL future fixed snapshot after Q01-Q09 acceptance; no completed implementation snapshot exists",
+    "reviewed_at": "2026-10-04",
+    "stage": "prototype/pilot improvement scenario",
+    "scope": "同一balanced技術評価。ローカル文書処理、翻訳・解説、外部API、Azure OCR adapter、Wiki検索、印刷、配布物と運用。上流Docling全体、事業需要、実モデル関連度は独立評価。全30技術項目適用。"
+  },
+  "depth": "deep",
+  "tracks": {
+    "technical": {
+      "raw_observed_score": 83.8,
+      "provisional_score": 83.8,
+      "score": null,
+      "score_status": "provisional",
+      "coverage_percent": 100.0,
+      "excluded_dimension_weight_percent": 0.0,
+      "raw_bounds": [
+        83.8,
+        83.8
+      ],
+      "bounds": [
+        83.8,
+        83.8
+      ],
+      "confidence": "High",
+      "required_dimensions_complete": true,
+      "incomplete_required_dimensions": [],
+      "unresolved_severe_suspicions": [],
+      "gates": [],
+      "production_readiness": "hypothetical: no blocker identified in reviewed scope",
+      "dimensions": {
+        "architecture": {
+          "status": "assessed",
+          "score": 8.3,
+          "coverage_percent": 100.0,
+          "bounds": [
+            8.3,
+            8.3
+          ],
+          "base_weight": 10,
+          "confidence": "High",
+          "effective_weight_percent": 10.0
+        },
+        "correctness": {
+          "status": "assessed",
+          "score": 9.2,
+          "coverage_percent": 100.0,
+          "bounds": [
+            9.2,
+            9.2
+          ],
+          "base_weight": 15,
+          "confidence": "High",
+          "effective_weight_percent": 15.0
+        },
+        "security": {
+          "status": "assessed",
+          "score": 9.2,
+          "coverage_percent": 100.0,
+          "bounds": [
+            9.2,
+            9.2
+          ],
+          "base_weight": 15,
+          "confidence": "High",
+          "effective_weight_percent": 15.0
+        },
+        "reliability": {
+          "status": "assessed",
+          "score": 8.3,
+          "coverage_percent": 100.0,
+          "bounds": [
+            8.3,
+            8.3
+          ],
+          "base_weight": 10,
+          "confidence": "High",
+          "effective_weight_percent": 10.0
+        },
+        "maintainability": {
+          "status": "assessed",
+          "score": 7.5,
+          "coverage_percent": 100.0,
+          "bounds": [
+            7.5,
+            7.5
+          ],
+          "base_weight": 10,
+          "confidence": "High",
+          "effective_weight_percent": 10.0
+        },
+        "common_components": {
+          "status": "assessed",
+          "score": 8.3,
+          "coverage_percent": 100.0,
+          "bounds": [
+            8.3,
+            8.3
+          ],
+          "base_weight": 5,
+          "confidence": "High",
+          "effective_weight_percent": 5.0
+        },
+        "testing": {
+          "status": "assessed",
+          "score": 9.2,
+          "coverage_percent": 100.0,
+          "bounds": [
+            9.2,
+            9.2
+          ],
+          "base_weight": 10,
+          "confidence": "High",
+          "effective_weight_percent": 10.0
+        },
+        "supply_chain": {
+          "status": "assessed",
+          "score": 7.5,
+          "coverage_percent": 100.0,
+          "bounds": [
+            7.5,
+            7.5
+          ],
+          "base_weight": 10,
+          "confidence": "High",
+          "effective_weight_percent": 10.0
+        },
+        "performance": {
+          "status": "assessed",
+          "score": 7.5,
+          "coverage_percent": 100.0,
+          "bounds": [
+            7.5,
+            7.5
+          ],
+          "base_weight": 7,
+          "confidence": "High",
+          "effective_weight_percent": 7.0
+        },
+        "operability": {
+          "status": "assessed",
+          "score": 7.5,
+          "coverage_percent": 100.0,
+          "bounds": [
+            7.5,
+            7.5
+          ],
+          "base_weight": 8,
+          "confidence": "High",
+          "effective_weight_percent": 8.0
+        }
+      }
+    }
+  },
+  "confirmed_findings": {
+    "Critical": 0,
+    "High": 0,
+    "Medium": 0,
+    "Low": 0
+  },
+  "priorities": {
+    "P0": 0,
+    "P1": 0,
+    "P2": 0,
+    "P3": 0
+  },
+  "suspected_findings": 0,
+  "baseline_snapshot": "83ce438060b7dd97f3d50ee2a9eadb914448098a + historical sha256:f08f7e78a3939abfbb9264dc3ab28cc132023b5aae37b899beab89915c94dc01; planning-check sha256:1da122bac86357da0104c59f9bf17941160a079f659919250698bdf633c90412",
+  "scenario_conditions": [
+    "本台帳は計画上の条件付きExpectedであり、現在の実証評点ではない。High confidence、coverage 100%、findings 0は将来の証拠成立を仮定する。正式スコアはnull。",
+    "Q01〜Q08を同じ固定版で完了し、verification-plan.mdの全30項目の基本条件・例外・反証を実際に確認する。",
+    "目標4の9項目では重要な境界・障害・別の説明を実行または独立した観測で検証し、High confidenceとanchor supportを実績台帳へ記録する。",
+    "未確認0、N/A0、同じrubric 1.1.0とbalanced重みを維持する。確認済みCritical/Highと重大な未調査の疑いを残さない。",
+    "利用条件はローカル画面と範囲制御された外部API。実Azure・実モデルを未検証とする場合は模擬結合までの運用条件を明記し、実運用の成功を保証しない。",
+    "性能予算案をG0で利用条件として測定前に確定し、代表的な規模・冷温・例外で実測する。",
+    "前回の指摘と新機能の不具合は新しい実績台帳で検証して解消を判断する。旧Current台帳のfindingsは変更しない。"
+  ]
+}

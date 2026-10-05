@@ -1,0 +1,212 @@
+{
+  "slides": [
+    {
+      "number": 1,
+      "width": 864.0,
+      "height": 486.0,
+      "preview": "quicklook/original.pptx.qlpreview/slide-layout-1.html",
+      "blocks": [
+        {
+          "kind": "text",
+          "refs": [
+            "#/texts/0"
+          ],
+          "texts": [
+            "合成サンプル: 表と図の比較"
+          ],
+          "x": 36.0,
+          "y": 21.6,
+          "width": 792.0,
+          "height": 50.4,
+          "font_size": 28.0,
+          "cells": [],
+          "rows": 0,
+          "columns": 0,
+          "image": null
+        },
+        {
+          "kind": "table",
+          "refs": [
+            "#/tables/0"
+          ],
+          "texts": [],
+          "x": 43.2,
+          "y": 108.0,
+          "width": 288.0,
+          "height": 216.0,
+          "font_size": 16.0,
+          "cells": [
+            {
+              "text": "区分",
+              "row": 0,
+              "col": 0,
+              "row_span": 1,
+              "col_span": 1,
+              "header": true
+            },
+            {
+              "text": "件数",
+              "row": 0,
+              "col": 1,
+              "row_span": 1,
+              "col_span": 1,
+              "header": true
+            },
+            {
+              "text": "A",
+              "row": 1,
+              "col": 0,
+              "row_span": 1,
+              "col_span": 1,
+              "header": false
+            },
+            {
+              "text": "120",
+              "row": 1,
+              "col": 1,
+              "row_span": 1,
+              "col_span": 1,
+              "header": false
+            },
+            {
+              "text": "B",
+              "row": 2,
+              "col": 0,
+              "row_span": 1,
+              "col_span": 1,
+              "header": false
+            },
+            {
+              "text": "180",
+              "row": 2,
+              "col": 1,
+              "row_span": 1,
+              "col_span": 1,
+              "header": false
+            },
+            {
+              "text": "C",
+              "row": 3,
+              "col": 0,
+              "row_span": 1,
+              "col_span": 1,
+              "header": false
+            },
+            {
+              "text": "150",
+              "row": 3,
+              "col": 1,
+              "row_span": 1,
+              "col_span": 1,
+              "header": false
+            },
+            {
+              "text": "合計",
+              "row": 4,
+              "col": 0,
+              "row_span": 1,
+              "col_span": 1,
+              "header": false
+            },
+            {
+              "text": "450",
+              "row": 4,
+              "col": 1,
+              "row_span": 1,
+              "col_span": 1,
+              "header": false
+            }
+          ],
+          "rows": 5,
+          "columns": 2,
+          "image": null
+        },
+        {
+          "kind": "picture",
+          "refs": [
+            "#/pictures/0"
+          ],
+          "texts": [],
+          "x": 374.4,
+          "y": 129.6,
+          "width": 432.0,
+          "height": 194.4,
+          "font_size": 20.0,
+          "cells": [],
+          "rows": 0,
+          "columns": 0,
+          "image": "data:image/png;base64,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"
+        },
+        {
+          "kind": "text",
+          "refs": [
+            "#/texts/1"
+          ],
+          "texts": [
+            "図1: 表1の架空データを比較。BはAより60件多い。"
+          ],
+          "x": 43.2,
+          "y": 374.4,
+          "width": 792.0,
+          "height": 72.0,
+          "font_size": 20.0,
+          "cells": [],
+          "rows": 0,
+          "columns": 0,
+          "image": null
+        }
+      ],
+      "unplaced": []
+    },
+    {
+      "number": 2,
+      "width": 864.0,
+      "height": 486.0,
+      "preview": "quicklook/original.pptx.qlpreview/slide-layout-2.html",
+      "blocks": [
+        {
+          "kind": "text",
+          "refs": [
+            "#/texts/2"
+          ],
+          "texts": [
+            "日本語と出典の確認"
+          ],
+          "x": 36.0,
+          "y": 21.6,
+          "width": 792.0,
+          "height": 50.4,
+          "font_size": 28.0,
+          "cells": [],
+          "rows": 0,
+          "columns": 0,
+          "image": null
+        },
+        {
+          "kind": "text",
+          "refs": [
+            "#/texts/3",
+            "#/texts/4",
+            "#/texts/5"
+          ],
+          "texts": [
+            "これは合成テスト資料です。",
+            "表1と図1の対応、日本語、ページ番号を確認します。",
+            "翻訳と実資料の品質検証は未実施です。"
+          ],
+          "x": 43.2,
+          "y": 122.4,
+          "width": 792.0,
+          "height": 72.0,
+          "font_size": 20.0,
+          "cells": [],
+          "rows": 0,
+          "columns": 0,
+          "image": null
+        }
+      ],
+      "unplaced": []
+    }
+  ],
+  "notice": "抽出配置はDoclingの座標を使った再構成です。原本＋抽出位置で矢印・背景・装飾も確認できます。フォント・重なり・回転・グループ図形の再現と、図の意味関係の自動理解は保証しません。"
+}

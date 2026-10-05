@@ -1,0 +1,22 @@
+{
+  "id": "536cfca7d87b49bfa9be5f4ddf218efb",
+  "filename": "synthetic-sheet.xlsx",
+  "state": "success",
+  "created": 1790991431.570462,
+  "duration": 0.15,
+  "pages": 2,
+  "tables": 3,
+  "pictures": 1,
+  "chunks": 2,
+  "search_chunks": 2,
+  "rag_policy": "context-v4",
+  "error": null,
+  "warnings": [
+    "原本側はMac Quick LookのHTML表示です。Officeでの表示とフォント・図形・グラフ・シート範囲が異なることがあります。",
+    "抽出HTMLは読み順・表・図を再構成した表示です。原本レイアウトや図と本文の意味関係の完全な保持は保証しません。",
+    "XLSXの数式再計算は行いません。保存済み値・表領域・画像の抽出で、セル装飾や全グラフの意味抽出は保証しません。"
+  ],
+  "preview": "quicklook/original.xlsx.qlpreview/Preview.html",
+  "slide_layout": false,
+  "synthetic": true
+}

@@ -1,0 +1,31 @@
+services:
+  docling:
+    image: docling-desk:linux
+    build: .
+    init: true
+    ports:
+      - "127.0.0.1:${DOCLING_PORT:-18765}:8765"
+    environment:
+      DOCLING_ALLOWED_HOSTS: "${DOCLING_ALLOWED_HOSTS:-localhost,127.0.0.1}"
+      DOCLING_ALLOWED_ORIGINS: "${DOCLING_ALLOWED_ORIGINS:-}"
+      DOCLING_ROOT_PATH: "${DOCLING_ROOT_PATH:-}"
+      DOCLING_AUTH_MODE: "${DOCLING_AUTH_MODE:-none}"
+      DOCLING_AUTH_JWT_SECRET_FILE: "${DOCLING_AUTH_JWT_SECRET_FILE:-}"
+      DOCLING_AUTH_LOGIN_URL: "${DOCLING_AUTH_LOGIN_URL:-}"
+      DOCLING_AUTH_COOKIE: "${DOCLING_AUTH_COOKIE:-mplm_access_token}"
+      DOCLING_TRANSLATION_PROVIDER: "${DOCLING_TRANSLATION_PROVIDER:-codex_sdk}"
+      DOCLING_AZURE_ENDPOINT: "${DOCLING_AZURE_ENDPOINT:-}"
+      DOCLING_AZURE_DEPLOYMENT: "${DOCLING_AZURE_DEPLOYMENT:-}"
+      AZURE_OPENAI_API_KEY: "${AZURE_OPENAI_API_KEY:-}"
+      DOCLING_AZURE_OCR_ENDPOINT: "${DOCLING_AZURE_OCR_ENDPOINT:-}"
+      DOCLING_AZURE_OCR_CLIENT_ID: "${DOCLING_AZURE_OCR_CLIENT_ID:-}"
+      AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "${AZURE_DOCUMENT_INTELLIGENCE_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+    volumes:
+      - docling-data:/var/lib/docling/data
+    restart: unless-stopped
+    stop_grace_period: 30s
+    shm_size: 256mb
+
+volumes:
+  docling-data:

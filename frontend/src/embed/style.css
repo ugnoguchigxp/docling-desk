@@ -1,0 +1,70 @@
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+#root {
+  display: flex;
+  flex-direction: column;
+}
+#detail {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  margin: 0;
+}
+#viewerToolbar {
+  flex-wrap: wrap;
+}
+#documentPanels {
+  flex: 1;
+  min-height: 0;
+}
+#preview,
+#structure,
+#rag,
+#tables {
+  height: 100%;
+  overflow: auto;
+}
+.viewer-connect {
+  padding: 24px;
+  overflow: auto;
+}
+.viewer-connect h1 {
+  font-size: 20px;
+}
+.viewer-connect strong {
+  font-size: 32px;
+  letter-spacing: 4px;
+}
+.viewer-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-top: 1px solid #ddd;
+  flex: none;
+  font-size: 12px;
+}
+.viewer-question {
+  padding: 8px;
+  max-height: 160px;
+  overflow: auto;
+  flex: none;
+}
+.viewer-question textarea {
+  width: 100%;
+  min-height: 80px;
+}
+@media (prefers-color-scheme: dark) {
+  .viewer-connect,
+  .viewer-footer {
+    background: #1e2428;
+    color: #eee;
+  }
+}

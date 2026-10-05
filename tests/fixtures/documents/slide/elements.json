@@ -1,0 +1,210 @@
+[
+  {
+    "ref": "#/texts/0",
+    "label": "paragraph",
+    "text": "合成サンプル: 表と図の比較",
+    "pages": [
+      1
+    ],
+    "provenance": [
+      {
+        "page_no": 1,
+        "bbox": {
+          "l": 457200.0,
+          "t": 274320.0,
+          "r": 10515600.0,
+          "b": 914400.0,
+          "coord_origin": "TOPLEFT"
+        },
+        "charspan": [
+          0,
+          14
+        ]
+      }
+    ],
+    "parent": "#/groups/0",
+    "captions": []
+  },
+  {
+    "ref": "#/tables/0",
+    "label": "table",
+    "text": "| 区分   |   件数 |\n|------|------|\n| A    |  120 |\n| B    |  180 |\n| C    |  150 |\n| 合計   |  450 |",
+    "pages": [
+      1
+    ],
+    "provenance": [
+      {
+        "page_no": 1,
+        "bbox": {
+          "l": 548640.0,
+          "t": 1371600.0,
+          "r": 4206240.0,
+          "b": 4114800.0,
+          "coord_origin": "TOPLEFT"
+        },
+        "charspan": [
+          0,
+          0
+        ]
+      }
+    ],
+    "parent": "#/groups/0",
+    "captions": []
+  },
+  {
+    "ref": "#/pictures/0",
+    "label": "picture",
+    "text": "",
+    "pages": [
+      1
+    ],
+    "provenance": [
+      {
+        "page_no": 1,
+        "bbox": {
+          "l": 4754880.0,
+          "t": 1645920.0,
+          "r": 10241280.0,
+          "b": 4114800.0,
+          "coord_origin": "TOPLEFT"
+        },
+        "charspan": [
+          0,
+          0
+        ]
+      }
+    ],
+    "parent": "#/groups/0",
+    "captions": []
+  },
+  {
+    "ref": "#/texts/1",
+    "label": "paragraph",
+    "text": "図1: 表1の架空データを比較。BはAより60件多い。",
+    "pages": [
+      1
+    ],
+    "provenance": [
+      {
+        "page_no": 1,
+        "bbox": {
+          "l": 548640.0,
+          "t": 4754880.0,
+          "r": 10607040.0,
+          "b": 5669280.0,
+          "coord_origin": "TOPLEFT"
+        },
+        "charspan": [
+          0,
+          27
+        ]
+      }
+    ],
+    "parent": "#/groups/0",
+    "captions": []
+  },
+  {
+    "ref": "#/texts/2",
+    "label": "paragraph",
+    "text": "日本語と出典の確認",
+    "pages": [
+      2
+    ],
+    "provenance": [
+      {
+        "page_no": 2,
+        "bbox": {
+          "l": 457200.0,
+          "t": 274320.0,
+          "r": 10515600.0,
+          "b": 914400.0,
+          "coord_origin": "TOPLEFT"
+        },
+        "charspan": [
+          0,
+          9
+        ]
+      }
+    ],
+    "parent": "#/groups/1",
+    "captions": []
+  },
+  {
+    "ref": "#/texts/3",
+    "label": "paragraph",
+    "text": "これは合成テスト資料です。",
+    "pages": [
+      2
+    ],
+    "provenance": [
+      {
+        "page_no": 2,
+        "bbox": {
+          "l": 548640.0,
+          "t": 1554480.0,
+          "r": 10607040.0,
+          "b": 2468880.0,
+          "coord_origin": "TOPLEFT"
+        },
+        "charspan": [
+          0,
+          13
+        ]
+      }
+    ],
+    "parent": "#/groups/1",
+    "captions": []
+  },
+  {
+    "ref": "#/texts/4",
+    "label": "paragraph",
+    "text": "表1と図1の対応、日本語、ページ番号を確認します。",
+    "pages": [
+      2
+    ],
+    "provenance": [
+      {
+        "page_no": 2,
+        "bbox": {
+          "l": 548640.0,
+          "t": 1554480.0,
+          "r": 10607040.0,
+          "b": 2468880.0,
+          "coord_origin": "TOPLEFT"
+        },
+        "charspan": [
+          0,
+          25
+        ]
+      }
+    ],
+    "parent": "#/groups/1",
+    "captions": []
+  },
+  {
+    "ref": "#/texts/5",
+    "label": "paragraph",
+    "text": "翻訳と実資料の品質検証は未実施です。",
+    "pages": [
+      2
+    ],
+    "provenance": [
+      {
+        "page_no": 2,
+        "bbox": {
+          "l": 548640.0,
+          "t": 1554480.0,
+          "r": 10607040.0,
+          "b": 2468880.0,
+          "coord_origin": "TOPLEFT"
+        },
+        "charspan": [
+          0,
+          18
+        ]
+      }
+    ],
+    "parent": "#/groups/1",
+    "captions": []
+  }
+]

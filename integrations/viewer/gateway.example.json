@@ -1,0 +1,17 @@
+{
+  "api_url": "http://127.0.0.1:18766",
+  "public_url": "http://127.0.0.1:18768",
+  "client_id": "open-webui-viewer",
+  "issuer": "open-webui-viewer",
+  "kid": "v1",
+  "api_token": "REPLACE_WITH_RANDOM_KNOWLEDGE_SERVICE_TOKEN_43_CHARS",
+  "signing_key": "REPLACE_WITH_RANDOM_ACTOR_SIGNING_KEY_43_CHARS",
+  "connector_token": "REPLACE_WITH_RANDOM_OPENWEBUI_CONNECTOR_TOKEN_43_CHARS",
+  "mcp_hosts": ["host.docker.internal:18768"],
+  "users": {
+    "REPLACE_WITH_OPEN_WEBUI_USER_ID": {
+      "scopes": [{"collection_id": "documents"}],
+      "mcp_token": "REPLACE_WITH_RANDOM_PER_USER_MCP_TOKEN_43_CHARS"
+    }
+  }
+}

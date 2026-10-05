@@ -1,0 +1,144 @@
+{
+  "dataset_version": "draft-1",
+  "budget_status": "proposed",
+  "percentile_method": "nearest-rank: sort successful durations ascending; index = round((n-1)*fraction), clamped to [0, n-1]. Descriptive only. Small n is not a guarantee.",
+  "proposed_budgets": {
+    "text_search_p95_seconds": 0.3,
+    "context_p95_seconds": 0.5,
+    "cached_hybrid_p95_seconds": 2.0,
+    "rss_sum_bytes": 8589934592,
+    "total_wait_p95_seconds": null,
+    "note": "検証計画の提案値。検索・文脈・総待ちを同じ閾値にしない。採用前であり、範囲内でも本番合格にしない。"
+  },
+  "scenarios": [
+    {
+      "id": "small_text",
+      "stage1_execute": true,
+      "scale_role": "ci_smoke",
+      "mode": "text",
+      "kind": "wiki",
+      "namespace": "evaluation-small",
+      "limit": 5,
+      "context_budget": 4000,
+      "warmup": 1,
+      "repeats": 30,
+      "query": "搬出上限は120箱です。雨天時は搬出禁止です。",
+      "expect": "passage",
+      "expected_source_key": "fictional-carry-rule-v1",
+      "expected_passage": "搬出上限は120箱です。雨天時は搬出禁止です。",
+      "source_endpoint": "wiki",
+      "condition": "warm_after_one_request_not_os_cache_cold"
+    },
+    {
+      "id": "small_text_short",
+      "stage1_execute": true,
+      "scale_role": "ci_smoke",
+      "mode": "text",
+      "kind": "wiki",
+      "namespace": "evaluation-small",
+      "limit": 5,
+      "context_budget": 4000,
+      "warmup": 1,
+      "repeats": 5,
+      "query": "雨天",
+      "expect": "passage",
+      "expected_source_key": "fictional-carry-rule-v1",
+      "expected_passage": "雨天時は搬出禁止です。",
+      "source_endpoint": "wiki",
+      "condition": "japanese_two_character_term"
+    },
+    {
+      "id": "small_text_absent",
+      "stage1_execute": true,
+      "scale_role": "ci_smoke",
+      "mode": "text",
+      "kind": "wiki",
+      "namespace": "evaluation-small",
+      "limit": 5,
+      "context_budget": 4000,
+      "warmup": 0,
+      "repeats": 5,
+      "query": "積雪上限",
+      "expect": "empty",
+      "expected_source_key": null,
+      "expected_passage": null,
+      "source_endpoint": "wiki",
+      "condition": "no_match_must_not_count_as_success"
+    },
+    {
+      "id": "small_mixed_artifact",
+      "stage1_execute": true,
+      "scale_role": "ci_smoke",
+      "mode": "text",
+      "kind": "all",
+      "namespace": null,
+      "limit": 5,
+      "context_budget": 4000,
+      "warmup": 1,
+      "repeats": 5,
+      "query": "青葉台保管票の照合番号は441です。",
+      "expect": "passage",
+      "expected_source_key": "synthetic-document-artifact",
+      "expected_passage": "青葉台保管票の照合番号は441です。",
+      "source_endpoint": "context",
+      "includes_document_sync": true,
+      "conversion": false,
+      "condition": "prebuilt_search_artifact_not_conversion"
+    },
+    {
+      "id": "scale_1000_10000_30000",
+      "stage1_execute": false,
+      "reason": "約1,000、10,000、30,000 chunksの規模変化は未測定。小規模の実行は標準規模の合格証拠にしない。"
+    },
+    {
+      "id": "scope_folder_namespace",
+      "stage1_execute": false,
+      "reason": "フォルダー子孫、少数出典、namespaceごとの規模影響は未測定。"
+    },
+    {
+      "id": "update_move_delete_timing",
+      "stage1_execute": false,
+      "reason": "更新・移動・削除の所要時間は未測定。版の整合は意味評価の改版・削除ケースで別に見る。"
+    },
+    {
+      "id": "concurrency_1_4_8",
+      "stage1_execute": false,
+      "reason": "同時要求の占有を保証する測定は未実施。短い要求を連打しても同時占有にはならない。"
+    },
+    {
+      "id": "dimensions_8192",
+      "stage1_execute": false,
+      "reason": "8192次元の別系列は未実行。標準条件と同じ性能とは扱わない。"
+    },
+    {
+      "id": "cached_hybrid",
+      "stage1_execute": false,
+      "reason": "キャッシュ済みHybridの測定は未実施。疑似vectorは意味検索の精度に使わない。"
+    },
+    {
+      "id": "azure_wait",
+      "stage1_execute": false,
+      "reason": "Azureの通信、queue、cooldownを含む測定は未実施。資格情報があってもこの段階では送らない。"
+    },
+    {
+      "id": "document_conversion",
+      "stage1_execute": false,
+      "reason": "合成PDF、DOCX、PPTX、XLSXの実変換は未実施。検索成果物の投入は変換性能の証拠にしない。"
+    },
+    {
+      "id": "browser_paint",
+      "stage1_execute": false,
+      "reason": "Playwrightによる検索送信から出典表示までの画面時間は未測定。HTTPの時間を画面の待ち時間と呼ばない。"
+    },
+    {
+      "id": "formal_hardware",
+      "stage1_execute": false,
+      "reason": "採用する規模と対象Mac・Linuxでの正式測定は未実施。この機械での機構確認を正式測定とは扱わない。"
+    },
+    {
+      "id": "os_cache_cold",
+      "stage1_execute": false,
+      "reason": "OSのファイルキャッシュまで制御した冷状態は未測定。プロセス起動後の初回を完全な冷状態とは呼ばない。"
+    }
+  ]
+}

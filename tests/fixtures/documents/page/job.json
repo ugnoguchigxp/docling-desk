@@ -1,0 +1,20 @@
+{
+  "id": "cdb93ad1297f406899ff983f8b97054b",
+  "filename": "synthetic-report.pdf",
+  "state": "success",
+  "created": 1790991518.5505059,
+  "duration": 24.5,
+  "pages": 2,
+  "tables": 1,
+  "pictures": 1,
+  "chunks": 7,
+  "search_chunks": 7,
+  "rag_policy": "context-v4",
+  "error": null,
+  "warnings": [
+    "抽出HTMLは読み順・表・図を再構成した表示です。原本レイアウトや図と本文の意味関係の完全な保持は保証しません。"
+  ],
+  "preview": "original.html",
+  "slide_layout": false,
+  "synthetic": true
+}

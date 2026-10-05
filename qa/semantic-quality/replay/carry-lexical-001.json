@@ -1,0 +1,21 @@
+{
+  "case_id": "carry-lexical-001",
+  "execution_mode": "replay",
+  "origin": "authored_fixture",
+  "proves": "保存した応答を事実と引用の検査へ渡せる",
+  "does_not_prove": ["現行モデルの精度", "現行OCRの精度", "実embeddingの関連度"],
+  "captured_from_live_model": false,
+  "captured_from_live_ocr": false,
+  "answer": {
+    "abstained": false,
+    "model_audit": "approved",
+    "claims": [
+      {
+        "text": "搬出上限は120箱です。雨天時は搬出禁止です。",
+        "citation_source_keys": ["fictional-carry-rule-v1"],
+        "cited_text": "搬出上限は120箱です。雨天時は搬出禁止です。",
+        "paraphrase": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "unit_id": "sheet-1",
+  "state": "completed",
+  "stage": "保存完了",
+  "attempt_id": "9b81478c45ba481d8860781e9ad857b6",
+  "latest_version_id": "d3a9a1d5c96e41919c52e4e0d76ce6db",
+  "published_version_ids": [
+    "d3a9a1d5c96e41919c52e4e0d76ce6db"
+  ],
+  "version_hashes": {
+    "d3a9a1d5c96e41919c52e4e0d76ce6db": "12f12d64192453aca1067c0bf3eb6b3d216ee00cf7d4070c9e3174ea8fb8f714"
+  },
+  "error": null,
+  "updated_at": "2026-10-03T09:58:34.779194+00:00",
+  "error_code": null,
+  "review_issues": [],
+  "resume_requested": false,
+  "started_at": "2026-10-03T09:58:34.752782+00:00",
+  "source_hash": "12db2fa91899b7af9c2c23b748e8966090b17df3399c27c3c8b974346d93a442",
+  "profile": {
+    "provider": "codex_sdk",
+    "model": "gpt-6-luna",
+    "web_provider": "disabled",
+    "prompt_version": 2,
+    "config_hash": "cef932056b2e572807e68da80c1d15101247013ee4c6841cee4a3ed3fae053ea"
+  }
+}

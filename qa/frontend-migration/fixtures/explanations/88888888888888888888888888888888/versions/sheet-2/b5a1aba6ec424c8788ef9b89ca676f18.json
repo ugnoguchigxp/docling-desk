@@ -1,0 +1,191 @@
+{
+  "source": {
+    "id": "sheet-2",
+    "kind": "sheet",
+    "number": 2,
+    "name": "注記",
+    "blocks": [
+      {
+        "id": "#/tables/2",
+        "text": "{\"header_rows\": 1, \"rows\": [[\"合成テスト資料\"], [\"表1と図1は同じ架空データです。\"], [\"実資料の品質検証は未実施。\"]]}",
+        "kind": "table",
+        "pages": [
+          2
+        ]
+      }
+    ],
+    "tables": [
+      {
+        "ref": "#/tables/2",
+        "label": "表 3",
+        "source_label": "シート 2 · 注記",
+        "pages": [
+          2
+        ],
+        "rows": [
+          [
+            "合成テスト資料"
+          ],
+          [
+            "表1と図1は同じ架空データです。"
+          ],
+          [
+            "実資料の品質検証は未実施。"
+          ]
+        ],
+        "columns": 1,
+        "header_rows": 1,
+        "merged": false,
+        "cells": [
+          {
+            "bbox": null,
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "合成テスト資料",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": null,
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "表1と図1は同じ架空データです。",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": null,
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "実資料の品質検証は未実施。",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          }
+        ]
+      }
+    ],
+    "excluded_pictures": 0
+  },
+  "source_parts": [
+    {
+      "text": "{\"header_rows\": 1, \"rows\": [[\"合成テスト資料\"], [\"表1と図1は同じ架空データです。\"], [\"実資料の品質検証は未実施。\"]]}",
+      "kind": "table",
+      "pages": [
+        2
+      ],
+      "start": 0,
+      "end": 82,
+      "part_id": "#/tables/2:text:0",
+      "original_ref": "#/tables/2",
+      "numbers": [
+        {
+          "value": "1",
+          "start": 16,
+          "end": 17,
+          "context": "{\"header_rows\": 1, \"rows\": [[\"合成テスト資料\"], [\"表1と図"
+        },
+        {
+          "value": "1",
+          "start": 44,
+          "end": 45,
+          "context": ": 1, \"rows\": [[\"合成テスト資料\"], [\"表1と図1は同じ架空データです。\"], [\"実資料の品質検証は未"
+        },
+        {
+          "value": "1",
+          "start": 47,
+          "end": 48,
+          "context": ", \"rows\": [[\"合成テスト資料\"], [\"表1と図1は同じ架空データです。\"], [\"実資料の品質検証は未実施。"
+        }
+      ]
+    }
+  ],
+  "outlines": [
+    {
+      "topics": [
+        {
+          "source_id": "#/tables/2:text:0",
+          "topic": "{\"header_rows\": 1, \"rows\": [[\"合成テスト資料\"], [\"表1と図1は同じ架空データです。\"], [\"実資料の品質検証は未実施。\"]]}",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        }
+      ]
+    }
+  ],
+  "output_language": "ja",
+  "reader_background": "13歳程度",
+  "source_hash": "12db2fa91899b7af9c2c23b748e8966090b17df3399c27c3c8b974346d93a442",
+  "hash_version": 1,
+  "source_name": "QA.xlsx",
+  "extraction_state": "success",
+  "unlocated_count": 0,
+  "profile": {
+    "provider": "codex_sdk",
+    "model": "gpt-6-luna",
+    "web_provider": "disabled",
+    "prompt_version": 2,
+    "config_hash": "cef932056b2e572807e68da80c1d15101247013ee4c6841cee4a3ed3fae053ea"
+  },
+  "local_search": {
+    "status": "no_results",
+    "queries": [
+      "売上",
+      "比較"
+    ],
+    "evidence": []
+  },
+  "web_search": {
+    "status": "disabled_by_policy",
+    "topics": [],
+    "queries": [],
+    "evidence": [],
+    "observations": []
+  },
+  "explanation": {
+    "sections": [
+      {
+        "title": "詳しい解説",
+        "text": "{\"header_rows\": 1, \"rows\": [[\"合成テスト資料\"], [\"表1と図1は同じ架空データです。\"], [\"実資料の品質検証は未実施。\"]]}",
+        "source_ids": [
+          "#/tables/2:text:0"
+        ],
+        "evidence_ids": []
+      }
+    ],
+    "glossary": [],
+    "supplements": [],
+    "limitations": []
+  },
+  "verification": {
+    "parts": 1,
+    "boundaries": 0,
+    "calls": 3
+  },
+  "schema_version": 1,
+  "source_format_version": 1,
+  "copy_mapping_version": 1,
+  "version_id": "b5a1aba6ec424c8788ef9b89ca676f18",
+  "unit_id": "sheet-2",
+  "document_id": "88888888888888888888888888888888",
+  "created_at": "2026-10-03T09:58:34.815037+00:00"
+}

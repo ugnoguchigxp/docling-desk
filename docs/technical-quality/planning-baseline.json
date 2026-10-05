@@ -1,0 +1,340 @@
+{
+  "document_kind": "planning_baseline_not_full_current_score",
+  "observed_at": "2026-10-04",
+  "source_digest": "1da122bac86357da0104c59f9bf17941160a079f659919250698bdf633c90412",
+  "base_commit": "83ce438060b7dd97f3d50ee2a9eadb914448098a",
+  "snapshot": "/var/folders/mx/jbv8qfwd52z14q0mby_273lhlp5gd2/T/docling-quality-plan-jmmbmqb1",
+  "environment": {
+    "python": {
+      "value": "Python 3.12.13",
+      "exit_code": 0
+    },
+    "bun": {
+      "value": "1.4.2",
+      "exit_code": 0
+    },
+    "node": {
+      "value": "v24.11.1",
+      "exit_code": 0
+    },
+    "pnpm": {
+      "value": "10.24.0",
+      "exit_code": 0
+    },
+    "docling_commit": {
+      "value": "a1c5ff2a8c5ab2bf87d7c1eb896b5bc351f51220",
+      "exit_code": 0
+    },
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O"
+  },
+  "historical_baseline": {
+    "snapshot": "f08f7e78a3939abfbb9264dc3ab28cc132023b5aae37b899beab89915c94dc01",
+    "recorded_score": {
+      "raw_observed_score": 52.3,
+      "provisional_score": 52.3,
+      "score": null,
+      "score_status": "provisional",
+      "coverage_percent": 88.7,
+      "excluded_dimension_weight_percent": 0.0,
+      "raw_bounds": [
+        46.4,
+        57.8
+      ],
+      "bounds": [
+        46.4,
+        57.8
+      ],
+      "confidence": "Medium",
+      "required_dimensions_complete": true,
+      "incomplete_required_dimensions": [],
+      "unresolved_severe_suspicions": [],
+      "gates": [],
+      "production_readiness": "conditional",
+      "dimensions": {
+        "architecture": {
+          "status": "assessed",
+          "score": 5.8,
+          "coverage_percent": 100.0,
+          "bounds": [
+            5.8,
+            5.8
+          ],
+          "base_weight": 10,
+          "confidence": "Medium",
+          "effective_weight_percent": 10.0
+        },
+        "correctness": {
+          "status": "assessed",
+          "score": 4.2,
+          "coverage_percent": 100.0,
+          "bounds": [
+            4.2,
+            4.2
+          ],
+          "base_weight": 15,
+          "confidence": "Medium",
+          "effective_weight_percent": 15.0
+        },
+        "security": {
+          "status": "assessed",
+          "score": 6.7,
+          "coverage_percent": 100.0,
+          "bounds": [
+            6.7,
+            6.7
+          ],
+          "base_weight": 15,
+          "confidence": "Medium",
+          "effective_weight_percent": 15.0
+        },
+        "reliability": {
+          "status": "assessed",
+          "score": 4.2,
+          "coverage_percent": 100.0,
+          "bounds": [
+            4.2,
+            4.2
+          ],
+          "base_weight": 10,
+          "confidence": "Medium",
+          "effective_weight_percent": 10.0
+        },
+        "maintainability": {
+          "status": "assessed",
+          "score": 5.8,
+          "coverage_percent": 100.0,
+          "bounds": [
+            5.8,
+            5.8
+          ],
+          "base_weight": 10,
+          "confidence": "Medium",
+          "effective_weight_percent": 10.0
+        },
+        "common_components": {
+          "status": "assessed",
+          "score": 5.0,
+          "coverage_percent": 100.0,
+          "bounds": [
+            5.0,
+            5.0
+          ],
+          "base_weight": 5,
+          "confidence": "Medium",
+          "effective_weight_percent": 5.0
+        },
+        "testing": {
+          "status": "assessed",
+          "score": 5.8,
+          "coverage_percent": 100.0,
+          "bounds": [
+            5.8,
+            5.8
+          ],
+          "base_weight": 10,
+          "confidence": "Medium",
+          "effective_weight_percent": 10.0
+        },
+        "supply_chain": {
+          "status": "partial",
+          "score": 2.5,
+          "coverage_percent": 33.3,
+          "bounds": [
+            0.8,
+            7.5
+          ],
+          "base_weight": 10,
+          "confidence": "Medium",
+          "effective_weight_percent": 10.0
+        },
+        "performance": {
+          "status": "partial",
+          "score": 5.0,
+          "coverage_percent": 33.3,
+          "bounds": [
+            1.7,
+            8.3
+          ],
+          "base_weight": 7,
+          "confidence": "Medium",
+          "effective_weight_percent": 7.0
+        },
+        "operability": {
+          "status": "assessed",
+          "score": 5.0,
+          "coverage_percent": 100.0,
+          "bounds": [
+            5.0,
+            5.0
+          ],
+          "base_weight": 8,
+          "confidence": "Medium",
+          "effective_weight_percent": 8.0
+        }
+      }
+    },
+    "limitations": "旧固定コピーの暫定評価。現在の点数ではなく、今回再採点していない。"
+  },
+  "executed_checks": [
+    {
+      "id": "C01",
+      "command": "bun test",
+      "directory": "knowledge-api",
+      "exit_code": 0,
+      "result": "45 passed, 0 failed, 193 expect calls",
+      "log_sha256": "a02f198cf0acd226bb885c37f50e1b8fbb45aebd260e2b41b166995ed9ae6424",
+      "terminal_output_tail": [
+        "(pass) review ingestion and provider boundaries > large supported embedding dimensions stay within the HTTP response budget [31.78ms]",
+        "(pass) review ingestion and provider boundaries > answer provider deadlines are reported as answer_timeout [26.56ms]",
+        "(pass) review job lifecycle > retry resets source failure state and reports the index as pending [11.87ms]",
+        "(pass) review job lifecycle > stopping an extractor that ignores abort cannot publish a completed index [22.43ms]",
+        "(pass) review job lifecycle > stopping a generation that ignores abort cannot save or complete its answer [15.07ms]",
+        "(pass) write-only clients can retry their scoped jobs while job reads remain forbidden [8.91ms]",
+        "(pass) concurrent retry requests transition a failed job only once [12.16ms]",
+        "(pass) the retry contract accepts omitted JSON bodies just like the running route [8.96ms]",
+        "(pass) OCR intent survives reopening, rejects stale runs and limits submissions before send [28.40ms]",
+        "(pass) OCR unknown receipt needs explicit acknowledgement consumed before one resend [22.34ms]",
+        "(pass) re-extraction failure retains published evidence and a successful retry switches text [16.36ms]",
+        "(pass) repeated query words do not hide unique words within the token budget [11.12ms]",
+        "(pass) private OCR callback requires its worker token and fences deleted or superseded runs [19.97ms]",
+        "",
+        " 45 pass",
+        " 0 fail",
+        " 193 expect() calls",
+        "Ran 45 tests across 2 files. [588.00ms]"
+      ],
+      "log_locator": ".cache/quality-plan-2026-10-04/api-tests.log"
+    },
+    {
+      "id": "C02",
+      "command": "PYTHONPATH=.:packages/docling-azure-ocr/src .venv/bin/python -m pytest tests -q",
+      "directory": ".",
+      "exit_code": 0,
+      "result": "324 passed, 1 skipped, 11 warnings, 26.98s",
+      "log_sha256": "76d4a9e981734a43f84073cd9372dcb2c18b255a171a2215082b79543efe39ae",
+      "terminal_output_tail": [
+        "",
+        "<frozen importlib._bootstrap>:488",
+        "  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type swigvarlink has no __module__ attribute",
+        "",
+        "../../../../../../...venv/lib/python3.12/site-packages/fastapi/testclient.py:1",
+        "  .venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.",
+        "    from starlette.testclient import TestClient as TestClient  # noqa",
+        "",
+        "tests/test_azure_ocr.py::test_real_pdf_adapter_preserves_backend_coordinate_frame[0]",
+        "tests/test_azure_ocr.py::test_real_pdf_adapter_preserves_backend_coordinate_frame[90]",
+        "tests/test_azure_ocr.py::test_real_pdf_adapter_preserves_backend_coordinate_frame[180]",
+        "tests/test_azure_ocr.py::test_real_pdf_adapter_preserves_backend_coordinate_frame[270]",
+        "tests/test_azure_ocr.py::test_native_text_pdf_does_not_submit_to_azure",
+        "  .venv/lib/python3.12/site-packages/pydantic/main.py:542: DeprecationWarning: `force_full_page_ocr` is deprecated; set `mode=OcrMode.FULL_PAGE` instead.",
+        "    return self.__pydantic_serializer__.to_json(",
+        "",
+        "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+        "324 passed, 1 skipped, 11 warnings in 26.98s"
+      ],
+      "log_locator": ".cache/quality-plan-2026-10-04/python-tests-with-models.log"
+    },
+    {
+      "id": "C03",
+      "command": "pnpm test:run",
+      "directory": "frontend",
+      "exit_code": 0,
+      "result": "31 passed across 11 files, 2.29s",
+      "log_sha256": "871693c09d4d01e9a5c29fd4920bfe25709e0bee67ed693a8f34a8c5d810dbd6",
+      "terminal_output_tail": [
+        "",
+        "> docling-ui@ test:run /private/var/folders/mx/jbv8qfwd52z14q0mby_273lhlp5gd2/T/docling-quality-plan-jmmbmqb1/frontend",
+        "> vitest run",
+        "",
+        "",
+        " RUN  v5.0.3 /private/var/folders/mx/jbv8qfwd52z14q0mby_273lhlp5gd2/T/docling-quality-plan-jmmbmqb1/frontend",
+        "",
+        "",
+        " Test Files  11 passed (11)",
+        "      Tests  31 passed (31)",
+        "   Start at  08:04:00",
+        "   Duration  2.29s (environment 62%, setup 17%, tests 10%, transform 6%, import 5%)",
+        ""
+      ],
+      "log_locator": ".cache/quality-plan-2026-10-04/frontend-tests.log"
+    },
+    {
+      "id": "C04",
+      "command": "bun run typecheck && bun run lint && bun run contract:check",
+      "directory": "knowledge-api",
+      "exit_code": 0,
+      "result": "TypeScript success; Biome 19 files success; OpenAPI input/output schemas and saved contract match."
+    },
+    {
+      "id": "C05",
+      "command": "pnpm typecheck && pnpm lint",
+      "directory": "frontend",
+      "exit_code": 0,
+      "result": "TypeScript and ESLint success."
+    }
+  ],
+  "setup_failure": {
+    "command": ".venv/bin/python -m pytest tests -q",
+    "exit_code": 1,
+    "result": "319 passed, 5 failed, 1 skipped; failures FileNotFoundError for pinned layout model",
+    "cause": "snapshot copy contained models/manifest.json but no existing model artifact references",
+    "correction": "既存の2モデルディレクトリへの参照を固定コピーへ追加し、OCRパッケージは固定コピーのsrcを優先して同じソースで全体を再実行。",
+    "not_a_confirmed_product_finding": true
+  },
+  "observed_source_changes": [
+    {
+      "historical_finding": "F01",
+      "state": "source change and matching regression tests verified in snapshot",
+      "files": [
+        "knowledge-api/src/worker.ts",
+        "knowledge-api/tests/api.test.ts"
+      ]
+    },
+    {
+      "historical_finding": "F02",
+      "state": "source change and matching regression tests verified in snapshot",
+      "files": [
+        "knowledge-api/src/app.ts",
+        "knowledge-api/tests/api.test.ts"
+      ]
+    },
+    {
+      "historical_finding": "F03",
+      "state": "Docker copy/install and .dockerignore source verified; Docker build not rerun in this planning turn",
+      "files": [
+        "Dockerfile",
+        ".dockerignore"
+      ]
+    },
+    {
+      "historical_finding": "F04",
+      "state": "saved OpenAPI matches runtime definitions in contract check",
+      "files": [
+        "contracts/knowledge-api.openapi.json",
+        "knowledge-api/scripts/contract-check.ts"
+      ]
+    }
+  ],
+  "other_work_record": {
+    "locator": "qa/knowledge-api/review.md",
+    "record_kind": "author_report_not_current_turn_execution",
+    "reports": "API real HTTP and Docker six-format integration; source scope excludes full Wiki, print and Azure OCR audit"
+  },
+  "not_executed": [
+    "new full 30-criterion current re-evaluation",
+    "current full browser E2E",
+    "current Docker clean rebuild",
+    "fault injection with real process crashes",
+    "restore from backup",
+    "representative performance load",
+    "whole dependency/model/license audit",
+    "actual Azure resources or real model quality"
+  ],
+  "current_formal_score": null,
+  "limitations": [
+    "利用者データ、秘密情報は複製しない。",
+    "固定コピー採取後の並行変更は確認結果へ含めない。",
+    "既存ランタイム・Docling・モデルを参照。クリーン導入の成功を意味しない。",
+    "旧評価台帳は変更していない。目標値は別Expected台帳。"
+  ]
+}

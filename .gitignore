@@ -1,0 +1,78 @@
+.venv/
+.cache/
+.hf/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage/
+htmlcov/
+__pycache__/
+*.py[cod]
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+/models/*
+
+# Runtime databases and SQLite journal/WAL sidecars, regardless of location
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Frontend source dependencies and local verification output
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+
+# Independent knowledge service dependencies, private configuration, and state
+knowledge-api/node_modules/
+.knowledge-api/
+
+# Editable OCR package build metadata
+packages/docling-azure-ocr/src/*.egg-info/
+
+# Local Wiki, retrieval tasks and embedding cache
+/data/knowledge/
+/data/wiki-workspace/
+
+# Runtime documents and generated verification/build artifacts
+/data/
+/build/
+/dist/
+/src/*.egg-info/
+/src/docling_desk/resources/static/frontend/
+/qa/**
+!/qa/**/
+!/qa/**/*.py
+!/qa/**/*.ts
+!/qa/**/*.cjs
+!/qa/**/*.mjs
+!/qa/**/*.md
+!/qa/**/.gitignore
+!/qa/semantic-quality/cases.jsonl
+!/qa/semantic-quality/corpus/**
+!/qa/semantic-quality/replay/**
+!/qa/performance/scenarios.json
+# Authored synthetic saved explanations required by the CI browser server
+!/qa/frontend-migration/fixtures/explanations/**/*.json
+# Synthetic Word previews required by print E2E tests
+!/qa/print-preview/fixtures/**
+# Historical source copies are not active tests
+/qa/**/before/**
+/qa/**/*.before.*
+/qa/**/*.before.md
+
+# Local assistant tooling
+.serena/

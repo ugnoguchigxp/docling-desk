@@ -1,0 +1,31 @@
+{
+  "package": "ag-grid-community",
+  "version": "35.2.1",
+  "license": "MIT",
+  "tarball": "https://registry.npmjs.org/ag-grid-community/-/ag-grid-community-35.2.1.tgz",
+  "integrity": "sha512-ycmGI+1EbUT7i3eg/Kgi1owwnkdHXRufo10Xm6cfSsVPM3TMpvlbLgi28KIPt9DGHZWHq9fOBn7nxMNdv1Yaow==",
+  "files": {
+    "ag-grid-community.min.js": {
+      "bytes": 1240016,
+      "sha256": "d4b51c2d7d0b5cb8b17858aeef34a5f8ca63cd243ec511425556644797b09ec7"
+    },
+    "ag-grid-LICENSE.txt": {
+      "bytes": 1077,
+      "sha256": "31636f0472dda16bba11a7b78204e1f677b77452092e185a65cddd45b6c9fb29"
+    },
+    "ag-grid.min.css": {
+      "bytes": 184480,
+      "sha256": "ec69382512dc229da71fb8cb21c8b95acee3e46154145ce20ed9a1e627ac3d95"
+    },
+    "ag-theme-quartz.min.css": {
+      "bytes": 67761,
+      "sha256": "e4ea040a47e85e4ed73cb54860ab39dda0ccba486c603dbb47dbc726826eb1b0"
+    }
+  },
+  "port": {
+    "source": "../tabulens/apps/web/src/App.tsx",
+    "license": "MIT",
+    "attribution": "tabulens-LICENSE.txt",
+    "sha256": "d0ab62e002125a8e6852aca037c33779e980ad9b0e0f517d99b13ea54e039a6b"
+  }
+}

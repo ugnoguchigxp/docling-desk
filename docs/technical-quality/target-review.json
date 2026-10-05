@@ -1,0 +1,873 @@
+{
+  "rubric_version": "1.1.0",
+  "mode": "technical",
+  "depth": "deep",
+  "technical_profile": "balanced",
+  "assessment_kind": "expected",
+  "target": {
+    "locator": ".",
+    "snapshot": "HYPOTHETICAL future fixed snapshot after Q01-Q09 acceptance; no completed implementation snapshot exists",
+    "reviewed_at": "2026-10-04",
+    "stage": "prototype/pilot improvement scenario",
+    "scope": "同一balanced技術評価。ローカル文書処理、翻訳・解説、外部API、Azure OCR adapter、Wiki検索、印刷、配布物と運用。上流Docling全体、事業需要、実モデル関連度は独立評価。全30技術項目適用。"
+  },
+  "evidence": [
+    {
+      "id": "S01",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ architecture.boundaries",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 実際の代表変更が責務内へ収まり、別経路の契約確認が成立。別機能へ意図せず波及する対照変更を検出",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S02",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ architecture.flow",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 正本・索引・cache・版の操作表と実HTTP観測が一致。公開途中・削除競合を反証",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S03",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ architecture.fit",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 宣言規模に対するSQLite・単一workerの制約と測定が一致。大きい規模の限界も記録",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S04",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ correctness.contracts",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 6形式、Wiki、印刷、APIの正常・不正・状態遷移を保存物まで検査。仕様と実装を別の観測から照合",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S05",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ correctness.edge_cases",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 上限前後、空・破損、Unicode、部分抽出、同文の別出典を検査。正当な入力まで拒否しないか反証",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S06",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ correctness.concurrency",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 同時retry、停止無視、削除・改版、lease失効、原子的公開を実プロセスで検査。停止確認などを外す対照試験が失敗",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S07",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ security.access",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 他scope、資格失効、保存済み検索、callback、ローカル公開境界を通信・DBで観測。許可操作の成功も確認",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S08",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ security.input_secrets",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: パス、HTML・SVG・CSS、モデル出力、SSRF経路、ログ・権限を悪意ある入力で検査。漏えいと実行を外部観測し、正当な本文は保持",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S09",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ security.abuse",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 遅い本文、枠上限、過大応答、繰り返し取消でも制限と通常処理への復帰が成立。枠漏れを反証",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S10",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ reliability.failure",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: provider timeout、書き込み失敗、部分抽出でも状態・成果物を保全。成功版が消えないか反証",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S11",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ reliability.recovery",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: crash、曖昧な送信、再送、backup復元を端から端まで実行。要求台帳と保存状態で二重作用を反証",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S12",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ reliability.resilience",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 処理サービス停止、429、満杯、資源不足で制御された失敗と回復。際限ない待機・保存増加を反証",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S13",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ maintainability.clarity",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 現行契約・手順から別担当が主要経路と失敗を追える。過去実績を現在の仕様と誤読しないか確認",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S14",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ maintainability.change",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 実際の代表変更の影響箇所が特定され、関連回帰を検出。無関係な経路も確認",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S15",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ maintainability.debt",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 実際の変更・診断で複雑さが妥当と確認。警告・古いassets・文書・保持条件に担当と処置を設定",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S16",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ common_components.duplication",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: Python・TS・画面の共有契約を境界入力で比較。意図した差と危険な不一致を区別",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S17",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ common_components.reuse",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 既存の表・RAG・接続などの部品が複数の実利用経路で契約と変更容易性を保つことを確認。抽象化前後の利用経路と負担を比較",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S18",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ common_components.abstraction",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 実際の利用者と変更例からinterfaceの費用と利点を記録。使われない層や用途固有の無理な統合を反証",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S19",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ testing.risk_coverage",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 重要な境界・障害・組合せを試験へ対応づけ、元不具合と対照変更を検出。単体のみで結合を代替していない",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S20",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ testing.quality",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 状態・出典・要求回数など意味あるassertionが回帰を検出。時刻依存・flaky・実装の写しを点検し限界を記録",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S21",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ testing.automation",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 対象版の実CIで単体・契約・Linux・画面が実行。失敗時に配布を止め、skipと再実行を記録",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S22",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ supply_chain.dependencies",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 実依存・版・出所・更新責任と到達性を確認した検査記録。lockと実行版の差を反証",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S23",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ supply_chain.build_release",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 空環境の構築・配布bundle・モデル・更新／rollbackが成立。ソースと配布物の漂流・改変を検査",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S24",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ supply_chain.license",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 実際のコード・モデル・フォント・配布物の条件と責任を網羅。取得元だけで利用権を確認済みとしない",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S25",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ performance.budget",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 確定した規模と予算を冷温・例外条件で実測。通信待ちの除外と利用者の総待機も明示",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S26",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ performance.hot_path",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 同期・検索・描画・変換・印刷の測定と改善前後。大きい次元、更新直後、最大文書で限界を反証",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S27",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ performance.measurement",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 入力・環境・指標・閾値を再現し、実際の変更で回帰追跡。小さなsmokeを負荷試験と扱わない",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S28",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ operability.signals",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 代表障害を状態・ログから診断でき、秘密情報を残さない。利用者が成功と誤認しないか確認",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S29",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ operability.lifecycle",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 別担当が導入・設定・更新・復元・削除を実行。空環境・誤設定と外部無断再送を反証",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    },
+    {
+      "id": "S30",
+      "kind": "primary_doc",
+      "locator": "docs/technical-quality/verification-plan.md @ operability.interaction",
+      "observation": "計画上の受け入れ条件。未実行の将来条件: 主要操作・狭画面・キーボード・失敗後復帰・印刷出力を直接確認。自動DOM検査だけで使用性を判断しない",
+      "scope": "Expected scenario only; no observation of implementation completion",
+      "observed_at": "2026-10-04"
+    }
+  ],
+  "claims": [
+    {
+      "id": "A01",
+      "type": "Assumption",
+      "statement": "30項目の受け入れ証拠が成立した条件付き構成は83.75点、表示83.8点。",
+      "evidence_ids": [],
+      "limitations": "現在の品質、完了の確率、実施後の保証値ではない。Highとcoverageも条件付き。"
+    },
+    {
+      "id": "U01",
+      "type": "Unknown",
+      "statement": "新機能を含む現在の正式な技術品質点数は未算定。",
+      "evidence_ids": [],
+      "limitations": "今回の確認は計画作成に必要な既存回帰・契約チェック。全項目の再評価はQ01/Q09で行う。"
+    }
+  ],
+  "findings": [],
+  "tracks": {
+    "technical": {
+      "dimensions": {
+        "architecture": {
+          "criteria": {
+            "boundaries": {
+              "status": "assessed",
+              "value": 4,
+              "rationale": "条件付き目標。Q02の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 実際の代表変更が責務内へ収まり、別経路の契約確認が成立。別機能へ意図せず波及する対照変更を検出",
+              "evidence_ids": [
+                "S01"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 実際の代表変更が責務内へ収まり、別経路の契約確認が成立。別機能へ意図せず波及する対照変更を検出",
+              "target_tasks": [
+                "Q02"
+              ],
+              "anchor_support": "未実証。重要な境界・失敗・別の説明を実行／独立観測で検証する将来条件: 実際の代表変更が責務内へ収まり、別経路の契約確認が成立。別機能へ意図せず波及する対照変更を検出"
+            },
+            "flow": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q02 Q03の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 正本・索引・cache・版の操作表と実HTTP観測が一致。公開途中・削除競合を反証",
+              "evidence_ids": [
+                "S02"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 正本・索引・cache・版の操作表と実HTTP観測が一致。公開途中・削除競合を反証",
+              "target_tasks": [
+                "Q02",
+                "Q03"
+              ]
+            },
+            "fit": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q02 Q06の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 宣言規模に対するSQLite・単一workerの制約と測定が一致。大きい規模の限界も記録",
+              "evidence_ids": [
+                "S03"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 宣言規模に対するSQLite・単一workerの制約と測定が一致。大きい規模の限界も記録",
+              "target_tasks": [
+                "Q02",
+                "Q06"
+              ]
+            }
+          }
+        },
+        "correctness": {
+          "criteria": {
+            "contracts": {
+              "status": "assessed",
+              "value": 4,
+              "rationale": "条件付き目標。Q02 Q08の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 6形式、Wiki、印刷、APIの正常・不正・状態遷移を保存物まで検査。仕様と実装を別の観測から照合",
+              "evidence_ids": [
+                "S04"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 6形式、Wiki、印刷、APIの正常・不正・状態遷移を保存物まで検査。仕様と実装を別の観測から照合",
+              "target_tasks": [
+                "Q02",
+                "Q08"
+              ],
+              "anchor_support": "未実証。重要な境界・失敗・別の説明を実行／独立観測で検証する将来条件: 6形式、Wiki、印刷、APIの正常・不正・状態遷移を保存物まで検査。仕様と実装を別の観測から照合"
+            },
+            "edge_cases": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q02 Q04の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 上限前後、空・破損、Unicode、部分抽出、同文の別出典を検査。正当な入力まで拒否しないか反証",
+              "evidence_ids": [
+                "S05"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 上限前後、空・破損、Unicode、部分抽出、同文の別出典を検査。正当な入力まで拒否しないか反証",
+              "target_tasks": [
+                "Q02",
+                "Q04"
+              ]
+            },
+            "concurrency": {
+              "status": "assessed",
+              "value": 4,
+              "rationale": "条件付き目標。Q03 Q08の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 同時retry、停止無視、削除・改版、lease失効、原子的公開を実プロセスで検査。停止確認などを外す対照試験が失敗",
+              "evidence_ids": [
+                "S06"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 同時retry、停止無視、削除・改版、lease失効、原子的公開を実プロセスで検査。停止確認などを外す対照試験が失敗",
+              "target_tasks": [
+                "Q03",
+                "Q08"
+              ],
+              "anchor_support": "未実証。重要な境界・失敗・別の説明を実行／独立観測で検証する将来条件: 同時retry、停止無視、削除・改版、lease失効、原子的公開を実プロセスで検査。停止確認などを外す対照試験が失敗"
+            }
+          }
+        },
+        "security": {
+          "criteria": {
+            "access": {
+              "status": "assessed",
+              "value": 4,
+              "rationale": "条件付き目標。Q04 Q08の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 他scope、資格失効、保存済み検索、callback、ローカル公開境界を通信・DBで観測。許可操作の成功も確認",
+              "evidence_ids": [
+                "S07"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 他scope、資格失効、保存済み検索、callback、ローカル公開境界を通信・DBで観測。許可操作の成功も確認",
+              "target_tasks": [
+                "Q04",
+                "Q08"
+              ],
+              "anchor_support": "未実証。重要な境界・失敗・別の説明を実行／独立観測で検証する将来条件: 他scope、資格失効、保存済み検索、callback、ローカル公開境界を通信・DBで観測。許可操作の成功も確認"
+            },
+            "input_secrets": {
+              "status": "assessed",
+              "value": 4,
+              "rationale": "条件付き目標。Q04 Q08の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: パス、HTML・SVG・CSS、モデル出力、SSRF経路、ログ・権限を悪意ある入力で検査。漏えいと実行を外部観測し、正当な本文は保持",
+              "evidence_ids": [
+                "S08"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: パス、HTML・SVG・CSS、モデル出力、SSRF経路、ログ・権限を悪意ある入力で検査。漏えいと実行を外部観測し、正当な本文は保持",
+              "target_tasks": [
+                "Q04",
+                "Q08"
+              ],
+              "anchor_support": "未実証。重要な境界・失敗・別の説明を実行／独立観測で検証する将来条件: パス、HTML・SVG・CSS、モデル出力、SSRF経路、ログ・権限を悪意ある入力で検査。漏えいと実行を外部観測し、正当な本文は保持"
+            },
+            "abuse": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q04 Q06の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 遅い本文、枠上限、過大応答、繰り返し取消でも制限と通常処理への復帰が成立。枠漏れを反証",
+              "evidence_ids": [
+                "S09"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 遅い本文、枠上限、過大応答、繰り返し取消でも制限と通常処理への復帰が成立。枠漏れを反証",
+              "target_tasks": [
+                "Q04",
+                "Q06"
+              ]
+            }
+          }
+        },
+        "reliability": {
+          "criteria": {
+            "failure": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q03の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: provider timeout、書き込み失敗、部分抽出でも状態・成果物を保全。成功版が消えないか反証",
+              "evidence_ids": [
+                "S10"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: provider timeout、書き込み失敗、部分抽出でも状態・成果物を保全。成功版が消えないか反証",
+              "target_tasks": [
+                "Q03"
+              ]
+            },
+            "recovery": {
+              "status": "assessed",
+              "value": 4,
+              "rationale": "条件付き目標。Q03 Q07の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: crash、曖昧な送信、再送、backup復元を端から端まで実行。要求台帳と保存状態で二重作用を反証",
+              "evidence_ids": [
+                "S11"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: crash、曖昧な送信、再送、backup復元を端から端まで実行。要求台帳と保存状態で二重作用を反証",
+              "target_tasks": [
+                "Q03",
+                "Q07"
+              ],
+              "anchor_support": "未実証。重要な境界・失敗・別の説明を実行／独立観測で検証する将来条件: crash、曖昧な送信、再送、backup復元を端から端まで実行。要求台帳と保存状態で二重作用を反証"
+            },
+            "resilience": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q03 Q06の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 処理サービス停止、429、満杯、資源不足で制御された失敗と回復。際限ない待機・保存増加を反証",
+              "evidence_ids": [
+                "S12"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 処理サービス停止、429、満杯、資源不足で制御された失敗と回復。際限ない待機・保存増加を反証",
+              "target_tasks": [
+                "Q03",
+                "Q06"
+              ]
+            }
+          }
+        },
+        "maintainability": {
+          "criteria": {
+            "clarity": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q02 Q07の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 現行契約・手順から別担当が主要経路と失敗を追える。過去実績を現在の仕様と誤読しないか確認",
+              "evidence_ids": [
+                "S13"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 現行契約・手順から別担当が主要経路と失敗を追える。過去実績を現在の仕様と誤読しないか確認",
+              "target_tasks": [
+                "Q02",
+                "Q07"
+              ]
+            },
+            "change": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q02 Q08の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 実際の代表変更の影響箇所が特定され、関連回帰を検出。無関係な経路も確認",
+              "evidence_ids": [
+                "S14"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 実際の代表変更の影響箇所が特定され、関連回帰を検出。無関係な経路も確認",
+              "target_tasks": [
+                "Q02",
+                "Q08"
+              ]
+            },
+            "debt": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q02 Q07の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 実際の変更・診断で複雑さが妥当と確認。警告・古いassets・文書・保持条件に担当と処置を設定",
+              "evidence_ids": [
+                "S15"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 実際の変更・診断で複雑さが妥当と確認。警告・古いassets・文書・保持条件に担当と処置を設定",
+              "target_tasks": [
+                "Q02",
+                "Q07"
+              ]
+            }
+          }
+        },
+        "common_components": {
+          "criteria": {
+            "duplication": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q02の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: Python・TS・画面の共有契約を境界入力で比較。意図した差と危険な不一致を区別",
+              "evidence_ids": [
+                "S16"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: Python・TS・画面の共有契約を境界入力で比較。意図した差と危険な不一致を区別",
+              "target_tasks": [
+                "Q02"
+              ]
+            },
+            "reuse": {
+              "status": "assessed",
+              "value": 4,
+              "rationale": "条件付き目標。Q02の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 既存の表・RAG・接続などの部品が複数の実利用経路で契約と変更容易性を保つことを確認。抽象化前後の利用経路と負担を比較",
+              "evidence_ids": [
+                "S17"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 既存の表・RAG・接続などの部品が複数の実利用経路で契約と変更容易性を保つことを確認。抽象化前後の利用経路と負担を比較",
+              "target_tasks": [
+                "Q02"
+              ],
+              "anchor_support": "未実証。重要な境界・失敗・別の説明を実行／独立観測で検証する将来条件: 既存の表・RAG・接続などの部品が複数の実利用経路で契約と変更容易性を保つことを確認。抽象化前後の利用経路と負担を比較"
+            },
+            "abstraction": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q02の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 実際の利用者と変更例からinterfaceの費用と利点を記録。使われない層や用途固有の無理な統合を反証",
+              "evidence_ids": [
+                "S18"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 実際の利用者と変更例からinterfaceの費用と利点を記録。使われない層や用途固有の無理な統合を反証",
+              "target_tasks": [
+                "Q02"
+              ]
+            }
+          }
+        },
+        "testing": {
+          "criteria": {
+            "risk_coverage": {
+              "status": "assessed",
+              "value": 4,
+              "rationale": "条件付き目標。Q03 Q04 Q08の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 重要な境界・障害・組合せを試験へ対応づけ、元不具合と対照変更を検出。単体のみで結合を代替していない",
+              "evidence_ids": [
+                "S19"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 重要な境界・障害・組合せを試験へ対応づけ、元不具合と対照変更を検出。単体のみで結合を代替していない",
+              "target_tasks": [
+                "Q03",
+                "Q04",
+                "Q08"
+              ],
+              "anchor_support": "未実証。重要な境界・失敗・別の説明を実行／独立観測で検証する将来条件: 重要な境界・障害・組合せを試験へ対応づけ、元不具合と対照変更を検出。単体のみで結合を代替していない"
+            },
+            "quality": {
+              "status": "assessed",
+              "value": 4,
+              "rationale": "条件付き目標。Q08の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 状態・出典・要求回数など意味あるassertionが回帰を検出。時刻依存・flaky・実装の写しを点検し限界を記録",
+              "evidence_ids": [
+                "S20"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 状態・出典・要求回数など意味あるassertionが回帰を検出。時刻依存・flaky・実装の写しを点検し限界を記録",
+              "target_tasks": [
+                "Q08"
+              ],
+              "anchor_support": "未実証。重要な境界・失敗・別の説明を実行／独立観測で検証する将来条件: 状態・出典・要求回数など意味あるassertionが回帰を検出。時刻依存・flaky・実装の写しを点検し限界を記録"
+            },
+            "automation": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q08の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 対象版の実CIで単体・契約・Linux・画面が実行。失敗時に配布を止め、skipと再実行を記録",
+              "evidence_ids": [
+                "S21"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 対象版の実CIで単体・契約・Linux・画面が実行。失敗時に配布を止め、skipと再実行を記録",
+              "target_tasks": [
+                "Q08"
+              ]
+            }
+          }
+        },
+        "supply_chain": {
+          "criteria": {
+            "dependencies": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q05の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 実依存・版・出所・更新責任と到達性を確認した検査記録。lockと実行版の差を反証",
+              "evidence_ids": [
+                "S22"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 実依存・版・出所・更新責任と到達性を確認した検査記録。lockと実行版の差を反証",
+              "target_tasks": [
+                "Q05"
+              ]
+            },
+            "build_release": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q05 Q08の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 空環境の構築・配布bundle・モデル・更新／rollbackが成立。ソースと配布物の漂流・改変を検査",
+              "evidence_ids": [
+                "S23"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 空環境の構築・配布bundle・モデル・更新／rollbackが成立。ソースと配布物の漂流・改変を検査",
+              "target_tasks": [
+                "Q05",
+                "Q08"
+              ]
+            },
+            "license": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q05の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 実際のコード・モデル・フォント・配布物の条件と責任を網羅。取得元だけで利用権を確認済みとしない",
+              "evidence_ids": [
+                "S24"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 実際のコード・モデル・フォント・配布物の条件と責任を網羅。取得元だけで利用権を確認済みとしない",
+              "target_tasks": [
+                "Q05"
+              ]
+            }
+          }
+        },
+        "performance": {
+          "criteria": {
+            "budget": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q06の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 確定した規模と予算を冷温・例外条件で実測。通信待ちの除外と利用者の総待機も明示",
+              "evidence_ids": [
+                "S25"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 確定した規模と予算を冷温・例外条件で実測。通信待ちの除外と利用者の総待機も明示",
+              "target_tasks": [
+                "Q06"
+              ]
+            },
+            "hot_path": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q06の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 同期・検索・描画・変換・印刷の測定と改善前後。大きい次元、更新直後、最大文書で限界を反証",
+              "evidence_ids": [
+                "S26"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 同期・検索・描画・変換・印刷の測定と改善前後。大きい次元、更新直後、最大文書で限界を反証",
+              "target_tasks": [
+                "Q06"
+              ]
+            },
+            "measurement": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q06 Q08の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 入力・環境・指標・閾値を再現し、実際の変更で回帰追跡。小さなsmokeを負荷試験と扱わない",
+              "evidence_ids": [
+                "S27"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 入力・環境・指標・閾値を再現し、実際の変更で回帰追跡。小さなsmokeを負荷試験と扱わない",
+              "target_tasks": [
+                "Q06",
+                "Q08"
+              ]
+            }
+          }
+        },
+        "operability": {
+          "criteria": {
+            "signals": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q07の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 代表障害を状態・ログから診断でき、秘密情報を残さない。利用者が成功と誤認しないか確認",
+              "evidence_ids": [
+                "S28"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 代表障害を状態・ログから診断でき、秘密情報を残さない。利用者が成功と誤認しないか確認",
+              "target_tasks": [
+                "Q07"
+              ]
+            },
+            "lifecycle": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q05 Q07の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 別担当が導入・設定・更新・復元・削除を実行。空環境・誤設定と外部無断再送を反証",
+              "evidence_ids": [
+                "S29"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 別担当が導入・設定・更新・復元・削除を実行。空環境・誤設定と外部無断再送を反証",
+              "target_tasks": [
+                "Q05",
+                "Q07"
+              ]
+            },
+            "interaction": {
+              "status": "assessed",
+              "value": 3,
+              "rationale": "条件付き目標。Q07の完了により、当該項目の基本条件を全て満たし次の証拠を得る仮定: 主要操作・狭画面・キーボード・失敗後復帰・印刷出力を直接確認。自動DOM検査だけで使用性を判断しない",
+              "evidence_ids": [
+                "S30"
+              ],
+              "confidence": "High",
+              "confidence_basis": "将来の実行証拠が揃うことを仮定した必要水準。現在のconfidenceではない。",
+              "countercheck": "未実施の受け入れ反証: 主要操作・狭画面・キーボード・失敗後復帰・印刷出力を直接確認。自動DOM検査だけで使用性を判断しない",
+              "target_tasks": [
+                "Q07"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "baseline_snapshot": "83ce438060b7dd97f3d50ee2a9eadb914448098a + historical sha256:f08f7e78a3939abfbb9264dc3ab28cc132023b5aae37b899beab89915c94dc01; planning-check sha256:1da122bac86357da0104c59f9bf17941160a079f659919250698bdf633c90412",
+  "scenario_conditions": [
+    "本台帳は計画上の条件付きExpectedであり、現在の実証評点ではない。High confidence、coverage 100%、findings 0は将来の証拠成立を仮定する。正式スコアはnull。",
+    "Q01〜Q08を同じ固定版で完了し、verification-plan.mdの全30項目の基本条件・例外・反証を実際に確認する。",
+    "目標4の9項目では重要な境界・障害・別の説明を実行または独立した観測で検証し、High confidenceとanchor supportを実績台帳へ記録する。",
+    "未確認0、N/A0、同じrubric 1.1.0とbalanced重みを維持する。確認済みCritical/Highと重大な未調査の疑いを残さない。",
+    "利用条件はローカル画面と範囲制御された外部API。実Azure・実モデルを未検証とする場合は模擬結合までの運用条件を明記し、実運用の成功を保証しない。",
+    "性能予算案をG0で利用条件として測定前に確定し、代表的な規模・冷温・例外で実測する。",
+    "前回の指摘と新機能の不具合は新しい実績台帳で検証して解消を判断する。旧Current台帳のfindingsは変更しない。"
+  ],
+  "scenario_confidence_is_assumed": true,
+  "assumed_fixes": [
+    {
+      "id": "Q01",
+      "condition": "implementation-plan.mdとverification-plan.mdの当該作業の受け入れ条件が実証されること。現在の達成を意味しない。"
+    },
+    {
+      "id": "Q02",
+      "condition": "implementation-plan.mdとverification-plan.mdの当該作業の受け入れ条件が実証されること。現在の達成を意味しない。"
+    },
+    {
+      "id": "Q03",
+      "condition": "implementation-plan.mdとverification-plan.mdの当該作業の受け入れ条件が実証されること。現在の達成を意味しない。"
+    },
+    {
+      "id": "Q04",
+      "condition": "implementation-plan.mdとverification-plan.mdの当該作業の受け入れ条件が実証されること。現在の達成を意味しない。"
+    },
+    {
+      "id": "Q05",
+      "condition": "implementation-plan.mdとverification-plan.mdの当該作業の受け入れ条件が実証されること。現在の達成を意味しない。"
+    },
+    {
+      "id": "Q06",
+      "condition": "implementation-plan.mdとverification-plan.mdの当該作業の受け入れ条件が実証されること。現在の達成を意味しない。"
+    },
+    {
+      "id": "Q07",
+      "condition": "implementation-plan.mdとverification-plan.mdの当該作業の受け入れ条件が実証されること。現在の達成を意味しない。"
+    },
+    {
+      "id": "Q08",
+      "condition": "implementation-plan.mdとverification-plan.mdの当該作業の受け入れ条件が実証されること。現在の達成を意味しない。"
+    },
+    {
+      "id": "Q09",
+      "condition": "implementation-plan.mdとverification-plan.mdの当該作業の受け入れ条件が実証されること。現在の達成を意味しない。"
+    }
+  ],
+  "dependencies": {
+    "order": [
+      "G0",
+      "G1",
+      "G2",
+      "G3",
+      "G4"
+    ],
+    "Q02": [
+      "Q01"
+    ],
+    "Q03": [
+      "Q01",
+      "Q02"
+    ],
+    "Q04": [
+      "Q01",
+      "Q02"
+    ],
+    "Q05": [
+      "Q01",
+      "Q02",
+      "Q03",
+      "Q04"
+    ],
+    "Q06": [
+      "Q01",
+      "Q02",
+      "Q03"
+    ],
+    "Q07": [
+      "Q02",
+      "Q03",
+      "Q04",
+      "Q05",
+      "Q06"
+    ],
+    "Q08": [
+      "Q01",
+      "Q02",
+      "Q03",
+      "Q04",
+      "Q05",
+      "Q06",
+      "Q07"
+    ],
+    "Q09": [
+      "Q01",
+      "Q02",
+      "Q03",
+      "Q04",
+      "Q05",
+      "Q06",
+      "Q07",
+      "Q08"
+    ],
+    "note": "棚卸しとCI入口はQ01後に先行可能。最終受け入れの依存を記録。"
+  }
+}

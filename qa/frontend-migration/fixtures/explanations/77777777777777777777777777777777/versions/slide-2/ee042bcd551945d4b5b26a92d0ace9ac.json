@@ -1,0 +1,243 @@
+{
+  "source": {
+    "id": "slide-2",
+    "kind": "slide",
+    "number": 2,
+    "name": "",
+    "blocks": [
+      {
+        "id": "#/texts/2",
+        "text": "日本語と出典の確認",
+        "kind": "paragraph",
+        "pages": [
+          2
+        ]
+      },
+      {
+        "id": "#/texts/3",
+        "text": "これは合成テスト資料です。",
+        "kind": "paragraph",
+        "pages": [
+          2
+        ]
+      },
+      {
+        "id": "#/texts/4",
+        "text": "表1と図1の対応、日本語、ページ番号を確認します。",
+        "kind": "paragraph",
+        "pages": [
+          2
+        ]
+      },
+      {
+        "id": "#/texts/5",
+        "text": "翻訳と実資料の品質検証は未実施です。",
+        "kind": "paragraph",
+        "pages": [
+          2
+        ]
+      }
+    ],
+    "tables": [],
+    "excluded_pictures": 0
+  },
+  "source_parts": [
+    {
+      "text": "日本語と出典の確認",
+      "kind": "paragraph",
+      "pages": [
+        2
+      ],
+      "start": 0,
+      "end": 9,
+      "part_id": "#/texts/2:text:0",
+      "original_ref": "#/texts/2",
+      "numbers": []
+    },
+    {
+      "text": "これは合成テスト資料です。",
+      "kind": "paragraph",
+      "pages": [
+        2
+      ],
+      "start": 0,
+      "end": 13,
+      "part_id": "#/texts/3:text:0",
+      "original_ref": "#/texts/3",
+      "numbers": []
+    },
+    {
+      "text": "表1と図1の対応、日本語、ページ番号を確認します。",
+      "kind": "paragraph",
+      "pages": [
+        2
+      ],
+      "start": 0,
+      "end": 25,
+      "part_id": "#/texts/4:text:0",
+      "original_ref": "#/texts/4",
+      "numbers": [
+        {
+          "value": "1",
+          "start": 1,
+          "end": 2,
+          "context": "表1と図1の対応、日本語、ページ番号を確認します。"
+        },
+        {
+          "value": "1",
+          "start": 4,
+          "end": 5,
+          "context": "表1と図1の対応、日本語、ページ番号を確認します。"
+        }
+      ]
+    },
+    {
+      "text": "翻訳と実資料の品質検証は未実施です。",
+      "kind": "paragraph",
+      "pages": [
+        2
+      ],
+      "start": 0,
+      "end": 18,
+      "part_id": "#/texts/5:text:0",
+      "original_ref": "#/texts/5",
+      "numbers": []
+    }
+  ],
+  "outlines": [
+    {
+      "topics": [
+        {
+          "source_id": "#/texts/2:text:0",
+          "topic": "日本語と出典の確認",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        },
+        {
+          "source_id": "#/texts/3:text:0",
+          "topic": "これは合成テスト資料です。",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        },
+        {
+          "source_id": "#/texts/4:text:0",
+          "topic": "表1と図1の対応、日本語、ページ番号を確認します。",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        },
+        {
+          "source_id": "#/texts/5:text:0",
+          "topic": "翻訳と実資料の品質検証は未実施です。",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        }
+      ]
+    }
+  ],
+  "output_language": "ja",
+  "reader_background": "13歳程度",
+  "source_hash": "e8869af918fbc5d6b5ac6fc1c708233fb6d78f0490bb501dbc7d564095d7ed82",
+  "hash_version": 1,
+  "source_name": "QA.pptx",
+  "extraction_state": "success",
+  "unlocated_count": 0,
+  "profile": {
+    "provider": "codex_sdk",
+    "model": "gpt-6-luna",
+    "web_provider": "disabled",
+    "prompt_version": 2,
+    "config_hash": "cef932056b2e572807e68da80c1d15101247013ee4c6841cee4a3ed3fae053ea"
+  },
+  "local_search": {
+    "status": "success",
+    "queries": [
+      "売上",
+      "比較"
+    ],
+    "evidence": [
+      {
+        "id": "local-1",
+        "kind": "document",
+        "chunk_id": "eb9e9df049b44b0193760203c3fb0f36:slide:1",
+        "pages": [
+          1
+        ],
+        "title": "合成サンプル: 表と図の比較",
+        "text": "スライド 1\n\n合成サンプル: 表と図の比較\n\n区分\t件数\nA\t120\nB\t180\nC\t150\n合計\t450\n\n図1: 表1の架空データを比較。BはAより60件多い。",
+        "source_start": 0,
+        "source_end": 83,
+        "truncated": false
+      }
+    ]
+  },
+  "web_search": {
+    "status": "disabled_by_policy",
+    "topics": [],
+    "queries": [],
+    "evidence": [],
+    "observations": []
+  },
+  "explanation": {
+    "sections": [
+      {
+        "title": "詳しい解説",
+        "text": "日本語と出典の確認",
+        "source_ids": [
+          "#/texts/2:text:0"
+        ],
+        "evidence_ids": []
+      },
+      {
+        "title": "詳しい解説",
+        "text": "これは合成テスト資料です。",
+        "source_ids": [
+          "#/texts/3:text:0"
+        ],
+        "evidence_ids": []
+      },
+      {
+        "title": "詳しい解説",
+        "text": "表1と図1の対応、日本語、ページ番号を確認します。",
+        "source_ids": [
+          "#/texts/4:text:0"
+        ],
+        "evidence_ids": []
+      },
+      {
+        "title": "詳しい解説",
+        "text": "翻訳と実資料の品質検証は未実施です。",
+        "source_ids": [
+          "#/texts/5:text:0"
+        ],
+        "evidence_ids": []
+      }
+    ],
+    "glossary": [],
+    "supplements": [],
+    "limitations": []
+  },
+  "verification": {
+    "parts": 1,
+    "boundaries": 0,
+    "calls": 3
+  },
+  "schema_version": 1,
+  "source_format_version": 1,
+  "copy_mapping_version": 1,
+  "version_id": "ee042bcd551945d4b5b26a92d0ace9ac",
+  "unit_id": "slide-2",
+  "document_id": "77777777777777777777777777777777",
+  "created_at": "2026-10-03T09:58:34.626138+00:00"
+}

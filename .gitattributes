@@ -1,0 +1,8 @@
+*.sh text eol=lf
+*.py text eol=lf
+/data export-ignore
+/.cache export-ignore
+/.env* export-ignore
+/.venv export-ignore
+/docling export-ignore
+/.env.example -export-ignore

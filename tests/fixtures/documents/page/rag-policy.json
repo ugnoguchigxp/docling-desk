@@ -1,0 +1,16 @@
+{
+  "version": "context-v4",
+  "image_content": "excluded",
+  "embedding_text_field": "text",
+  "strategy": "Docling hierarchical sections (PDF unchanged)",
+  "target_chars": 4000,
+  "tolerance_chars": 0,
+  "split_threshold_chars": 4000,
+  "context_chunks": 7,
+  "search_chunks": 7,
+  "docling_chunks": 7,
+  "oversized_contexts": 0,
+  "oversized_search_chunks": 0,
+  "retrieval": "Search rag-index.jsonl; expand its parent_id from rag.jsonl before interpreting the result.",
+  "limit_note": "文字数は暫定の目安です。埋め込みモデルのトークン上限は未接続のため検証していません。長い単独行・段落を黙って切り捨てません。"
+}

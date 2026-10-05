@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=84,<85"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docling-desk"
+version = "0.1.0"
+description = "Local document preview, extraction, Wiki and evidence-based retrieval"
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+license = "MIT"
+license-files = ["LICENSE", "NOTICE.md"]
+dependencies = [
+  "docling-slim[convert-core,format-pdf,format-docx,format-pptx,format-xlsx,models-local]==2.132.0",
+  "docling-core[chunking]==2.99.0",
+  "docling-azure-ocr==0.1.0",
+  "fastapi==0.142.2", "uvicorn==0.54.0", "python-multipart==0.0.32",
+  "python-dotenv==1.2.4", "pydantic==2.13.5", "httpx==0.28.1",
+  "pymupdf==1.28.2", "pypdfium2==5.13.0", "pillow==12.3.0",
+  "python-pptx==1.0.2", "python-docx==1.2.0", "openpyxl==3.1.5",
+  "lxml==6.1.3", "beautifulsoup4==4.15.0", "defusedxml==0.7.1",
+  "fonttools==4.66.1", "markdown-it-py==4.2.0", "tiktoken==0.12.0",
+  "numpy==2.5.3", "psutil==7.2.2", "pyyaml==6.0.3",
+  "huggingface-hub==1.33.0", "openai-codex==0.160.0", "regex==2026.9.29",
+  "ocrmac==1.0.1; sys_platform == 'darwin'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1", "ruff==0.16.10", "ty==0.0.84", "reportlab==5.0.1"]
+mcp = ["mcp==1.26.0"]
+
+[project.scripts]
+docling-desk = "docling_desk.cli:main"
+docling-desk-models = "docling_desk.operations.download_models:main"
+docling-desk-verify = "docling_desk.operations.verify:main"
+docling-desk-backup = "docling_desk.operations.backup:main"
+docling-desk-wiki = "docling_desk.wiki_batch.__main__:main"
+
+[project.urls]
+Repository = "https://github.com/ugnoguchigxp/docling-desk"
+Issues = "https://github.com/ugnoguchigxp/docling-desk/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+docling_desk = ["resources/**/*", "wiki_batch/licenses/*", "wiki_batch/NOTICE.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "packages/docling-azure-ocr/src"]
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["docling", "qa"]
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+[tool.ty.environment]
+python-version = "3.12"
+
+[tool.setuptools.cmdclass]
+build_py = "docling_desk._build.BuildPy"
+sdist = "docling_desk._build.SourceDist"

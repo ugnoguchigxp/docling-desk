@@ -1,0 +1,229 @@
+{
+  "source": {
+    "id": "page-2",
+    "kind": "page",
+    "number": 2,
+    "name": "",
+    "blocks": [
+      {
+        "id": "#/texts/12",
+        "text": "図と表の参照を確認する",
+        "kind": "section_header",
+        "pages": [
+          2
+        ]
+      },
+      {
+        "id": "#/texts/13",
+        "text": "前ページの表1と図1は同じ架空データを示しています。",
+        "kind": "text",
+        "pages": [
+          2
+        ]
+      },
+      {
+        "id": "#/texts/14",
+        "text": "日本語の抽出、読み順、ページ番号、表構造を確認してください。",
+        "kind": "text",
+        "pages": [
+          2
+        ]
+      },
+      {
+        "id": "#/texts/15",
+        "text": "意味関係が自動で完全に保持されるとは限りません。",
+        "kind": "text",
+        "pages": [
+          2
+        ]
+      }
+    ],
+    "tables": [],
+    "excluded_pictures": 0
+  },
+  "source_parts": [
+    {
+      "text": "図と表の参照を確認する",
+      "kind": "section_header",
+      "pages": [
+        2
+      ],
+      "start": 0,
+      "end": 11,
+      "part_id": "#/texts/12:text:0",
+      "original_ref": "#/texts/12",
+      "numbers": []
+    },
+    {
+      "text": "前ページの表1と図1は同じ架空データを示しています。",
+      "kind": "text",
+      "pages": [
+        2
+      ],
+      "start": 0,
+      "end": 26,
+      "part_id": "#/texts/13:text:0",
+      "original_ref": "#/texts/13",
+      "numbers": [
+        {
+          "value": "1",
+          "start": 6,
+          "end": 7,
+          "context": "前ページの表1と図1は同じ架空データを示しています。"
+        },
+        {
+          "value": "1",
+          "start": 9,
+          "end": 10,
+          "context": "前ページの表1と図1は同じ架空データを示しています。"
+        }
+      ]
+    },
+    {
+      "text": "日本語の抽出、読み順、ページ番号、表構造を確認してください。",
+      "kind": "text",
+      "pages": [
+        2
+      ],
+      "start": 0,
+      "end": 30,
+      "part_id": "#/texts/14:text:0",
+      "original_ref": "#/texts/14",
+      "numbers": []
+    },
+    {
+      "text": "意味関係が自動で完全に保持されるとは限りません。",
+      "kind": "text",
+      "pages": [
+        2
+      ],
+      "start": 0,
+      "end": 24,
+      "part_id": "#/texts/15:text:0",
+      "original_ref": "#/texts/15",
+      "numbers": []
+    }
+  ],
+  "outlines": [
+    {
+      "topics": [
+        {
+          "source_id": "#/texts/12:text:0",
+          "topic": "図と表の参照を確認する",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        },
+        {
+          "source_id": "#/texts/13:text:0",
+          "topic": "前ページの表1と図1は同じ架空データを示しています。",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        },
+        {
+          "source_id": "#/texts/14:text:0",
+          "topic": "日本語の抽出、読み順、ページ番号、表構造を確認してください。",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        },
+        {
+          "source_id": "#/texts/15:text:0",
+          "topic": "意味関係が自動で完全に保持されるとは限りません。",
+          "terms": [
+            "売上",
+            "比較"
+          ],
+          "public_topics": []
+        }
+      ]
+    }
+  ],
+  "output_language": "ja",
+  "reader_background": "13歳程度",
+  "source_hash": "2529095be9690a39568738a1be70413a76a979c59ab176aaa4d75fa2c2dfb839",
+  "hash_version": 1,
+  "source_name": "QA.pdf",
+  "extraction_state": "success",
+  "unlocated_count": 0,
+  "profile": {
+    "provider": "codex_sdk",
+    "model": "gpt-6-luna",
+    "web_provider": "disabled",
+    "prompt_version": 2,
+    "config_hash": "cef932056b2e572807e68da80c1d15101247013ee4c6841cee4a3ed3fae053ea"
+  },
+  "local_search": {
+    "status": "no_results",
+    "queries": [
+      "売上",
+      "比較"
+    ],
+    "evidence": []
+  },
+  "web_search": {
+    "status": "disabled_by_policy",
+    "topics": [],
+    "queries": [],
+    "evidence": [],
+    "observations": []
+  },
+  "explanation": {
+    "sections": [
+      {
+        "title": "詳しい解説",
+        "text": "図と表の参照を確認する",
+        "source_ids": [
+          "#/texts/12:text:0"
+        ],
+        "evidence_ids": []
+      },
+      {
+        "title": "詳しい解説",
+        "text": "前ページの表1と図1は同じ架空データを示しています。",
+        "source_ids": [
+          "#/texts/13:text:0"
+        ],
+        "evidence_ids": []
+      },
+      {
+        "title": "詳しい解説",
+        "text": "日本語の抽出、読み順、ページ番号、表構造を確認してください。",
+        "source_ids": [
+          "#/texts/14:text:0"
+        ],
+        "evidence_ids": []
+      },
+      {
+        "title": "詳しい解説",
+        "text": "意味関係が自動で完全に保持されるとは限りません。",
+        "source_ids": [
+          "#/texts/15:text:0"
+        ],
+        "evidence_ids": []
+      }
+    ],
+    "glossary": [],
+    "supplements": [],
+    "limitations": []
+  },
+  "verification": {
+    "parts": 1,
+    "boundaries": 0,
+    "calls": 3
+  },
+  "schema_version": 1,
+  "source_format_version": 1,
+  "copy_mapping_version": 1,
+  "version_id": "c22d7bdfd40f41569bae3f10c05c6223",
+  "unit_id": "page-2",
+  "document_id": "99999999999999999999999999999999",
+  "created_at": "2026-10-03T09:58:35.042113+00:00"
+}

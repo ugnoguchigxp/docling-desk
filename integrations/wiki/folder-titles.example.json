@@ -1,0 +1,29 @@
+{
+  "user_input": [
+    "ユーザー入力・要望",
+    "ユーザーの入力、要望、出典をまとめた資料です。",
+    [
+      "User Input",
+      "Remarks",
+      "Source"
+    ]
+  ],
+  "needs_specification": [
+    "ニーズ仕様",
+    "ニーズを分類とともに記録した資料です。",
+    [
+      "Need",
+      "Need Category",
+      "User Type"
+    ]
+  ],
+  "requirement_specification": [
+    "要求仕様",
+    "要求を項目ごとに記録した資料です。",
+    [
+      "Requirement",
+      "Priority",
+      "Rationale"
+    ]
+  ]
+}
