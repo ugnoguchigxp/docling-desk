@@ -1,5 +1,13 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { errorText, fileUrl, library, originalUrl, post, request } from "./api";
+import { afterEach, describe, expect, it, test, vi } from "vitest";
+import {
+  errorText,
+  fileUrl,
+  library,
+  originalUrl,
+  post,
+  request,
+  loginRedirect,
+} from "./api";
 afterEach(() => vi.unstubAllGlobals());
 
 test("reports HTTP errors even when an intermediary responds with HTML", async () => {
@@ -37,7 +45,9 @@ test("decodes success, posts JSON, and builds file URLs", async () => {
     .mockResolvedValue(new Response(JSON.stringify({ saved: true })));
   vi.stubGlobal("fetch", fetch);
   const signal = new AbortController().signal;
-  await expect(request("/api/ok", { signal }, (value) => value)).resolves.toEqual({
+  await expect(
+    request("/api/ok", { signal }, (value) => value),
+  ).resolves.toEqual({
     ok: 1,
   });
   await expect(request("/api/bad")).rejects.toThrow("HTTP 400");
@@ -54,11 +64,49 @@ test("decodes success, posts JSON, and builds file URLs", async () => {
     "/files/a%2Fb/dir/%E5%90%8D%E5%89%8D.pdf?download=true",
   );
   expect(
-    originalUrl({ id: "job", filename: "fallback.PDF", original_filename: null }),
+    originalUrl({
+      id: "job",
+      filename: "fallback.PDF",
+      original_filename: null,
+    }),
   ).toBe("/files/job/original.pdf?download=true");
   expect(originalUrl({ id: "job", filename: "plain" })).toBe(
     "/files/job/originaln?download=true",
   );
   expect(errorText(new Error("失敗"))).toBe("失敗");
   expect(errorText("text")).toBe("text");
+});
+
+const here = {
+  href: "https://site.example/assessment/?mode=wiki&source=a#intro",
+  pathname: "/assessment/",
+  search: "?mode=wiki&source=a",
+  hash: "#intro",
+};
+
+describe("loginRedirect", () => {
+  it("returns the absolute address by default", () => {
+    expect(
+      loginRedirect({ login_url: "https://site.example/login" }, here),
+    ).toBe(`https://site.example/login?next=${encodeURIComponent(here.href)}`);
+  });
+
+  it("uses the configured name and the site-internal path", () => {
+    const url = loginRedirect(
+      {
+        login_url: "/login?lang=ja",
+        return_param: "redirect",
+        return_format: "path",
+      },
+      here,
+    );
+    expect(url).toBe(
+      `/login?lang=ja&redirect=${encodeURIComponent("/assessment/?mode=wiki&source=a#intro")}`,
+    );
+  });
+
+  it("ignores responses that are not a login request", () => {
+    expect(loginRedirect({ detail: "x" }, here)).toBeNull();
+    expect(loginRedirect(null, here)).toBeNull();
+  });
 });

@@ -28,11 +28,13 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest==9.1.1", "ruff==0.16.10", "ty==0.0.84", "reportlab==5.0.1"]
 mcp = ["mcp==1.26.0"]
+blob = ["azure-storage-blob==12.31.0", "azure-identity==1.25.1"]
 
 [project.scripts]
 docling-desk = "docling_desk.cli:main"
 docling-desk-models = "docling_desk.operations.download_models:main"
 docling-desk-verify = "docling_desk.operations.verify:main"
+docling-desk-blob = "docling_desk.blob_mirror:main"
 docling-desk-backup = "docling_desk.operations.backup:main"
 docling-desk-wiki = "docling_desk.wiki_batch.__main__:main"
 

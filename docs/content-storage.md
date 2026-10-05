@@ -35,7 +35,7 @@ Wikiは書き込み済みの版をmanifestで公開します。分類キーは�
 
 SQLiteには検索索引・embedding・待ち時間・処理状態を保存します。Wiki本文の検索用コピーも含みますが、正本はコンテンツファイルです。SQLiteを失ってもWiki記事ID・分類・原文と訳文の対応をファイルから復元できます。失ったembeddingや実行履歴は復元されません。意味検索の索引は必要に応じて作成し直してください。
 
-`content/` 以下の相対パスをBlob名として使用できます。成果物を共有する場合は `derived/` を別のprefixに対応させます。`runtime/` と `cache/`、Wikiバッチの `data/translation.sqlite` や資格情報は同期対象に含めません。現在の実装はローカルの保存・移行までで、Blobへのアップロード、ダウンロード、更新競合の処理は追加していません。
+`content/` 以下の相対パスをBlob名として使用できます。成果物を共有する場合は `derived/` を別のprefixに対応させます。`runtime/` と `cache/`、Wikiバッチの `data/translation.sqlite` や資格情報は同期対象に含めません。Blobへのミラーは `DOCLING_STORAGE=azure-blob` で有効にします（[Blobミラー](#blobミラー)）。
 
 `DOCLING_CACHE_DIR` は描画用補助プログラムなどの共有キャッシュ用です。資料ごとのサムネイルは `DOCLING_DATA_DIR/cache/` に保存します。Wikiバッチの編集元と翻訳状態は[編集用ワークスペース](wiki-batch.md)で別に管理します。
 
@@ -51,3 +51,60 @@ SQLiteには検索索引・embedding・待ち時間・処理状態を保存し�
 - 旧Wiki本文 → 初回Wiki・検索利用時にMarkdown・CSVとmanifestへ保存
 
 原本は再変換せず、元のバイトを保持します。SQLiteはbackup APIでWALの確定済み内容を取り込みます。新旧の保存先に異なる内容や同じ資料IDがあれば上書きせず停止します。旧形式のバックアップは引き続き復元でき、次の起動時に移行されます。ローカルバックアップには `runtime/` も含めて、検索の待ち時間や実行状態を保持します。これはBlobに保存するコンテンツ一式とは別です。
+
+## Blobミラー
+
+ローカルの `DOCLING_DATA_DIR` が正本のまま、Azure Blob Storageへ複製します。翻訳タスクなどの書き込みはローカルで行い、バックグラウンドの同期が変更分だけをBlobへ送ります。`DOCLING_STORAGE=local`（既定）では何も送りません。
+
+### 設定
+
+| 環境変数 | 内容 |
+|---|---|
+| `DOCLING_STORAGE` | `local`（既定）または `azure-blob` |
+| `DOCLING_BLOB_CONTAINER` | コンテナ名。必須 |
+| `DOCLING_BLOB_ACCOUNT_URL` | `https://<アカウント>.blob.core.windows.net`。Managed Identityで接続する場合に指定 |
+| `DOCLING_BLOB_CLIENT_ID` | ユーザー割り当てManaged Identityのクライアント。システム割り当てなら不要 |
+| `DOCLING_BLOB_CONNECTION_STRING` | 接続文字列。指定した場合はこちらを優先。Azurite（ローカルのエミュレーター）での検証用 |
+| `DOCLING_BLOB_PREFIX` | コンテナ内の接頭辞。1つのコンテナを他と共有する場合に指定 |
+| `DOCLING_BLOB_SYNC_DERIVED` | `derived/`（抽出結果・訳文）も複製する。既定 `1` |
+| `DOCLING_BLOB_INTERVAL_SECONDS` | 同期間隔。既定30、最小5 |
+
+Managed Identityには、コンテナに対する「Storage Blob Data Contributor」が必要です。
+
+### 保存先と復旧
+
+| データ | ローカルの場所 | Blob | 復旧 |
+|---|---|---|---|
+| 原本 | `content/documents/<ID>/` | 複製 | Blobから復元 |
+| Wiki本文・版 | `content/wiki/revisions/` | 複製 | Blobから復元 |
+| 分類・記事情報・削除状態 | `content/manifests/*.json` | 複製（常に最後に送信） | Blobから復元 |
+| 抽出結果・保存済み訳文 | `derived/documents/<ID>/` | 複製（`DOCLING_BLOB_SYNC_DERIVED=1`） | Blobから復元 |
+| 資料の処理状態 | `runtime/documents/<ID>/job.json` | 複製 | Blobから復元（起動に必要） |
+| 解説 | `runtime/documents/<ID>/explanation.sqlite` | 整合性のあるスナップショットを複製 | Blobから復元 |
+| 検索索引・embedding・ジョブ | `runtime/knowledge/local.sqlite` | 複製しない | 本文から索引を再作成。embeddingは再作成が必要 |
+| サムネイル | `cache/` | 複製しない | 再生成 |
+
+SQLiteは稼働中のファイルをそのままコピーせず、SQLiteのbackup APIで作った一貫した複製を送ります。
+
+### 動作
+
+- 更新は、保存済みのETagを条件にBlobへ書きます。他の経路でBlobが更新されていた場合は上書きせず、競合として記録します（`/api/storage`、`docling-desk-blob status`）。
+- 送信に失敗しても成功扱いにしません。失敗は記録され、次の同期で再試行します。保存先のキーはパスで固定なので、再試行で重複は生じません。送信後にハッシュ（SHA-256）を付与し、復元時に照合します。
+- 書き込み中のファイル（更新から2秒以内）は送りません。送信中に変わったファイルは次回に送り直します。
+- 資料や記事を削除したら、すぐに同期します。削除はBlobへ先に反映し、manifestは最後に送ります。復元時も同じ順序で、manifestを最後に取り込みます。そのため削除済みの資料は復元で復活しません。
+- ローカルの保存領域が空になっている場合（ボリューム未接続など）は、Blobの削除を同期しません。
+- 起動時にローカルの `content/` が空なら、Blobから復元します。復元の途中で止まった場合は印を残し、次の起動で続きから再開します。完了するまで `/health/ready` は `blob_restore_incomplete` を返します。
+
+### 手動操作
+
+```sh
+docling-desk-blob status   # 状態・競合・エラー
+docling-desk-blob push     # 今すぐ同期
+docling-desk-blob pull     # ローカルにないものをBlobから取得
+```
+
+終了コードは、競合やエラーがあれば1です。競合は、どちらの内容を残すかを人が判断して解消します（Blob側を削除するか、ローカルを修正して再送します）。
+
+### 検証
+
+Azurite（`npx azurite`）の接続文字列を `DOCLING_TEST_AZURITE` に指定すると、実際のAzure SDKで条件付き書き込み・削除・復元を確認するテスト（`tests/test_blob_azurite.py`）が走ります。指定がなければスキップします。実際のAzureサブスクリプションへの接続は検証していません。

@@ -24,11 +24,13 @@ nginxは接頭辞を取り除いて転送します。アプリ側のルートは
 | `DOCLING_AUTH_TOKEN_TYPE` | `type` クレームの期待値。既定 `access`。空にすると検査しない |
 | `DOCLING_AUTH_ISSUER` / `DOCLING_AUTH_AUDIENCE` | 任意。指定すると `iss` / `aud` を検査する |
 | `DOCLING_AUTH_USER_CLAIM` | 利用者を表すクレーム。既定 `userId` |
-| `DOCLING_AUTH_LOGIN_URL` | 未ログイン時の転送先。画面の読み込みは `?next=` 付きで転送し、APIは401にこのURLを添える |
+| `DOCLING_AUTH_LOGIN_URL` | 未ログイン時の転送先。画面の読み込みは戻り先を付けて転送し、APIは401にこのURLと戻り先の形式を添える |
+| `DOCLING_AUTH_RETURN_PARAM` | 戻り先を渡すクエリ名。既定 `next` |
+| `DOCLING_AUTH_RETURN_FORMAT` | 戻り先の形式。`url`（絶対URL、既定）または `path`（`/assessment/?…` のようなサイト内パス） |
 | `DOCLING_AUTH_LEEWAY_SECONDS` | 時計のずれの許容。既定30 |
-| `DOCLING_STORAGE` | 原本の保存先。現在は `local` のみ |
+| `DOCLING_STORAGE` | `local`（既定）または `azure-blob`。Blobの設定は[コンテンツとローカル状態の保存](content-storage.md#blobミラー)を参照 |
 
-`jwt` モードでは、HS256の署名・`exp`・（設定した場合）`nbf`・`type`・`iss`・`aud` を確認します。Cookieまたは `Authorization: Bearer` のトークンを受け付けます。`/health/` と `/static/` は認証なしです。アクセストークンの期限が切れると、再ログイン後に元の画面へ戻ります。このアプリはトークンの更新をしません。
+`jwt` モードでは、HS256の署名・`exp`・（設定した場合）`nbf`・`type`・`iss`・`aud` を確認します。Cookieまたは `Authorization: Bearer` のトークンを受け付けます。`/health/` と `/static/` は認証なしです。アクセストークンの期限が切れると、再ログイン後に元の画面へ戻ります。戻り先は、初回アクセスの転送と、画面操作中のAPIの401で同じ設定（名前・形式）を使い、クエリを含む元の画面（例：`/assessment/?mode=wiki&source=…`）を指します。このアプリはトークンの更新をしません。
 
 Cookieはホスト単位で送られるため、ホストアプリと同じホスト名・`Path=/` で配信してください。別のサブドメインでは届きません。
 

@@ -483,6 +483,7 @@ test("PDF keeps its page when scroll arrives before a hidden tab's resize restor
   await page.addInitScript(() => {
     if (!location.pathname.endsWith("/pdf")) return;
     const pending: (() => void)[] = [];
+    const handlers: (() => void)[] = [];
     const state = {
       hold: false,
       hiddenObserved: false,
@@ -491,19 +492,29 @@ test("PDF keeps its page when scroll arrives before a hidden tab's resize restor
         state.hold = false;
         pending.splice(0).forEach((callback) => callback());
       },
+      // Not every browser delivers ResizeObserver callbacks to a frame that is
+      // display:none, so the test delivers them itself to model engines that do.
+      deliver() {
+        handlers.forEach((handler) => handler());
+      },
     };
     Object.assign(window, { pdfResizeTest: state });
     const NativeObserver = window.ResizeObserver;
     window.ResizeObserver = class extends NativeObserver {
       constructor(callback: ResizeObserverCallback) {
-        super((entries, observer) => {
+        const handle = (
+          entries: ResizeObserverEntry[],
+          observer: ResizeObserver,
+        ) => {
           const stage = document.getElementById("pdfStage");
           if (!stage?.clientWidth) state.hiddenObserved = true;
           if (stage?.clientWidth && state.hold) {
             pending.push(() => callback(entries, observer));
             state.pending = pending.length;
           } else callback(entries, observer);
-        });
+        };
+        super(handle);
+        handlers.push(() => handle([], this));
       }
     };
   });
@@ -522,9 +533,14 @@ test("PDF keeps its page when scroll arrives before a hidden tab's resize restor
     .poll(() =>
       stage.evaluate(() => {
         const w = window as unknown as Window & {
-          pdfResizeTest: { hold: boolean; hiddenObserved: boolean };
+          pdfResizeTest: {
+            hold: boolean;
+            hiddenObserved: boolean;
+            deliver: () => void;
+          };
         };
         w.pdfResizeTest.hold = true;
+        w.pdfResizeTest.deliver();
         return w.pdfResizeTest.hiddenObserved;
       }),
     )
@@ -532,11 +548,13 @@ test("PDF keeps its page when scroll arrives before a hidden tab's resize restor
   await page.locator("#tab-preview").click();
   await expect
     .poll(() =>
-      stage.evaluate(
-        () =>
-          (window as unknown as Window & { pdfResizeTest: { pending: number } })
-            .pdfResizeTest.pending,
-      ),
+      stage.evaluate(() => {
+        const w = window as unknown as Window & {
+          pdfResizeTest: { pending: number; deliver: () => void };
+        };
+        w.pdfResizeTest.deliver();
+        return w.pdfResizeTest.pending;
+      }),
     )
     .toBeGreaterThan(0);
   await stage.evaluate(async (node) => {

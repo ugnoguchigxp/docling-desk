@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import shutil
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from docling_desk import config
@@ -23,6 +23,8 @@ def health_ready() -> JSONResponse:
     try:
         if not (config.RESOURCES / "static/frontend/index.html").is_file():
             reasons.append("frontend_missing")
+        if (config.DATA / "runtime" / "blob-restore.incomplete").exists():
+            reasons.append("blob_restore_incomplete")
         if not config.DATA.is_dir():
             reasons.append("data_missing")
         elif shutil.disk_usage(config.DATA).free < MIN_FREE:
@@ -37,3 +39,9 @@ def health_ready() -> JSONResponse:
     if reasons:
         body["reasons"] = reasons
     return JSONResponse(body, status_code=200 if ready else 503)
+
+
+@router.get("/api/storage")
+def storage_status(request: Request) -> dict:
+    mirror = getattr(request.app.state, "blob_mirror", None)
+    return mirror.status() if mirror else {"backend": "local"}

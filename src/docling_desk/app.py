@@ -10,6 +10,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from docling_desk import config
 from docling_desk.api import assets, explanation, health, library, preview, translation, uploads
+from docling_desk.blob_mirror import MirrorWorker, create_mirror
 from docling_desk.documents.conversion import Job, save_job
 from docling_desk.explanation.service import ExplanationManager
 from docling_desk.explanation.store import recover as explanation_recover
@@ -35,6 +36,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.slots = slots
     try:
         config.DATA.mkdir(parents=True, exist_ok=True)
+        mirror = create_mirror(config.DATA)
+        if mirror is not None:
+            # A new or rebuilt host starts empty: restore from the container first.
+            if mirror.restore_incomplete() or not mirror.has_local_content():
+                mirror.pull()
+            app.state.blob_mirror = mirror
+            app.state.blob_worker = MirrorWorker(mirror, config.BLOB_INTERVAL)
         with exclusive_write(config.DATA, "migration"):
             migrate_layout(config.DATA)
         interrupt_pending(config.DATA)
@@ -50,7 +58,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     "前回のサーバー停止で処理が中断されました。再アップロードしてください。",
                 )
                 save_job(folder, job)
+        if worker_mirror := getattr(app.state, "blob_worker", None):
+            worker_mirror.start()
         yield
+        if worker_mirror := getattr(app.state, "blob_worker", None):
+            worker_mirror.close()
+        app.state.blob_worker = app.state.blob_mirror = None
         if knowledge := getattr(app.state, "knowledge", None):
             knowledge.close()
             del app.state.knowledge

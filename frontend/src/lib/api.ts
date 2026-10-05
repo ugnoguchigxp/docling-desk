@@ -8,21 +8,19 @@ export async function request<T>(
   options: RequestInit = {},
   decode?: (value: unknown) => T,
 ): Promise<T> {
-  const response = await fetch(withBase(url), { cache: "no-store", ...options });
+  const response = await fetch(withBase(url), {
+    cache: "no-store",
+    ...options,
+  });
   const value: unknown = await response.json().catch(() => {
     throw new Error(
       response.ok ? "応答を読み込めませんでした。" : `HTTP ${response.status}`,
     );
   });
-  if (
-    response.status === 401 &&
-    object(value) &&
-    typeof value.login_url === "string"
-  ) {
+  if (response.status === 401) {
+    const target = loginRedirect(value, window.location);
     // The shared login expired: return through the host application's login.
-    window.location.assign(
-      `${value.login_url}${value.login_url.includes("?") ? "&" : "?"}next=${encodeURIComponent(window.location.href)}`,
-    );
+    if (target) window.location.assign(target);
   }
   if (!response.ok)
     throw new Error(
@@ -31,6 +29,23 @@ export async function request<T>(
         : `HTTP ${response.status}`,
     );
   return decode ? decode(value) : (value as T);
+}
+/**
+ * Login URL for a 401 response, using the return parameter and format that the
+ * server is configured with (absolute URL, or the site-internal path).
+ */
+export function loginRedirect(
+  body: unknown,
+  here: Pick<Location, "href" | "pathname" | "search" | "hash">,
+): string | null {
+  if (!object(body) || typeof body.login_url !== "string") return null;
+  const param =
+    typeof body.return_param === "string" ? body.return_param : "next";
+  const back =
+    body.return_format === "path"
+      ? here.pathname + here.search + here.hash
+      : here.href;
+  return `${body.login_url}${body.login_url.includes("?") ? "&" : "?"}${encodeURIComponent(param)}=${encodeURIComponent(back)}`;
 }
 export async function library(signal: AbortSignal): Promise<Library> {
   return request("/api/library", { signal }, decodeLibrary);

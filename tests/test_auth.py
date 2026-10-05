@@ -80,3 +80,24 @@ def test_verify_token_checks_issuer_and_audience():
         verify_token(good, SECRET, audience="c")
     with pytest.raises(TokenError):
         verify_token(token({"exp": None}), SECRET)
+
+
+def test_return_parameter_name_and_format_are_configurable(client, monkeypatch):
+    monkeypatch.setattr(desk_config, "AUTH_RETURN_PARAM", "redirect")
+    monkeypatch.setattr(desk_config, "AUTH_RETURN_FORMAT", "path")
+    monkeypatch.setattr(desk_config, "AUTH_LOGIN_URL", "/login")
+    monkeypatch.setattr(desk_config, "ROOT_PATH", "/assessment")
+    page = client.get("/?mode=wiki&source=a", headers={"Accept": "text/html"})
+    assert page.headers["location"] == "/login?redirect=%2Fassessment%2F%3Fmode%3Dwiki%26source%3Da"
+    api = client.get("/api/library").json()
+    assert (api["login_url"], api["return_param"], api["return_format"]) == (
+        "/login",
+        "redirect",
+        "path",
+    )
+
+
+def test_default_return_parameter_is_an_absolute_next(client):
+    page = client.get("/?a=1", headers={"Accept": "text/html"})
+    assert page.headers["location"].startswith("https://site.example/login?next=http")
+    assert client.get("/api/library").json()["return_format"] == "url"

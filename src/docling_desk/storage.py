@@ -12,6 +12,7 @@ import json
 import shutil
 from pathlib import Path
 
+from docling_desk.blob_mirror import notify
 from docling_desk.sqlite_writer import connect
 
 
@@ -146,6 +147,7 @@ def remove_document(folder: Path) -> None:
     for path in paths:
         if path.exists():
             shutil.rmtree(path)
+    notify()  # mirror the deletion now rather than at the next interval
 
 
 def _move(source: Path, target: Path) -> None:

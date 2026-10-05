@@ -102,7 +102,7 @@ Container Appsでは次の設定を適用します。
 | 認証 | 既定では認証なし。ホストアプリのJWTを共有する `DOCLING_AUTH_MODE=jwt` を使えるほか、ネットワーク設定でも制限する。[リバースプロキシ配下での公開](reverse-proxy.md)を参照 |
 | Secret | APIキーはSecret参照から環境変数に注入。イメージやYAMLへキーを直接書かない |
 
-この保存設定は現在のファイルシステム実装向けです。Blob接続・同期は未実装で、ボリュームの設定だけでBlob保存へ切り替わることはありません。Blob対応時のコンテンツ対象は `content/`、必要に応じて `derived/` です。SQLiteを含む `runtime/` と `cache/` はBlobに置きません。
+この保存設定は現在のファイルシステム実装向けです。Blobへのミラーは `DOCLING_STORAGE=azure-blob` で有効にできます（[Blobミラー](content-storage.md#blobミラー)）。ローカルが正本で、Blobは複製と復旧用です。検索索引のSQLiteと `cache/` は複製しません。
 
 HTTPのstartup/liveness/readiness probeを使う場合は、`Host: localhost` ヘッダーを指定します。ポート8765、startup/livenessは `/health/live`、readinessは `/health/ready`。Host制限があるため、任意の内部IPをHostにしたHTTP probeは使いません。startupは初回ロード時間を許容する閾値に設定してください。DockerのHEALTHCHECKだけでAzure側probeの設定を済ませたことにはしません。
 

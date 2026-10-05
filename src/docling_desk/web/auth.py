@@ -95,17 +95,32 @@ def _bearer(request: Request) -> str:
     return token.strip() if scheme.lower() == "bearer" else ""
 
 
+def return_target(request: Request) -> str:
+    """The address to come back to after login, in the configured format."""
+    path = config.url(request.url.path)
+    if config.AUTH_RETURN_FORMAT == "path":
+        return path + (f"?{request.url.query}" if request.url.query else "")
+    return str(request.url.replace(path=path))
+
+
+def login_redirect(login: str, target: str) -> str:
+    joiner = "&" if "?" in login else "?"
+    return f"{login}{joiner}{config.AUTH_RETURN_PARAM}={quote(target, safe='')}"
+
+
 def _denied(request: Request) -> Response:
     login = config.AUTH_LOGIN_URL
     wants_page = request.method == "GET" and "text/html" in request.headers.get("accept", "")
     if login and wants_page:
-        # Return to the address the browser used, which includes any proxy prefix.
-        target = str(request.url.replace(path=config.url(request.url.path)))
-        joiner = "&" if "?" in login else "?"
-        return RedirectResponse(f"{login}{joiner}next={quote(target, safe='')}", status_code=302)
+        return RedirectResponse(login_redirect(login, return_target(request)), status_code=302)
     body: dict[str, str] = {"detail": "ログインが必要です。"}
     if login:
-        body["login_url"] = login
+        # The browser knows which screen it is on, so it completes the redirect itself.
+        body.update(
+            login_url=login,
+            return_param=config.AUTH_RETURN_PARAM,
+            return_format=config.AUTH_RETURN_FORMAT,
+        )
     return JSONResponse(body, status_code=401, headers={"Cache-Control": "no-store"})
 
 

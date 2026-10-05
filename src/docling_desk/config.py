@@ -68,6 +68,14 @@ AUTH_ISSUER = os.environ.get("DOCLING_AUTH_ISSUER", "").strip()
 AUTH_AUDIENCE = os.environ.get("DOCLING_AUTH_AUDIENCE", "").strip()
 AUTH_USER_CLAIM = os.environ.get("DOCLING_AUTH_USER_CLAIM", "userId").strip()
 AUTH_LOGIN_URL = os.environ.get("DOCLING_AUTH_LOGIN_URL", "").strip()
+# How the login page is told where to return: the parameter name, and whether the
+# value is the absolute URL ("url") or the site-internal path with query ("path").
+AUTH_RETURN_PARAM = os.environ.get("DOCLING_AUTH_RETURN_PARAM", "next").strip()
+AUTH_RETURN_FORMAT = os.environ.get("DOCLING_AUTH_RETURN_FORMAT", "url").strip().lower()
+if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]*", AUTH_RETURN_PARAM):
+    raise RuntimeError("DOCLING_AUTH_RETURN_PARAMの形式が不正です。")
+if AUTH_RETURN_FORMAT not in {"url", "path"}:
+    raise RuntimeError("DOCLING_AUTH_RETURN_FORMATは url か path を指定してください。")
 AUTH_LEEWAY = int(os.environ.get("DOCLING_AUTH_LEEWAY_SECONDS", "30"))
 
 
@@ -86,13 +94,25 @@ if AUTH_MODE == "jwt" and len(AUTH_JWT_SECRET) < 32:
         "DOCLING_AUTH_MODE=jwt には32バイト以上の DOCLING_AUTH_JWT_SECRET"
         "（または DOCLING_AUTH_JWT_SECRET_FILE）が必要です。"
     )
-# The switch for where originals live. Only the local filesystem is implemented;
-# a remote store must be added behind this setting rather than by editing callers.
+# Where originals and the Wiki are kept. The local filesystem stays the source of
+# truth; ``azure-blob`` additionally mirrors ``content/`` to a Blob container.
 STORAGE_BACKEND = os.environ.get("DOCLING_STORAGE", "local").strip().lower()
-if STORAGE_BACKEND != "local":
-    raise RuntimeError(
-        f"DOCLING_STORAGE={STORAGE_BACKEND!r} は未対応です。現在は local のみ使えます。"
-    )
+if STORAGE_BACKEND not in {"local", "azure-blob"}:
+    raise RuntimeError("DOCLING_STORAGEは local か azure-blob を指定してください。")
+BLOB_CONNECTION_STRING = os.environ.get("DOCLING_BLOB_CONNECTION_STRING", "").strip()
+BLOB_ACCOUNT_URL = os.environ.get("DOCLING_BLOB_ACCOUNT_URL", "").strip().rstrip("/")
+BLOB_CONTAINER = os.environ.get("DOCLING_BLOB_CONTAINER", "").strip()
+BLOB_PREFIX = os.environ.get("DOCLING_BLOB_PREFIX", "").strip().strip("/")
+BLOB_CLIENT_ID = os.environ.get("DOCLING_BLOB_CLIENT_ID", "").strip()
+BLOB_SYNC_DERIVED = os.environ.get("DOCLING_BLOB_SYNC_DERIVED", "1").strip() in {"1", "true"}
+BLOB_INTERVAL = max(5, int(os.environ.get("DOCLING_BLOB_INTERVAL_SECONDS", "30")))
+if STORAGE_BACKEND == "azure-blob":
+    if not BLOB_CONTAINER or not (BLOB_CONNECTION_STRING or BLOB_ACCOUNT_URL):
+        raise RuntimeError(
+            "DOCLING_STORAGE=azure-blob には DOCLING_BLOB_CONTAINER と、"
+            "DOCLING_BLOB_ACCOUNT_URL（Managed Identity）または "
+            "DOCLING_BLOB_CONNECTION_STRING が必要です。"
+        )
 MAX_BYTES = 50 * 1024 * 1024
 MIN_FREE = 2 * 1024**3
 MAX_PAGES = 100
