@@ -21,6 +21,10 @@ services:
       DOCLING_BLOB_CONNECTION_STRING: "${DOCLING_BLOB_CONNECTION_STRING:-}"
       DOCLING_BLOB_PREFIX: "${DOCLING_BLOB_PREFIX:-}"
       DOCLING_BLOB_SYNC_DERIVED: "${DOCLING_BLOB_SYNC_DERIVED:-1}"
+      DOCLING_AUTH_SESSION_COOKIE: "${DOCLING_AUTH_SESSION_COOKIE:-docling_session}"
+      # nginx reaches the container from the Docker bridge, not from 127.0.0.1; the
+      # proxy headers (https, host) are honoured only from these addresses.
+      FORWARDED_ALLOW_IPS: "${FORWARDED_ALLOW_IPS:-127.0.0.1}"
       DOCLING_AUTH_COOKIE: "${DOCLING_AUTH_COOKIE:-mplm_access_token}"
       DOCLING_TRANSLATION_PROVIDER: "${DOCLING_TRANSLATION_PROVIDER:-codex_sdk}"
       DOCLING_AZURE_ENDPOINT: "${DOCLING_AZURE_ENDPOINT:-}"

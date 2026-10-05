@@ -27,10 +27,18 @@ nginxは接頭辞を取り除いて転送します。アプリ側のルートは
 | `DOCLING_AUTH_LOGIN_URL` | 未ログイン時の転送先。画面の読み込みは戻り先を付けて転送し、APIは401にこのURLと戻り先の形式を添える |
 | `DOCLING_AUTH_RETURN_PARAM` | 戻り先を渡すクエリ名。既定 `next` |
 | `DOCLING_AUTH_RETURN_FORMAT` | 戻り先の形式。`url`（絶対URL、既定）または `path`（`/assessment/?…` のようなサイト内パス） |
+| `DOCLING_AUTH_SESSION_COOKIE` | この画面が発行する自前のセッションCookie名。既定 `docling_session`。空にすると発行しない |
+| `FORWARDED_ALLOW_IPS` | `X-Forwarded-Proto` などを信頼するプロキシのアドレス。nginxがコンテナの外にある場合は、nginxから見えるアドレス（Dockerのブリッジなど）を指定する。未設定だと `https` が `http` と見なされ、絶対URLの戻り先が `http://` になる |
 | `DOCLING_AUTH_LEEWAY_SECONDS` | 時計のずれの許容。既定30 |
 | `DOCLING_STORAGE` | `local`（既定）または `azure-blob`。Blobの設定は[コンテンツとローカル状態の保存](content-storage.md#blobミラー)を参照 |
 
 `jwt` モードでは、HS256の署名・`exp`・（設定した場合）`nbf`・`type`・`iss`・`aud` を確認します。Cookieまたは `Authorization: Bearer` のトークンを受け付けます。`/health/` と `/static/` は認証なしです。アクセストークンの期限が切れると、再ログイン後に元の画面へ戻ります。戻り先は、初回アクセスの転送と、画面操作中のAPIの401で同じ設定（名前・形式）を使い、クエリを含む元の画面（例：`/assessment/?mode=wiki&source=…`）を指します。このアプリはトークンの更新をしません。
+
+未ログイン・期限切れ（`exp`）のときだけログインへ転送します。トークンがあっても署名・`type`・`iss`・`aud` が合わない場合は、ログインし直しても直らないため、転送せず403を返します（ログインとの間で転送が往復し続けないため）。
+
+### 原本ビューアと自前のセッションCookie
+
+原本ビューア（`/view/`）は、サンドボックス化したiframeで表示します。このiframeの中の画像などの要求には、ブラウザーが `SameSite=Lax` のCookieを付けません（実際のChromeで確認済み）。そのため、検証に成功したトークンを、この画面が `SameSite=None; Secure; HttpOnly` のCookie（`docling_session`、`Path` は `DOCLING_ROOT_PATH`）として再発行します。値は元のトークンと同じで、有効期間は最長15分です（共有ログインが有効な間は更新され、ホスト側でログアウトしたあとも長く残らないようにするため）。状態を変える要求は、従来どおりOriginとHostの一致で保護します。`Secure` のため、HTTPSで公開してください。
 
 Cookieはホスト単位で送られるため、ホストアプリと同じホスト名・`Path=/` で配信してください。別のサブドメインでは届きません。
 

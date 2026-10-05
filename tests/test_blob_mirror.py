@@ -319,3 +319,180 @@ def test_interrupted_restore_is_resumed_and_reported(tmp_path):
     assert mirror.pull().downloaded == 1
     assert not mirror.restore_incomplete()
     assert (target / "content/documents/b/original.pdf").read_bytes() == b"pdf2"
+
+
+def test_a_file_rewritten_during_upload_is_healed_not_stuck_in_conflict(setup):
+    data, store, mirror = setup
+    path = write(data, "content/documents/a/original.pdf", b"first")
+    real_put = store.put
+
+    def racing_put(key, source, sha, etag):
+        result = real_put(key, source, sha, etag)
+        write(data, "content/documents/a/original.pdf", b"second, written while uploading")
+        store.put = real_put
+        return result
+
+    store.put = racing_put
+    assert mirror.push().deferred == 1
+    report = mirror.push()
+    assert report.conflicts == [] and report.uploaded == 1
+    assert store.blobs[path.relative_to(data).as_posix()][0].startswith(b"second")
+    assert mirror.push().unchanged == 1
+
+
+def test_one_unreadable_file_does_not_stop_the_pass_and_state_is_kept(setup, monkeypatch):
+    data, store, mirror = setup
+    write(data, "content/a.md", b"a")
+    write(data, "content/b.md", b"b")
+    real = blob_mirror._sha256
+
+    def flaky(path):
+        if path.name == "a.md":
+            raise PermissionError("denied")
+        return real(path)
+
+    monkeypatch.setattr(blob_mirror, "_sha256", flaky)
+    assert mirror.push().uploaded == 1
+    assert set(store.blobs) == {"content/b.md"}
+    assert mirror.status()["tracked"] == 1
+
+
+def test_a_service_failure_stops_the_pass_but_keeps_earlier_uploads(setup):
+    data, store, mirror = setup
+    for name in ("a", "b", "c"):
+        write(data, f"content/documents/{name}/original.md", name.encode())
+    store.fail.add("content/documents/b/original.md")
+    report = mirror.push()
+    assert report.uploaded == 1 and len(report.errors) == 1
+    assert "boom" not in report.errors[0]  # details stay in the log, not the status API
+    assert mirror.status()["tracked"] == 1
+    store.fail.clear()
+    assert mirror.push().uploaded == 2
+
+
+def test_lost_state_does_not_resend_identical_files(tmp_path):
+    store = MemoryStore()
+    write(tmp_path, "content/a.md", b"same")
+    Mirror(tmp_path, store).push()
+    (tmp_path / "runtime/blob-sync.json").unlink()
+    sent: list[str] = []
+    real = store.put
+    store.put = lambda key, path, sha, etag: (sent.append(key), real(key, path, sha, etag))[1]
+    assert Mirror(tmp_path, store).push().unchanged == 1
+    assert sent == []
+
+
+def test_a_conflict_is_not_retried_until_the_file_changes(setup):
+    data, store, mirror = setup
+    key = "content/a.md"
+    write(data, key, b"mine")
+    mirror.push()
+    store.blobs[key] = (b"theirs", store._etag(), "x")
+    write(data, key, b"mine v2")
+    assert mirror.push().conflicts == [key]
+    sent: list[str] = []
+    real = store.put
+    store.put = lambda k, p, s, e: (sent.append(k), real(k, p, s, e))[1]
+    assert mirror.push().conflicts == [key] and sent == []
+
+
+def test_a_blob_removed_elsewhere_is_restored_from_the_local_copy(setup):
+    data, store, mirror = setup
+    key = "content/a.md"
+    write(data, key, b"mine")
+    mirror.push()
+    del store.blobs[key]
+    write(data, key, b"mine v2")
+    assert mirror.push().uploaded == 1
+    assert store.blobs[key][0] == b"mine v2"
+
+
+def test_missing_storage_areas_are_not_mass_deletions_but_the_last_document_is(setup):
+    data, store, mirror = setup
+    write(data, "content/documents/a/original.pdf", b"x")
+    write(data, "runtime/documents/a/job.json", b"{}")
+    mirror.push()
+    # The content volume vanished while runtime files remain: nothing may be deleted.
+    (data / "content/documents/a/original.pdf").unlink()
+    (data / "content/documents/a").rmdir()
+    (data / "content/documents").rmdir()
+    (data / "content").rmdir()
+    report = mirror.push()
+    assert report.deleted == 0 and report.errors
+    assert "content/documents/a/original.pdf" in store.blobs
+    # Deleting the only document while the area exists is a real deletion.
+    write(data, "content/manifests/library.json", b"{}")
+    assert mirror.push().deleted == 1
+    assert "content/documents/a/original.pdf" not in store.blobs
+
+
+def test_manifests_wait_while_a_referenced_file_is_still_settling(setup):
+    data, store, mirror = setup
+    write(data, "content/manifests/library.json", b"{}")
+    fresh = data / "content/documents/a/original.pdf"
+    fresh.parent.mkdir(parents=True)
+    fresh.write_bytes(b"still being written")
+    report = mirror.push()
+    assert report.deferred == 2 and not store.blobs
+
+
+def test_the_worker_resumes_an_unfinished_restore_before_pushing(tmp_path):
+    store = MemoryStore()
+    source = tmp_path / "source"
+    write(source, "content/documents/a/original.pdf", b"pdf")
+    Mirror(source, store).push()
+    target = tmp_path / "target"
+    (target / "runtime").mkdir(parents=True)
+    (target / "runtime" / blob_mirror.RESTORE_MARKER).write_text("1")
+    mirror = Mirror(target, store)
+    blob_mirror.MirrorWorker(mirror, 60)._pass()
+    assert (target / "content/documents/a/original.pdf").is_file()
+    assert "content/documents/a/original.pdf" in store.blobs  # not deleted by a push
+    assert not mirror.restore_incomplete()
+
+
+def test_a_file_deleted_while_it_is_sent_does_not_leave_an_untracked_blob(setup):
+    data, store, mirror = setup
+    path = write(data, "content/documents/a/original.pdf", b"x")
+    write(data, "content/manifests/library.json", b"{}")
+    real_put = store.put
+
+    def vanishing_put(key, source, sha, etag):
+        result = real_put(key, source, sha, etag)
+        if key.endswith("original.pdf"):
+            path.unlink()
+        return result
+
+    store.put = vanishing_put
+    mirror.push()
+    store.put = real_put
+    assert mirror.push().deleted == 1  # the blob is tracked, so the deletion is mirrored
+    assert "content/documents/a/original.pdf" not in store.blobs
+
+
+def test_a_partial_restore_never_deletes_what_it_has_not_downloaded(tmp_path):
+    store = MemoryStore()
+    source = tmp_path / "source"
+    write(source, "content/documents/a/original.pdf", b"a")
+    write(source, "content/documents/b/original.pdf", b"b")
+    Mirror(source, store).push()
+    target = tmp_path / "target"
+    target.mkdir()
+    mirror = Mirror(target, store)
+    broken = store.get
+    store.get = lambda k, t: (_ for _ in ()).throw(OSError("net")) if "/b/" in k else broken(k, t)
+    mirror.pull()
+    blob_mirror.MirrorWorker(mirror, 60)._pass()  # marker exists: resumes the pull, no push
+    assert {"content/documents/a/original.pdf", "content/documents/b/original.pdf"} <= set(
+        store.blobs
+    )
+
+
+def test_the_cli_refuses_to_push_during_an_unfinished_restore(tmp_path, monkeypatch, capsys):
+    store = MemoryStore()
+    mirror = Mirror(tmp_path, store)
+    (tmp_path / "runtime").mkdir()
+    (tmp_path / "runtime" / blob_mirror.RESTORE_MARKER).write_text("1")
+    monkeypatch.setattr(blob_mirror, "create_mirror", lambda data: mirror)
+    assert blob_mirror.main(["push"]) == 2
+    assert "pull" in capsys.readouterr().out

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
@@ -40,7 +41,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if mirror is not None:
             # A new or rebuilt host starts empty: restore from the container first.
             if mirror.restore_incomplete() or not mirror.has_local_content():
-                mirror.pull()
+                restored = mirror.pull()
+                if restored.errors:
+                    # Served read-only data is better than nothing, but not silently:
+                    # /health/ready stays 503 and the worker keeps resuming the restore.
+                    logging.getLogger("docling_desk.blob").error(
+                        "restore incomplete: %s", restored.errors[:3]
+                    )
             app.state.blob_mirror = mirror
             app.state.blob_worker = MirrorWorker(mirror, config.BLOB_INTERVAL)
         with exclusive_write(config.DATA, "migration"):
@@ -61,15 +68,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if worker_mirror := getattr(app.state, "blob_worker", None):
             worker_mirror.start()
         yield
-        if worker_mirror := getattr(app.state, "blob_worker", None):
-            worker_mirror.close()
-        app.state.blob_worker = app.state.blob_mirror = None
         if knowledge := getattr(app.state, "knowledge", None):
             knowledge.close()
             del app.state.knowledge
         app.state.explanation_manager.close()
         app.state.translation_manager.close()
+        # Last, so writes the managers finish while stopping still reach the mirror.
+        if worker_mirror := getattr(app.state, "blob_worker", None):
+            worker_mirror.close()
     finally:
+        app.state.blob_worker = app.state.blob_mirror = None
         worker.shutdown(wait=False, cancel_futures=True)
         app.state.worker = None
         app.state.slots = None

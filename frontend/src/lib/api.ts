@@ -3,6 +3,7 @@ import { library as decodeLibrary } from "./contracts";
 import { object } from "./value";
 import { withBase } from "./base";
 export { object } from "./value";
+let leaving = false;
 export async function request<T>(
   url: string,
   options: RequestInit = {},
@@ -20,7 +21,11 @@ export async function request<T>(
   if (response.status === 401) {
     const target = loginRedirect(value, window.location);
     // The shared login expired: return through the host application's login.
-    if (target) window.location.assign(target);
+    // Concurrent requests fail together; only the first one navigates.
+    if (target && !leaving) {
+      leaving = true;
+      window.location.assign(target);
+    }
   }
   if (!response.ok)
     throw new Error(

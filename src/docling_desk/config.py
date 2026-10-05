@@ -63,6 +63,8 @@ def url(path: str) -> str:
 
 AUTH_MODE = os.environ.get("DOCLING_AUTH_MODE", "none").strip().lower()
 AUTH_COOKIE = os.environ.get("DOCLING_AUTH_COOKIE", "mplm_access_token").strip()
+# This app's own copy of the verified token; empty disables it. See web/auth.py.
+AUTH_SESSION_COOKIE = os.environ.get("DOCLING_AUTH_SESSION_COOKIE", "docling_session").strip()
 AUTH_TOKEN_TYPE = os.environ.get("DOCLING_AUTH_TOKEN_TYPE", "access").strip()
 AUTH_ISSUER = os.environ.get("DOCLING_AUTH_ISSUER", "").strip()
 AUTH_AUDIENCE = os.environ.get("DOCLING_AUTH_AUDIENCE", "").strip()
@@ -104,7 +106,12 @@ BLOB_ACCOUNT_URL = os.environ.get("DOCLING_BLOB_ACCOUNT_URL", "").strip().rstrip
 BLOB_CONTAINER = os.environ.get("DOCLING_BLOB_CONTAINER", "").strip()
 BLOB_PREFIX = os.environ.get("DOCLING_BLOB_PREFIX", "").strip().strip("/")
 BLOB_CLIENT_ID = os.environ.get("DOCLING_BLOB_CLIENT_ID", "").strip()
-BLOB_SYNC_DERIVED = os.environ.get("DOCLING_BLOB_SYNC_DERIVED", "1").strip() in {"1", "true"}
+BLOB_SYNC_DERIVED = os.environ.get("DOCLING_BLOB_SYNC_DERIVED", "1").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 BLOB_INTERVAL = max(5, int(os.environ.get("DOCLING_BLOB_INTERVAL_SECONDS", "30")))
 if STORAGE_BACKEND == "azure-blob":
     if not BLOB_CONTAINER or not (BLOB_CONNECTION_STRING or BLOB_ACCOUNT_URL):

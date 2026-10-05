@@ -62,3 +62,24 @@ def test_login_redirect_returns_to_the_prefixed_address(client, monkeypatch):
     response = client.get("/?mode=wiki", headers={"Accept": "text/html"})
     assert response.status_code == 302
     assert "%2Fassessment%2F%3Fmode%3Dwiki" in response.headers["location"]
+
+
+def test_document_text_is_not_rewritten_but_urls_are():
+    html = (
+        "<p>call \"/api/users\" or '/files/x' in code</p>"
+        '<img src="/files/a/b.png"><script src="/static/x.js"></script>'
+        "<style>a{background:url(/static/y.png)}</style>"
+    )
+    out = prefix_text(html, "/assessment", kind="text/html")
+    assert '"/api/users"' in out and "'/files/x'" in out
+    assert 'src="/assessment/files/a/b.png"' in out
+    assert 'src="/assessment/static/x.js"' in out
+    assert "url(/assessment/static/y.png)" in out
+
+
+def test_partial_responses_and_validators_are_handled(client):
+    ranged = client.get("/static/slides.js", headers={"Range": "bytes=0-99"})
+    assert ranged.status_code == 206 and len(ranged.content) == 100
+    full = client.get("/static/slides.js")
+    assert "etag" not in full.headers
+    assert int(full.headers["content-length"]) == len(full.content)

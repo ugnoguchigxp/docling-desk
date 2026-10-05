@@ -66,3 +66,19 @@ def test_round_trip_conflict_delete_and_restore(store, tmp_path):
     assert restored.pull().downloaded == 2
     assert not (other / "derived/documents/x/translations/en/1.json").exists()
     assert restored.push().unchanged == 2
+
+
+def test_blob_removed_elsewhere_heals_and_lost_state_resends_nothing(store, tmp_path):
+    local = tmp_path / "local"
+    mirror = Mirror(local, store)
+    key = "content/documents/x/original.pdf"
+    make(local, key, b"pdf")
+    assert mirror.push().uploaded == 1
+    store.container.get_blob_client(f"site/{key}").delete_blob()
+    make(local, key, b"pdf v2")
+    assert mirror.push().uploaded == 1
+    assert store.container.get_blob_client(f"site/{key}").download_blob().readall() == b"pdf v2"
+
+    (local / "runtime/blob-sync.json").unlink()
+    report = Mirror(local, store).push()
+    assert report.unchanged == 1 and report.uploaded == 0 and not report.errors

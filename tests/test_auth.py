@@ -49,14 +49,62 @@ def test_requests_without_a_valid_token_are_refused(client):
     page = client.get("/", headers={"Accept": "text/html"})
     assert page.status_code == 302
     assert page.headers["location"].startswith("https://site.example/login?next=")
+    expired = client.get(
+        "/api/library", cookies={"mplm_access_token": token({"exp": time.time() - 3600})}
+    )
+    assert expired.status_code == 401
+    assert expired.json()["login_url"] == "https://site.example/login"
+
+
+def test_unacceptable_tokens_are_rejected_without_a_login_redirect(client):
     for bad in (
         token(secret=b"x" * 40),
-        token({"exp": time.time() - 3600}),
         token({"type": "refresh"}),
         token(alg="none"),
         "garbage",
+        "e30." * 2 + "e30",
     ):
-        assert client.get("/api/library", cookies={"mplm_access_token": bad}).status_code == 401
+        refused = client.get("/api/library", cookies={"mplm_access_token": bad})
+        assert refused.status_code == 403
+        assert "login_url" not in refused.json()
+        page = client.get("/", cookies={"mplm_access_token": bad}, headers={"Accept": "text/html"})
+        assert page.status_code == 403  # no redirect: logging in again cannot fix it
+
+
+def test_non_finite_expiry_and_deep_nesting_are_rejected(client):
+    for claims in ('{"exp": NaN}', '{"exp": Infinity}'):
+        head = b64(b'{"alg":"HS256"}')
+        body = b64(claims.encode())
+        sig = hmac.new(SECRET, f"{head}.{body}".encode(), hashlib.sha256).digest()
+        with pytest.raises(TokenError):
+            verify_token(f"{head}.{body}.{b64(sig)}", SECRET)
+    deep = b64(b"[" * 100000)
+    assert (
+        client.get("/api/library", headers={"Authorization": f"Bearer {deep}.x.y"}).status_code
+        == 403
+    )
+
+
+def test_a_stale_cookie_does_not_hide_a_valid_bearer_token(client):
+    stale = token({"exp": time.time() - 3600})
+    response = client.get(
+        "/api/library",
+        cookies={"mplm_access_token": stale},
+        headers={"Authorization": f"Bearer {token()}"},
+    )
+    assert response.status_code == 200
+
+
+def test_verified_token_is_reissued_as_a_cross_site_session_cookie(client):
+    first = client.get("/api/library", cookies={"mplm_access_token": token()})
+    cookie = first.headers["set-cookie"].lower()
+    assert "docling_session=" in cookie
+    assert "samesite=none" in cookie and "secure" in cookie and "httponly" in cookie
+    # The own cookie alone authenticates (sandboxed viewer sub-requests send only it),
+    # and is not re-issued every time.
+    good = token()
+    again = client.get("/api/library", cookies={"docling_session": good})
+    assert again.status_code == 200 and "set-cookie" not in again.headers
 
 
 def test_cookie_and_bearer_tokens_are_accepted(client):
@@ -101,3 +149,21 @@ def test_default_return_parameter_is_an_absolute_next(client):
     page = client.get("/?a=1", headers={"Accept": "text/html"})
     assert page.headers["location"].startswith("https://site.example/login?next=http")
     assert client.get("/api/library").json()["return_format"] == "url"
+
+
+def test_a_stale_own_cookie_does_not_block_the_login_redirect(client):
+    expired = token({"exp": time.time() - 3600})
+    response = client.get(
+        "/",
+        cookies={"mplm_access_token": expired, "docling_session": token(secret=b"x" * 40)},
+        headers={"Accept": "text/html"},
+    )
+    assert response.status_code == 302
+
+
+def test_the_own_cookie_is_short_lived(client):
+    long_lived = token({"exp": time.time() + 86400})
+    first = client.get("/api/library", cookies={"mplm_access_token": long_lived})
+    assert "max-age=900" in first.headers["set-cookie"].lower()
+    short = client.get("/api/library", cookies={"mplm_access_token": token()})
+    assert "max-age=900" not in short.headers["set-cookie"].lower()  # never beyond the token
