@@ -183,19 +183,22 @@ function renderTranslation(
   let failGet = false;
   let failPost = false;
   let gate: Promise<void> | null = null;
-  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (gate) await gate;
-    const url = String(input);
-    if (init?.method === "POST") {
-      posts.push(JSON.parse(String(init.body)));
-      if (failPost)
-        return Response.json({ detail: "翻訳できません" }, { status: 500 });
-      return Response.json({});
-    }
-    if (failGet) return Response.json({ detail: "確認できません" }, { status: 500 });
-    if (/\/translations\/(en|ja)\//.test(url)) return Response.json(panel);
-    return Response.json(data);
-  });
+  const fetchMock = vi.fn(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (gate) await gate;
+      const url = String(input);
+      if (init?.method === "POST") {
+        posts.push(JSON.parse(String(init.body)));
+        if (failPost)
+          return Response.json({ detail: "翻訳できません" }, { status: 500 });
+        return Response.json({});
+      }
+      if (failGet)
+        return Response.json({ detail: "確認できません" }, { status: 500 });
+      if (/\/translations\/(en|ja)\//.test(url)) return Response.json(panel);
+      return Response.json(data);
+    },
+  );
   vi.stubGlobal("fetch", fetchMock);
   const onLanguage = vi.fn();
   const cache = new QueryClient({
@@ -281,7 +284,12 @@ it("switches language and explains active, stale, and unavailable units", async 
             wait_reason: "rate_limit",
             next_attempt_at: soon,
           },
-          ja: { ...idle, state: "running", available: true, result_created_at: "t2" },
+          ja: {
+            ...idle,
+            state: "running",
+            available: true,
+            result_created_at: "t2",
+          },
         },
       },
       {
@@ -318,7 +326,9 @@ it("switches language and explains active, stale, and unavailable units", async 
     "href",
     "/api/jobs/synthetic/translations/en/page-1?download=true",
   );
-  expect(screen.getByRole("link", { name: /日本語訳 スライド 2/ })).toBeInTheDocument();
+  expect(
+    screen.getByRole("link", { name: /日本語訳 スライド 2/ }),
+  ).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "訳文を閉じる" }));
   expect(view.onLanguage).toHaveBeenCalledWith("original");
 
@@ -365,7 +375,9 @@ it("submits the current document, the whole file, and a failed request", async (
   expect(await screen.findByText(/文書全体を翻訳します/)).toBeInTheDocument();
   expect(screen.getByLabelText("翻訳先")).toHaveValue("ja");
   expect(screen.getByLabelText("次の翻訳までの間隔（秒）")).toHaveValue(60);
-  fireEvent.change(screen.getByLabelText("翻訳先"), { target: { value: "en" } });
+  fireEvent.change(screen.getByLabelText("翻訳先"), {
+    target: { value: "en" },
+  });
   fireEvent.change(screen.getByLabelText("次の翻訳までの間隔（秒）"), {
     target: { value: "15" },
   });
@@ -447,11 +459,15 @@ it("keeps the dialog locked while a translation is submitted", async () => {
 it("reports a failed refresh and disables translation until the job is done", async () => {
   const view = renderTranslation(overview());
   await waitFor(() =>
-    expect(view.cache.getQueryData(["translations", "synthetic"])).toBeDefined(),
+    expect(
+      view.cache.getQueryData(["translations", "synthetic"]),
+    ).toBeDefined(),
   );
   view.setFailGet(true);
   fireEvent.click(screen.getByRole("button", { name: "翻訳" }));
-  expect(await screen.findByText("確認できません")).toBeInTheDocument();
+  expect((await screen.findAllByText("確認できません")).length).toBeGreaterThan(
+    0,
+  );
   view.cache.clear();
   cleanup();
 
@@ -524,6 +540,52 @@ it("shows a panel error and an unavailable panel", async () => {
   expect(screen.queryByText("Hello")).toBeNull();
   view.setFailGet(true);
   view.cache.invalidateQueries({ queryKey: ["translation-result"] });
-  expect(await screen.findByText(/HTTP 500|確認できません/)).toBeInTheDocument();
+  expect(
+    await screen.findByText(/HTTP 500|確認できません/),
+  ).toBeInTheDocument();
+  view.cache.clear();
+});
+
+it("stops polling after a status error and lets the user retry explicitly", async () => {
+  const data = overview({
+    units: [
+      {
+        id: "slide-1",
+        kind: "slide",
+        number: 1,
+        mode: "panel",
+        excluded_count: 0,
+        segments_count: 1,
+        preview_unavailable_reason:
+          "原本プレビューがありません。抽出本文を翻訳します。",
+        languages: { en: { ...idle, state: "running" }, ja: idle },
+      },
+    ],
+  });
+  const view = renderTranslation(data);
+  await screen.findByText(/原本プレビューがありません/);
+  view.setFailGet(true);
+  await act(async () => {
+    await view.cache.invalidateQueries({
+      queryKey: ["translations", "synthetic"],
+    });
+  });
+  expect(await screen.findByText(/確認できません/)).toBeInTheDocument();
+  const calls = view.fetchMock.mock.calls.length;
+  vi.useFakeTimers();
+  try {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(view.fetchMock).toHaveBeenCalledTimes(calls);
+  } finally {
+    vi.useRealTimers();
+  }
+  view.setFailGet(false);
+  fireEvent.click(screen.getByRole("button", { name: "翻訳" }));
+  expect(
+    await screen.findByRole("button", { name: "翻訳を開始" }),
+  ).toBeVisible();
+  expect(view.fetchMock.mock.calls.length).toBe(calls + 1);
   view.cache.clear();
 });

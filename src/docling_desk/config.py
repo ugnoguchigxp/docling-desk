@@ -2,6 +2,7 @@
 
 import os
 import re
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -122,7 +123,9 @@ if STORAGE_BACKEND == "azure-blob":
         )
 MAX_BYTES = 50 * 1024 * 1024
 MIN_FREE = 2 * 1024**3
-MAX_PAGES = 100
+MAX_PAGES = int(os.environ.get("DOCLING_MAX_PAGES", str(sys.maxsize)))
+if MAX_PAGES < 1:
+    raise ValueError("DOCLING_MAX_PAGES は1以上にしてください。")
 for name, value in {
     "HF_HUB_OFFLINE": "1",
     "TRANSFORMERS_OFFLINE": "1",

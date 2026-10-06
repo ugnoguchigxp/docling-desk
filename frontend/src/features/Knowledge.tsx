@@ -5,7 +5,6 @@ import {
   Dialog,
   DialogActions,
   DialogHeading,
-  IconButton,
   SelectField,
   StatusMessage,
   TextField,
@@ -57,7 +56,14 @@ interface Task {
   error?: string;
   progress: number;
   total: number;
-  output: { results?: Hit[]; notice?: string; stale?: boolean };
+  output: {
+    results?: Hit[];
+    notice?: string;
+    stale?: boolean;
+    answer?: string;
+    citations?: (Hit & { label: string })[];
+    unknowns?: string[];
+  };
 }
 interface IndexStatus {
   azure_configured: boolean;
@@ -78,10 +84,12 @@ export function ModeMenu({
   mode,
   onMode,
   onSearch,
+  onRag,
 }: {
   mode: Route["mode"];
   onMode: (mode: Route["mode"]) => void;
   onSearch: () => void;
+  onRag?: () => void;
 }) {
   return (
     <>
@@ -111,6 +119,11 @@ export function ModeMenu({
         <span>本文を検索</span>
         <kbd aria-hidden="true">{shortcutLabel}</kbd>
       </button>
+      {onRag && (
+        <Button className="global-rag" onClick={onRag}>
+          RAG
+        </Button>
+      )}
     </>
   );
 }
@@ -631,7 +644,9 @@ export function KnowledgeSearch({
   onClose,
   route,
   navigate,
+  initialAction = "search",
 }: {
+  initialAction?: "search" | "rag";
   open: boolean;
   onClose: () => void;
   route: Route;
@@ -644,8 +659,7 @@ export function KnowledgeSearch({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [retrieval, setRetrieval] = useState<Task | null>(null),
-    [context, setContext] = useState({ text: "", signature: "" }),
-    [checked, setChecked] = useState(new Set<string>());
+    [operation, setOperation] = useState<"search" | "rag">(initialAction);
   const cache = useQueryClient();
   const action = useAsyncScope(
     `${open}:${route.mode}:${route.job}:${route.source}:${route.folder}`,
@@ -670,9 +684,9 @@ export function KnowledgeSearch({
     inFlight.current = false;
     setBusy(false);
     setError("");
-    setContext({ text: "", signature: "" });
-    setChecked(new Set());
-  }, [open, route.mode, route.job, route.source, route.folder]);
+    setRetrieval(null);
+    setOperation(initialAction);
+  }, [open, route.mode, route.job, route.source, route.folder, initialAction]);
   function close() {
     action.invalidate();
     onClose();
@@ -695,21 +709,12 @@ export function KnowledgeSearch({
         : 2000,
   });
   const current = task.data?.id === retrieval?.id ? task.data : retrieval;
-  const signature = JSON.stringify([current?.id, current?.output.results]);
-  const latestSignature = useRef(signature);
-  latestSignature.current = signature;
-  const contextText = context.signature === signature ? context.text : "";
   useEffect(() => {
     if (status.data && !status.data.azure_configured) setMode("text");
   }, [status.data]);
-  useEffect(() => {
-    const allowed = new Set(
-      current?.output.results?.map((hit) => hit.chunk_id),
-    );
-    setChecked((old) => new Set([...old].filter((id) => allowed.has(id))));
-  }, [current?.output.results]);
-  async function search() {
+  async function search(nextOperation: "search" | "rag" = "search") {
     if (
+      !query.trim() ||
       inFlight.current ||
       (current && ["queued", "running"].includes(current.state))
     )
@@ -717,43 +722,24 @@ export function KnowledgeSearch({
     inFlight.current = true;
     setBusy(true);
     setError("");
-    setContext({ text: "", signature: "" });
-    setChecked(new Set());
+    setOperation(nextOperation);
+    setRetrieval(null);
     const isCurrent = action.start();
     try {
-      const value = await post<Task>("/api/knowledge/search", {
-        query,
-        mode,
-        kind,
-        source_id: effectiveScope === "current" ? currentSource : null,
-        folder_id: effectiveScope === "folder" ? route.folder : null,
-        client_request_id: crypto.randomUUID(),
-      });
+      const value = await post<Task>(
+        nextOperation === "rag"
+          ? "/api/knowledge/answers"
+          : "/api/knowledge/search",
+        {
+          query,
+          mode,
+          kind,
+          source_id: effectiveScope === "current" ? currentSource : null,
+          folder_id: effectiveScope === "folder" ? route.folder : null,
+          client_request_id: crypto.randomUUID(),
+        },
+      );
       if (isCurrent()) setRetrieval(value);
-    } catch (e) {
-      if (isCurrent()) setError(errorText(e));
-    } finally {
-      if (isCurrent()) {
-        inFlight.current = false;
-        setBusy(false);
-      }
-    }
-  }
-  async function buildContext() {
-    if (!current || inFlight.current || !checked.size) return;
-    inFlight.current = true;
-    const isCurrent = action.start();
-    const requestedSignature = signature;
-    setBusy(true);
-    setError("");
-    try {
-      const value = await post<{ text: string }>("/api/knowledge/context", {
-        retrieval_id: current.id,
-        chunk_ids: [...checked],
-        budget: 4000,
-      });
-      if (isCurrent() && latestSignature.current === requestedSignature)
-        setContext({ text: value.text, signature: requestedSignature });
     } catch (e) {
       if (isCurrent()) setError(errorText(e));
     } finally {
@@ -802,6 +788,42 @@ export function KnowledgeSearch({
       }
     }
   }
+  function hitRoute(hit: Hit): Route {
+    return hit.kind === "wiki"
+      ? {
+          ...route,
+          mode: "wiki",
+          source: hit.source_id,
+          section: hit.locator.anchor || null,
+        }
+      : {
+          ...route,
+          mode: "library",
+          job: hit.job_id,
+          view: "preview",
+          unit: hit.unit,
+        };
+  }
+  function hitUrl(hit: Hit) {
+    const target = hitRoute(hit);
+    const params = new URLSearchParams({ mode: target.mode });
+    if (target.mode === "wiki") {
+      params.set("source", target.source!);
+      if (target.section) params.set("section", target.section);
+    } else {
+      params.set("job", target.job!);
+      params.set("view", "preview");
+      params.set("unit", String(target.unit));
+    }
+    return withBase(`/?${params}`);
+  }
+  function openHit(e: React.MouseEvent<HTMLAnchorElement>, hit: Hit) {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0)
+      return;
+    e.preventDefault();
+    close();
+    navigate(hitRoute(hit));
+  }
   const waiting = current && ["queued", "running"].includes(current.state),
     indexJob = status.data?.jobs.find((j) =>
       ["queued", "running"].includes(j.state),
@@ -814,11 +836,13 @@ export function KnowledgeSearch({
       open={open}
       onClose={close}
     >
-      <h2 id="knowledgeSearchTitle" className="visually-hidden">
-        Wikiと資料の本文を検索
-      </h2>
+      <DialogHeading
+        id="knowledgeSearchTitle"
+        title={operation === "rag" ? "RAGで質問" : "本文検索"}
+        onClose={close}
+      />
       <form
-        className="command-input"
+        className="knowledge-search-form"
         onSubmit={(e) => {
           e.preventDefault();
           void search();
@@ -830,17 +854,24 @@ export function KnowledgeSearch({
           required
           maxLength={4000}
           value={query}
-          placeholder="Wikiと資料の本文を検索… Enterで実行"
+          placeholder="検索キーワードや質問を入力"
           aria-label="検索文"
           onChange={(e) => setQuery(e.target.value)}
           autoFocus
         />
         <Button type="submit" className="primary" disabled={busy || !!waiting}>
-          {busy ? "検索を開始…" : "検索"}
+          {busy && operation === "search" ? "検索を開始…" : "検索"}
         </Button>
-        <IconButton label="閉じる" onClick={close}>
-          ×
-        </IconButton>
+        <Button
+          className="knowledge-rag-button"
+          disabled={busy || !!waiting || !query.trim()}
+          onClick={() => void search("rag")}
+        >
+          {busy && operation === "rag" ? "RAGを開始…" : "RAG"}
+        </Button>
+        <p className="knowledge-search-help">
+          RAGは検索上位5件から関連する本文を選び、キーワードの解説と出典リンク付きで回答します。
+        </p>
         <div className="knowledge-controls">
           <label>
             検索方法
@@ -933,12 +964,14 @@ export function KnowledgeSearch({
       </StatusMessage>
       {waiting && (
         <StatusMessage>
-          検索を処理中です。Azureの待ち時間も含みます。
+          {operation === "rag"
+            ? "関連する本文を選び、回答を作成しています…"
+            : "検索を処理中です。Azureの待ち時間も含みます。"}
           <Button
             disabled={busy}
             onClick={() => void cancelTask(current.id, true)}
           >
-            検索を中止
+            {operation === "rag" ? "RAGを中止" : "検索を中止"}
           </Button>
         </StatusMessage>
       )}
@@ -947,80 +980,84 @@ export function KnowledgeSearch({
           出典が更新されました。検索をやり直してください。
         </StatusMessage>
       )}
-      {current?.state === "completed" && !current.output.results?.length && (
-        <p>該当する本文はありません。</p>
+      {current?.state === "completed" &&
+        !current.output.results?.length &&
+        !current.output.answer && <p>該当する本文はありません。</p>}
+      {current?.output.answer && !current.output.stale && (
+        <section className="knowledge-answer" aria-label="RAGの回答">
+          <h3>回答</h3>
+          <div className="knowledge-answer-text">
+            {current.output.answer.split(/(\[S\d+\])/g).map((part, i) => {
+              const citation = current.output.citations?.find(
+                (c) => `[${c.label}]` === part,
+              );
+              return citation ? (
+                <a
+                  key={i}
+                  href={hitUrl(citation)}
+                  onClick={(e) => openHit(e, citation)}
+                  aria-label={`${part} ${citation.title}の本文を開く`}
+                >
+                  {part}
+                </a>
+              ) : (
+                part
+              );
+            })}
+          </div>
+          {!!current.output.unknowns?.length && (
+            <div className="knowledge-answer-unknowns">
+              <h4>本文から確認できないこと</h4>
+              <ul>
+                {current.output.unknowns.map((text, i) => (
+                  <li key={i}>{text}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
+      {!!current?.output.results?.length && (
+        <p className="knowledge-result-count">
+          {operation === "rag" ? "採用した本文" : "検索結果"} ·{" "}
+          {current.output.results.length}件
+        </p>
       )}
       <ul className="knowledge-results">
         {current?.output.results?.map((hit) => (
           <li key={hit.chunk_id}>
-            <label>
-              <input
-                type="checkbox"
-                checked={checked.has(hit.chunk_id)}
-                onChange={(e) => {
-                  const next = new Set(checked);
-                  if (e.target.checked) next.add(hit.chunk_id);
-                  else next.delete(hit.chunk_id);
-                  setChecked(next);
-                }}
-              />
-              根拠に含める
-            </label>
-            <Button
-              onClick={() => {
-                close();
-                navigate(
-                  hit.kind === "wiki"
-                    ? {
-                        ...route,
-                        mode: "wiki",
-                        source: hit.source_id,
-                        section: hit.locator.anchor || null,
-                      }
-                    : {
-                        ...route,
-                        mode: "library",
-                        job: hit.job_id,
-                        view: "preview",
-                        unit: hit.unit,
-                      },
-                );
-              }}
+            <div className="knowledge-result-source">
+              <span>{hit.kind === "wiki" ? "Wiki" : "資料"}</span>
+              {hit.locator.heading && <span> › {hit.locator.heading}</span>}
+              {hit.kind === "document" && <span> · 表示位置 {hit.unit}</span>}
+              {hit.partial && <span> · 一部抽出</span>}
+            </div>
+            <a
+              className="knowledge-result-title"
+              href={hitUrl(hit)}
+              aria-label={`${hit.kind === "wiki" ? "Wiki" : "資料"} · ${hit.title}`}
+              onClick={(e) => openHit(e, hit)}
             >
-              {hit.kind === "wiki" ? "Wiki" : "資料"} · {hit.title}{" "}
-              {hit.partial && "（一部抽出）"}
-              {hit.locator.heading && ` / ${hit.locator.heading}`}
-            </Button>
-            <pre>{hit.text}</pre>
+              {hit.title}
+            </a>
+            <p className="knowledge-result-snippet">
+              {searchSnippet(hit.text, query)}
+            </p>
           </li>
         ))}
       </ul>
-      {!!current?.output.results?.length && (
-        <Button
-          disabled={busy || !checked.size}
-          onClick={() => void buildContext()}
-        >
-          選んだ本文からRAGの根拠を取得
-        </Button>
-      )}
-      {contextText && (
-        <div className="knowledge-context">
-          <h3>出典付きの根拠本文</h3>
-          <textarea aria-label="RAGの根拠本文" readOnly value={contextText} />
-          <Button
-            disabled={busy}
-            onClick={() => {
-              if (inFlight.current) return;
-              const isCurrent = action.start();
-              void navigator.clipboard.writeText(contextText).catch((e) => {
-                if (isCurrent()) setError(errorText(e));
-              });
-            }}
-          >
-            根拠本文をコピー
-          </Button>
-        </div>
-      )}
     </Dialog>
   );
+}
+
+function searchSnippet(text: string, query: string) {
+  const compact = text.replace(/\s+/g, " ").trim();
+  if (compact.length <= 300) return compact;
+  const term = query
+    .trim()
+    .split(/\s+/)
+    .find((word) => compact.toLowerCase().includes(word.toLowerCase()));
+  const match = term ? compact.toLowerCase().indexOf(term.toLowerCase()) : 0;
+  const start = Math.max(0, match - 80);
+  return `${start ? "…" : ""}${compact.slice(start, start + 300)}${start + 300 < compact.length ? "…" : ""}`;
 }

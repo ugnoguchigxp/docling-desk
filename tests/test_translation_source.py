@@ -92,3 +92,26 @@ def test_image_slide_uses_existing_page_text_as_panel(translation_document):
     unit = source_map(folder)["units"][0]
     assert unit["mode"] == "panel" and unit["segments"]
     assert all("node_path" not in s["locator"] for s in unit["segments"])
+
+
+def test_second_page_display_reuses_slide_index_and_updates_changed_paths(
+    translation_document, monkeypatch
+):
+    import docling_desk.translation.source as sources
+
+    folder = translation_document()
+    job = json.loads((folder / "job.json").read_text())
+    first = template_for(folder, job, 1)
+    path = folder / "slides.json"
+    original_loads = sources.json.loads
+    with monkeypatch.context() as changed:
+        changed.setattr(
+            sources.json,
+            "loads",
+            lambda *a, **k: (_ for _ in ()).throw(AssertionError("all slides parsed again")),
+        )
+        assert template_for(folder, job, 1) == first
+    slides = original_loads(path.read_text())
+    slides["slides"][0]["preview"] = slides["slides"][1]["preview"]
+    path.write_text(json.dumps(slides))
+    assert template_for(folder, job, 1) != first

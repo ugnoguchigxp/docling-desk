@@ -18,6 +18,7 @@ export function App() {
     }),
     [message, setMessage] = useState(""),
     [searchOpen, setSearchOpen] = useState(false),
+    [searchAction, setSearchAction] = useState<"search" | "rag">("search"),
     locations = useRef<Partial<Record<Route["mode"], Route>>>({}),
     languages = useRef(new Map<string, Language>()),
     openedFrom = useRef<HTMLElement | null>(null);
@@ -33,6 +34,7 @@ export function App() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
+        setSearchAction("search");
         setSearchOpen(true);
       }
     };
@@ -42,7 +44,14 @@ export function App() {
   const menu = (
     <ModeMenu
       mode={route.mode}
-      onSearch={() => setSearchOpen(true)}
+      onSearch={() => {
+        setSearchAction("search");
+        setSearchOpen(true);
+      }}
+      onRag={() => {
+        setSearchAction("rag");
+        setSearchOpen(true);
+      }}
       onMode={(mode) => {
         if (mode === route.mode) return;
         navigate(
@@ -157,6 +166,7 @@ export function App() {
       </main>
       {upload.ui}
       <KnowledgeSearch
+        initialAction={searchAction}
         open={searchOpen}
         onClose={() => setSearchOpen(false)}
         route={route}

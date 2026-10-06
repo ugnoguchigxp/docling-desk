@@ -455,36 +455,40 @@ function installKnowledge() {
   let statusReply: () => Response | Promise<Response> = () => json(statusBody);
   let retrievalBody = task();
   let retrievalReply: () => Response = () => json(retrievalBody);
-  let searchReply: () => Response | Promise<Response> = () => json(retrievalBody);
-  let contextReply: () => Response | Promise<Response> = () => json({ text: "根拠" });
+  let searchReply: () => Response | Promise<Response> = () =>
+    json(retrievalBody);
+  let answerReply: () => Response | Promise<Response> = () =>
+    json(retrievalBody);
   let indexReply: () => Response | Promise<Response> = () => json({});
   let cancelReply: (id: string) => Response | Promise<Response> = () =>
     json(task({ state: "cancelled" }));
   const searches: Record<string, unknown>[] = [];
-  const contexts: Record<string, unknown>[] = [];
+  const answers: Record<string, unknown>[] = [];
   handle = (input, init) => {
     const url = requestUrl(input);
     const method = methodOf(init);
-    if (url.endsWith("/api/knowledge/status") && method === "GET") return statusReply();
+    if (url.endsWith("/api/knowledge/status") && method === "GET")
+      return statusReply();
     if (url.endsWith("/api/knowledge/search") && method === "POST") {
       searches.push(jsonBody(init));
       return searchReply();
     }
     if (/\/api\/knowledge\/retrievals\/[^/]+$/.test(url) && method === "GET")
       return retrievalReply();
-    if (url.endsWith("/api/knowledge/context") && method === "POST") {
-      contexts.push(jsonBody(init));
-      return contextReply();
+    if (url.endsWith("/api/knowledge/answers") && method === "POST") {
+      answers.push(jsonBody(init));
+      return answerReply();
     }
     if (url.endsWith("/api/knowledge/index-jobs") && method === "POST")
       return indexReply();
     const cancel = url.match(/\/api\/knowledge\/tasks\/([^/]+)\/cancel$/);
-    if (cancel && method === "POST") return cancelReply(decodeURIComponent(cancel[1]));
+    if (cancel && method === "POST")
+      return cancelReply(decodeURIComponent(cancel[1]));
     throw new Error(`unexpected ${method} ${url}`);
   };
   return {
     searches,
-    contexts,
+    answers,
     get statusBody() {
       return statusBody;
     },
@@ -506,8 +510,8 @@ function installKnowledge() {
     set searchReply(value: () => Response | Promise<Response>) {
       searchReply = value;
     },
-    set contextReply(value: () => Response | Promise<Response>) {
-      contextReply = value;
+    set answerReply(value: () => Response | Promise<Response>) {
+      answerReply = value;
     },
     set indexReply(value: () => Response | Promise<Response>) {
       indexReply = value;
@@ -526,9 +530,10 @@ describe("ModeMenu", () => {
   it("marks the active mode and opens search", async () => {
     const onMode = vi.fn();
     const onSearch = vi.fn();
+    const onRag = vi.fn();
     const user = userEvent.setup();
     const view = render(
-      <ModeMenu mode="library" onMode={onMode} onSearch={onSearch} />,
+      <ModeMenu mode="library" onMode={onMode} onSearch={onSearch} onRag={onRag} />,
     );
     expect(screen.getByRole("button", { name: "資料一覧" })).toHaveAttribute(
       "aria-current",
@@ -551,6 +556,9 @@ describe("ModeMenu", () => {
     );
     await user.click(screen.getByRole("button", { name: "本文を検索" }));
     expect(onSearch).toHaveBeenCalledOnce();
+    view.rerender(<ModeMenu mode="wiki" onMode={onMode} onSearch={onSearch} onRag={onRag} />);
+    await user.click(screen.getByRole("button", { name: "RAG" }));
+    expect(onRag).toHaveBeenCalledOnce();
   });
 });
 
@@ -987,6 +995,78 @@ describe("Wiki", () => {
 });
 
 describe("KnowledgeSearch", () => {
+  it("runs RAG separately, displays only selected results, and links answer citations", async () => {
+    const api = installKnowledge();
+    const user = userEvent.setup();
+    const view = renderSearch({ open: true, route: makeRoute() });
+    expect(
+      screen.getByRole("button", { name: "RAG" }),
+    ).toBeDisabled();
+    await user.type(
+      screen.getByRole("searchbox", { name: "検索文" }),
+      "キーワード",
+    );
+    const gate = deferred();
+    api.answerReply = () => gate.promise;
+    await user.click(screen.getByRole("button", { name: "RAG" }));
+    expect(screen.getByRole("button", { name: "RAGを開始…" })).toBeDisabled();
+    expect(api.answers).toHaveLength(1);
+    expect(api.searches).toHaveLength(0);
+    const completed = task({
+      id: "rag1",
+      output: {
+        results: [docHit],
+        answer: "キーワードは本文で定義された用語です。[S1]",
+        citations: [{ ...docHit, label: "S1" }],
+        unknowns: ["追加の条件は未記載"],
+      },
+    });
+    api.retrievalBody = completed;
+    await settle(gate.resolve, json(completed));
+    expect(
+      await screen.findByRole("region", { name: "RAGの回答" }),
+    ).toHaveTextContent("キーワードは");
+    expect(screen.getByText("追加の条件は未記載")).toBeInTheDocument();
+    expect(screen.queryByText("本文A")).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    const citation = screen.getByRole("link", {
+      name: "[S1] 仕様書の本文を開く",
+    });
+    expect(citation).toHaveAttribute(
+      "href",
+      "/?mode=library&job=job-2&view=preview&unit=5",
+    );
+    await user.click(citation);
+    expect(view.navigate).toHaveBeenCalledWith(
+      expect.objectContaining({ job: "job-2", unit: 5 }),
+    );
+    api.publish(
+      view.query,
+      task({ id: "rag1", output: { results: [], stale: true } }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("region", { name: "RAGの回答" }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("ignores late RAG replies after leaving and reports failures", async () => {
+    const api = installKnowledge();
+    const user = userEvent.setup();
+    const view = renderSearch({ open: true, route: makeRoute() });
+    await user.type(screen.getByRole("searchbox", { name: "検索文" }), "用語");
+    const gate = deferred();
+    api.answerReply = () => gate.promise;
+    await user.click(screen.getByRole("button", { name: "RAG" }));
+    view.set({ route: makeRoute({ source: "another" }) });
+    await settle(gate.resolve, json(task({ output: { answer: "古い回答" } })));
+    expect(screen.queryByText("古い回答")).not.toBeInTheDocument();
+    api.answerReply = () => problem("回答できません");
+    await user.click(screen.getByRole("button", { name: "RAG" }));
+    expect(await screen.findByText("回答できません")).toBeInTheDocument();
+  });
+
   it("shows index status, search modes, and scope fallbacks", async () => {
     const api = installKnowledge();
     const statusGate = deferred();
@@ -1003,7 +1083,9 @@ describe("KnowledgeSearch", () => {
       screen.getByText("Azure未設定。全文検索を利用できます。"),
     ).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "意味検索" })).toBeDisabled();
-    expect(screen.getByRole("option", { name: "全文＋意味検索" })).toBeDisabled();
+    expect(
+      screen.getByRole("option", { name: "全文＋意味検索" }),
+    ).toBeDisabled();
 
     const ready = {
       azure_configured: true,
@@ -1016,41 +1098,83 @@ describe("KnowledgeSearch", () => {
     api.statusBody = ready;
     await settle(statusGate.resolve, json(ready));
     api.statusReply = () => json(api.statusBody);
-    expect(await screen.findByText("意味検索の準備：4 / 10断片")).toBeInTheDocument();
+    expect(
+      await screen.findByText("意味検索の準備：4 / 10断片"),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "意味検索の索引を作成・更新" }),
     ).toBeEnabled();
-    expect(screen.getByText("Azureへの通信後は15秒待ちます。")).toBeInTheDocument();
+    expect(
+      screen.getByText("Azureへの通信後は15秒待ちます。"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "意味検索" })).toBeEnabled();
-    await user.selectOptions(screen.getByRole("combobox", { name: "検索方法" }), "semantic");
-    await user.selectOptions(screen.getByRole("combobox", { name: "検索方法" }), "hybrid");
-    await user.selectOptions(screen.getByRole("combobox", { name: "検索対象" }), "document");
-    await user.selectOptions(screen.getByRole("combobox", { name: "検索対象" }), "wiki");
-    await user.selectOptions(screen.getByRole("combobox", { name: "範囲" }), "current");
-    await user.selectOptions(screen.getByRole("combobox", { name: "範囲" }), "folder");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "検索方法" }),
+      "semantic",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "検索方法" }),
+      "hybrid",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "検索対象" }),
+      "document",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "検索対象" }),
+      "wiki",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "範囲" }),
+      "current",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "範囲" }),
+      "folder",
+    );
 
-    view.set({ route: makeRoute({ mode: "library", job: "job-7", folder: null }) });
+    view.set({
+      route: makeRoute({ mode: "library", job: "job-7", folder: null }),
+    });
     await waitFor(() =>
       expect(screen.getByRole("combobox", { name: "範囲" })).toHaveValue("all"),
     );
-    expect(screen.getByRole("option", { name: "現在の資料・記事" })).toBeEnabled();
-    expect(screen.getByRole("option", { name: "現在のフォルダー配下" })).toBeDisabled();
-    await user.selectOptions(screen.getByRole("combobox", { name: "範囲" }), "current");
+    expect(
+      screen.getByRole("option", { name: "現在の資料・記事" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("option", { name: "現在のフォルダー配下" }),
+    ).toBeDisabled();
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "範囲" }),
+      "current",
+    );
     view.set({ route: makeRoute({ mode: "library" }) });
     await waitFor(() =>
       expect(screen.getByRole("combobox", { name: "範囲" })).toHaveValue("all"),
     );
-    expect(screen.getByRole("option", { name: "現在の資料・記事" })).toBeDisabled();
+    expect(
+      screen.getByRole("option", { name: "現在の資料・記事" }),
+    ).toBeDisabled();
 
     view.set({ route: makeRoute({ mode: "wiki", source: "ja" }) });
-    expect(screen.getByRole("option", { name: "現在の資料・記事" })).toBeEnabled();
-    expect(screen.getByRole("option", { name: "現在のフォルダー配下" })).toBeDisabled();
-    await user.selectOptions(screen.getByRole("combobox", { name: "範囲" }), "current");
+    expect(
+      screen.getByRole("option", { name: "現在の資料・記事" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("option", { name: "現在のフォルダー配下" }),
+    ).toBeDisabled();
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "範囲" }),
+      "current",
+    );
     view.set({ route: makeRoute({ mode: "wiki" }) });
     await waitFor(() =>
       expect(screen.getByRole("combobox", { name: "範囲" })).toHaveValue("all"),
     );
-    expect(screen.getByRole("option", { name: "現在の資料・記事" })).toBeDisabled();
+    expect(
+      screen.getByRole("option", { name: "現在の資料・記事" }),
+    ).toBeDisabled();
 
     api.statusBody = {
       azure_configured: false,
@@ -1058,13 +1182,17 @@ describe("KnowledgeSearch", () => {
       chunks: 0,
       embedded: 0,
       cooldown_until: null,
-      jobs: [{ id: "done", state: "completed", progress: 1, total: 1, output: {} }],
+      jobs: [
+        { id: "done", state: "completed", progress: 1, total: 1, output: {} },
+      ],
     };
     await act(async () => {
       await view.query.refetchQueries({ queryKey: ["knowledge-status"] });
     });
     await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: "検索方法" })).toHaveValue("text"),
+      expect(screen.getByRole("combobox", { name: "検索方法" })).toHaveValue(
+        "text",
+      ),
     );
     expect(
       screen.getByText("Azure未設定。全文検索を利用できます。"),
@@ -1081,7 +1209,7 @@ describe("KnowledgeSearch", () => {
       await view.query.refetchQueries({ queryKey: ["knowledge-status"] });
     });
     expect(await screen.findByText("接続できません")).toBeInTheDocument();
-    await user.click(areaButton(searchDialog(), ".command-input", "閉じる"));
+    await user.click(areaButton(searchDialog(), ".dialog-heading", "閉じる"));
     expect(view.onClose).toHaveBeenCalled();
     fireEvent(
       searchDialog(),
@@ -1090,7 +1218,7 @@ describe("KnowledgeSearch", () => {
     expect(view.onClose).toHaveBeenCalledTimes(2);
   });
 
-  it("searches hits, builds context, and opens the source", async () => {
+  it("searches hits and opens their source links", async () => {
     const api = installKnowledge();
     const user = userEvent.setup();
     const writeText = vi.fn().mockResolvedValue(undefined);
@@ -1107,10 +1235,22 @@ describe("KnowledgeSearch", () => {
     expect(
       await screen.findByRole("button", { name: "意味検索の索引を作成・更新" }),
     ).toBeEnabled();
-    await user.type(screen.getByRole("searchbox", { name: "検索文" }), "budget");
-    await user.selectOptions(screen.getByRole("combobox", { name: "検索方法" }), "hybrid");
-    await user.selectOptions(screen.getByRole("combobox", { name: "検索対象" }), "wiki");
-    await user.selectOptions(screen.getByRole("combobox", { name: "範囲" }), "folder");
+    await user.type(
+      screen.getByRole("searchbox", { name: "検索文" }),
+      "budget",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "検索方法" }),
+      "hybrid",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "検索対象" }),
+      "wiki",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "範囲" }),
+      "folder",
+    );
 
     const first = deferred();
     api.retrievalBody = task();
@@ -1123,7 +1263,9 @@ describe("KnowledgeSearch", () => {
     expect(api.searches).toHaveLength(1);
     await settle(first.resolve, json(task()));
     api.searchReply = () => json(api.retrievalBody);
-    expect(await screen.findByText("該当する本文はありません。")).toBeInTheDocument();
+    expect(
+      await screen.findByText("該当する本文はありません。"),
+    ).toBeInTheDocument();
     expect(api.searches[0]).toMatchObject({
       query: "budget",
       mode: "hybrid",
@@ -1146,71 +1288,39 @@ describe("KnowledgeSearch", () => {
     expect(
       screen.getByText("出典が更新されました。検索をやり直してください。"),
     ).toBeInTheDocument();
-    expect(screen.queryByText("該当する本文はありません。")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Wiki · 導入/ }),
-    ).toHaveTextContent("（一部抽出）");
-    expect(screen.getByRole("button", { name: /Wiki · 導入/ })).toHaveTextContent("節");
-    expect(screen.getByRole("button", { name: "資料 · 仕様書" })).toBeInTheDocument();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "選んだ本文からRAGの根拠を取得" }),
+      screen.queryByText("該当する本文はありません。"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Wiki · 導入/ })).toHaveTextContent(
+      "導入",
     );
-    expect(api.contexts).toHaveLength(0);
-    const boxes = screen.getAllByRole("checkbox", { name: "根拠に含める" });
-    await user.click(boxes[0]);
-    await user.click(boxes[0]);
-    expect(boxes[0]).not.toBeChecked();
-    await user.click(boxes[0]);
-    await user.click(boxes[1]);
-    api.publish(view.query, task({ output: { results: [docHit], stale: true } }));
-    await waitFor(() =>
-      expect(screen.getAllByRole("checkbox", { name: "根拠に含める" })).toHaveLength(1),
-    );
-    expect(screen.getByRole("checkbox", { name: "根拠に含める" })).toBeChecked();
-
-    const contextGate = deferred();
-    api.contextReply = () => contextGate.promise;
-    await user.click(screen.getByRole("button", { name: "選んだ本文からRAGの根拠を取得" }));
-    fireEvent.click(screen.getByRole("button", { name: "選んだ本文からRAGの根拠を取得" }));
-    expect(api.contexts).toHaveLength(1);
-    expect(api.contexts[0]).toEqual({
-      retrieval_id: "s1",
-      chunk_ids: ["c-doc"],
-      budget: 4000,
-    });
-    await settle(contextGate.resolve, json({ text: "出典付き本文" }));
+    expect(screen.getByText("· 一部抽出")).toBeInTheDocument();
+    expect(screen.getByText("› 節")).toBeInTheDocument();
     expect(
-      await screen.findByRole("textbox", { name: "RAGの根拠本文" }),
-    ).toHaveValue("出典付き本文");
-    await user.click(screen.getByRole("button", { name: "根拠本文をコピー" }));
-    expect(writeText).toHaveBeenCalledWith("出典付き本文");
-    writeText.mockRejectedValueOnce(new Error("コピーできません"));
-    await user.click(screen.getByRole("button", { name: "根拠本文をコピー" }));
-    expect(await screen.findByText("コピーできません")).toBeInTheDocument();
+      screen.getByRole("link", { name: "資料 · 仕様書" }),
+    ).toBeInTheDocument();
 
-    const mismatched = deferred();
-    api.contextReply = () => mismatched.promise;
-    await user.click(screen.getByRole("button", { name: "選んだ本文からRAGの根拠を取得" }));
-    api.publish(
-      view.query,
-      task({
-        output: {
-          results: [{ ...docHit, text: "更新後" }],
-          notice: "索引が古いです",
-        },
-      }),
-    );
-    await settle(mismatched.resolve, json({ text: "採用されない根拠" }));
-    expect(screen.queryByDisplayValue("採用されない根拠")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: "根拠に含める" }),
+    ).not.toBeInTheDocument();
+    expect(api.answers).toHaveLength(0);
 
     api.retrievalBody = task({
       id: "s2",
       output: { results: [wikiHit, docHit] },
     });
-    await user.selectOptions(screen.getByRole("combobox", { name: "検索方法" }), "text");
-    await user.selectOptions(screen.getByRole("combobox", { name: "検索対象" }), "document");
-    await user.selectOptions(screen.getByRole("combobox", { name: "範囲" }), "current");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "検索方法" }),
+      "text",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "検索対象" }),
+      "document",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "範囲" }),
+      "current",
+    );
     await user.click(screen.getByRole("button", { name: "検索" }));
     await screen.findByText("本文A");
     expect(api.searches.at(-1)).toMatchObject({
@@ -1224,9 +1334,17 @@ describe("KnowledgeSearch", () => {
       id: "s3",
       output: { results: [wikiHit, docHit] },
     });
-    view.set({ route: makeRoute({ mode: "wiki", source: "ja", folder: "folder-9" }) });
-    await user.selectOptions(screen.getByRole("combobox", { name: "検索対象" }), "all");
-    await user.selectOptions(screen.getByRole("combobox", { name: "範囲" }), "current");
+    view.set({
+      route: makeRoute({ mode: "wiki", source: "ja", folder: "folder-9" }),
+    });
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "検索対象" }),
+      "all",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "範囲" }),
+      "current",
+    );
     await user.click(screen.getByRole("button", { name: "検索" }));
     expect(api.searches.at(-1)).toMatchObject({
       kind: "all",
@@ -1237,13 +1355,19 @@ describe("KnowledgeSearch", () => {
       id: "s4",
       output: { results: [wikiHit, docHit] },
     });
-    await user.selectOptions(screen.getByRole("combobox", { name: "範囲" }), "all");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "範囲" }),
+      "all",
+    );
     await user.click(screen.getByRole("button", { name: "検索" }));
-    expect(api.searches.at(-1)).toMatchObject({ source_id: null, folder_id: null });
+    expect(api.searches.at(-1)).toMatchObject({
+      source_id: null,
+      folder_id: null,
+    });
 
     view.navigate.mockClear();
     view.onClose.mockClear();
-    await user.click(screen.getByRole("button", { name: /Wiki · 導入/ }));
+    await user.click(screen.getByRole("link", { name: /Wiki · 導入/ }));
     expect(view.onClose).toHaveBeenCalled();
     expect(view.navigate).toHaveBeenCalledWith(
       makeRoute({
@@ -1253,7 +1377,7 @@ describe("KnowledgeSearch", () => {
         folder: "folder-9",
       }),
     );
-    await user.click(screen.getByRole("button", { name: "資料 · 仕様書" }));
+    await user.click(screen.getByRole("link", { name: "資料 · 仕様書" }));
     expect(view.navigate).toHaveBeenCalledWith(
       makeRoute({
         mode: "library",
@@ -1264,10 +1388,17 @@ describe("KnowledgeSearch", () => {
         folder: "folder-9",
       }),
     );
-    api.publish(view.query, task({ id: "s4", output: { results: [bareWikiHit] } }));
-    await user.click(await screen.findByRole("button", { name: "Wiki · 付録" }));
+    api.publish(
+      view.query,
+      task({ id: "s4", output: { results: [bareWikiHit] } }),
+    );
+    await user.click(await screen.findByRole("link", { name: "Wiki · 付録" }));
     expect(view.navigate).toHaveBeenCalledWith(
-      expect.objectContaining({ mode: "wiki", source: "src-wiki", section: null }),
+      expect.objectContaining({
+        mode: "wiki",
+        source: "src-wiki",
+        section: null,
+      }),
     );
 
     api.publish(
@@ -1284,17 +1415,9 @@ describe("KnowledgeSearch", () => {
     const indexGate = deferred();
     api.indexReply = () => indexGate.promise;
     api.publish(view.query, task({ id: "s4", output: { results: [docHit] } }));
-    api.contextReply = () => json({ text: "コピー中の本文" });
-    const contextBox = await screen.findByRole("checkbox", { name: "根拠に含める" });
-    if (!(contextBox as HTMLInputElement).checked) await user.click(contextBox);
-    await user.click(screen.getByRole("button", { name: "選んだ本文からRAGの根拠を取得" }));
-    expect(
-      await screen.findByRole("textbox", { name: "RAGの根拠本文" }),
-    ).toHaveValue("コピー中の本文");
-    writeText.mockClear();
-    await user.click(screen.getByRole("button", { name: "意味検索の索引を作成・更新" }));
-    fireEvent.click(screen.getByRole("button", { name: "根拠本文をコピー" }));
-    expect(writeText).not.toHaveBeenCalled();
+    await user.click(
+      screen.getByRole("button", { name: "意味検索の索引を作成・更新" }),
+    );
     await settle(indexGate.resolve, json({}));
     expect(
       await screen.findByRole("button", { name: "意味検索の索引を作成・更新" }),
@@ -1336,16 +1459,25 @@ describe("KnowledgeSearch", () => {
     });
     expect(await screen.findByText("索引作成中 2 / 8")).toBeInTheDocument();
     expect(screen.queryByText("前回の失敗")).not.toBeInTheDocument();
-    await user.type(screen.getByRole("searchbox", { name: "検索文" }), "budget");
+    await user.type(
+      screen.getByRole("searchbox", { name: "検索文" }),
+      "budget",
+    );
     const searchGate = deferred();
     api.searchReply = () => searchGate.promise;
     await user.click(screen.getByRole("button", { name: "検索" }));
     fireEvent.click(screen.getByRole("button", { name: "索引作成を中止" }));
-    fireEvent.click(screen.getByRole("button", { name: "意味検索の索引を作成・更新" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "意味検索の索引を作成・更新" }),
+    );
     expect(api.searches).toHaveLength(1);
     await settle(searchGate.resolve, json(running));
-    expect(await screen.findByText("検索を処理中です。Azureの待ち時間も含みます。")).toBeInTheDocument();
-    const form = screen.getByRole("searchbox", { name: "検索文" }).closest("form");
+    expect(
+      await screen.findByText("検索を処理中です。Azureの待ち時間も含みます。"),
+    ).toBeInTheDocument();
+    const form = screen
+      .getByRole("searchbox", { name: "検索文" })
+      .closest("form");
     if (!(form instanceof HTMLFormElement)) throw new Error("missing form");
     fireEvent.submit(form);
     expect(api.searches).toHaveLength(1);
@@ -1390,7 +1522,10 @@ describe("KnowledgeSearch", () => {
       return indexCancel.promise;
     };
     await user.click(screen.getByRole("button", { name: "索引作成を中止" }));
-    await settle(indexCancel.resolve, json(task({ id: "idx", state: "cancelled", output: {} })));
+    await settle(
+      indexCancel.resolve,
+      json(task({ id: "idx", state: "cancelled", output: {} })),
+    );
     expect(await screen.findByText("中断しました")).toBeInTheDocument();
 
     api.statusBody = {
@@ -1402,13 +1537,22 @@ describe("KnowledgeSearch", () => {
       jobs: [],
     };
     api.indexReply = () => problem("索引を作れません");
-    await user.click(screen.getByRole("button", { name: "意味検索の索引を作成・更新" }));
+    await user.click(
+      screen.getByRole("button", { name: "意味検索の索引を作成・更新" }),
+    );
     expect(await screen.findByText("索引を作れません")).toBeInTheDocument();
     api.indexReply = () => json({});
-    await user.click(screen.getByRole("button", { name: "意味検索の索引を作成・更新" }));
-    await waitFor(() => expect(screen.queryByText("索引を作れません")).not.toBeInTheDocument());
+    await user.click(
+      screen.getByRole("button", { name: "意味検索の索引を作成・更新" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("索引を作れません")).not.toBeInTheDocument(),
+    );
 
-    api.publish(view.query, task({ id: "s1", state: "failed", error: "失敗しました", output: {} }));
+    api.publish(
+      view.query,
+      task({ id: "s1", state: "failed", error: "失敗しました", output: {} }),
+    );
     expect(await screen.findByText("失敗しました")).toBeInTheDocument();
   });
 
@@ -1428,7 +1572,11 @@ describe("KnowledgeSearch", () => {
           output: { notice: "サーバー側", results: [] },
         }),
       );
-    const route = makeRoute({ mode: "library", job: "job-7", folder: "folder-9" });
+    const route = makeRoute({
+      mode: "library",
+      job: "job-7",
+      folder: "folder-9",
+    });
     const view = renderSearch({ open: true, route });
     expect(await screen.findByText("状態を取得できません")).toBeInTheDocument();
     api.statusReply = () =>
@@ -1443,7 +1591,10 @@ describe("KnowledgeSearch", () => {
     await act(async () => {
       await view.query.refetchQueries({ queryKey: ["knowledge-status"] });
     });
-    await user.type(screen.getByRole("searchbox", { name: "検索文" }), "budget");
+    await user.type(
+      screen.getByRole("searchbox", { name: "検索文" }),
+      "budget",
+    );
     api.retrievalBody = task({
       output: { notice: "クライアント側", results: [docHit] },
     });
@@ -1463,15 +1614,6 @@ describe("KnowledgeSearch", () => {
     await user.click(screen.getByRole("button", { name: "検索" }));
     expect(await screen.findByText("検索できません")).toBeInTheDocument();
 
-    api.retrievalReply = () => json(task({ output: { results: [docHit] } }));
-    api.retrievalBody = task({ output: { results: [docHit] } });
-    api.searchReply = () => json(api.retrievalBody);
-    await user.click(screen.getByRole("button", { name: "検索" }));
-    await user.click(await screen.findByRole("checkbox", { name: "根拠に含める" }));
-    api.contextReply = () => problem("根拠を作れません");
-    await user.click(screen.getByRole("button", { name: "選んだ本文からRAGの根拠を取得" }));
-    expect(await screen.findByText("根拠を作れません")).toBeInTheDocument();
-
     api.statusReply = () => json(api.statusBody);
     api.statusBody = {
       azure_configured: true,
@@ -1485,7 +1627,9 @@ describe("KnowledgeSearch", () => {
       await view.query.refetchQueries({ queryKey: ["knowledge-status"] });
     });
     api.cancelReply = () => problem("中止できません");
-    await user.click(await screen.findByRole("button", { name: "索引作成を中止" }));
+    await user.click(
+      await screen.findByRole("button", { name: "索引作成を中止" }),
+    );
     expect(await screen.findByText("中止できません")).toBeInTheDocument();
 
     const searchGate = deferred();
@@ -1497,42 +1641,6 @@ describe("KnowledgeSearch", () => {
       json(task({ output: { results: [{ ...docHit, text: "古い検索" }] } })),
     );
     expect(screen.queryByText("古い検索")).not.toBeInTheDocument();
-
-    api.searchReply = () => json(task({ output: { results: [docHit] } }));
-    api.retrievalBody = task({ output: { results: [docHit] } });
-    api.retrievalReply = () => json(api.retrievalBody);
-    view.set({ route });
-    await user.clear(screen.getByRole("searchbox", { name: "検索文" }));
-    await user.type(screen.getByRole("searchbox", { name: "検索文" }), "budget");
-    await user.click(screen.getByRole("button", { name: "検索" }));
-    await user.click(await screen.findByRole("checkbox", { name: "根拠に含める" }));
-    const contextGate = deferred();
-    api.contextReply = () => contextGate.promise;
-    await user.click(screen.getByRole("button", { name: "選んだ本文からRAGの根拠を取得" }));
-    view.set({ route: makeRoute({ ...route, folder: "elsewhere" }) });
-    await settle(contextGate.resolve, json({ text: "古い根拠" }));
-    expect(screen.queryByDisplayValue("古い根拠")).not.toBeInTheDocument();
-
-    view.set({ route });
-    await user.click(screen.getByRole("button", { name: "検索" }));
-    await user.click(await screen.findByRole("checkbox", { name: "根拠に含める" }));
-    api.contextReply = () => json({ text: "残る根拠" });
-    await user.click(screen.getByRole("button", { name: "選んだ本文からRAGの根拠を取得" }));
-    expect(
-      await screen.findByRole("textbox", { name: "RAGの根拠本文" }),
-    ).toHaveValue("残る根拠");
-    let rejectCopy!: (reason?: unknown) => void;
-    writeText.mockReturnValueOnce(
-      new Promise<void>((_resolve, reject) => {
-        rejectCopy = reject;
-      }),
-    );
-    await user.click(screen.getByRole("button", { name: "根拠本文をコピー" }));
-    view.set({ route: makeRoute({ ...route, job: "job-8", folder: "folder-9" }) });
-    await act(async () => {
-      rejectCopy(new Error("copy-stale"));
-    });
-    expect(screen.queryByText("copy-stale")).not.toBeInTheDocument();
 
     view.set({ route });
     const indexGate = deferred();

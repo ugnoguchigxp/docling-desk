@@ -170,6 +170,16 @@ def _sha256(path: Path) -> str:
         return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
+def _publication_rank(key: str) -> int:
+    if "/manifests/" in key:
+        return 4
+    if key.endswith("/job.json"):
+        return 3
+    if key.endswith("/translation-source.json"):
+        return 2
+    return int(key.endswith("/manifest.json"))
+
+
 def _safe_key(key: str) -> bool:
     parts = key.split("/")
     return bool(key) and not key.startswith("/") and ".." not in parts and "\\" not in key
@@ -266,9 +276,13 @@ class Mirror:
         for snap in sorted((self.staging / "documents").glob("*/explanation.sqlite")):
             found.append((f"runtime/documents/{snap.parent.name}/{snap.name}", snap))
         # Manifests last: a reader never sees one that names something not yet stored.
-        found.sort(key=lambda item: ("/manifests/" in item[0], item[0]))
+        found.sort(key=lambda item: (_publication_rank(item[0]), item[0]))
         for key, path in found:
-            if path.is_symlink() or not path.is_file() or path.name.endswith(SKIP_SUFFIXES):
+            if (
+                path.is_symlink()
+                or not path.is_file()
+                or any(part.endswith(SKIP_SUFFIXES) for part in key.split("/"))
+            ):
                 continue
             yield key, path
 
@@ -371,7 +385,9 @@ class Mirror:
                 report.unchanged += 1
                 continue
             # A manifest names files stored earlier in this pass; hold it while any are pending.
-            if now - stat.st_mtime < self.settle or ("/manifests/" in key and report.deferred):
+            if now - stat.st_mtime < self.settle or (
+                _publication_rank(key) and (report.deferred or report.conflicts or report.errors)
+            ):
                 report.deferred += 1
                 continue
             try:
@@ -460,7 +476,7 @@ class Mirror:
             marker.parent.mkdir(parents=True, exist_ok=True)
             marker.write_text(str(time.time()))
             remote = self.store.list()
-            order = sorted(remote, key=lambda k: ("/manifests/" in k, k))
+            order = sorted(remote, key=lambda k: (_publication_rank(k), k))
             for key in order:
                 info = remote[key]
                 if not _safe_key(key) or not self._wanted(key):

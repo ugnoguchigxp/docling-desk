@@ -620,6 +620,7 @@ def test_worker_auth_validation_extract_and_viewer(tmp_path, monkeypatch):
     pdf = pymupdf.open()
     for _ in range(101):
         pdf.new_page()
+    monkeypatch.setattr(worker_mod, "MAX_PAGES", 100)
     too_many = _upload(root, pdf.tobytes(), ".pdf")
     pdf.close()
     assert (

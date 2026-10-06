@@ -77,6 +77,21 @@ import docling_desk.web.frontend as frontend_delivery
 import docling_desk.translation.service as translation_service
 from docling_desk.translation.store import read_result
 
+# RAG browser checks use a fixed provider and never contact the live LLM.
+import docling_desk.knowledge.service as knowledge_service
+
+class FixedRag:
+    def cancel(self):
+        pass
+
+    def select(self, question, candidates):
+        return [c["chunk_id"] for c in candidates[:2]]
+
+    def answer(self, question, evidence):
+        return {"answer": f"{question}は本文にある用語です。[S1]", "citation_ids": ["S1"], "unknowns": []}
+
+knowledge_service.AnswerProvider = FixedRag
+
 # Optional immutable build for long comparisons while other work changes the
 # live deployment. Normal operation tests continue to use the current build.
 if bundle := os.environ.get("DOCLING_UI_QA_BUNDLE"):

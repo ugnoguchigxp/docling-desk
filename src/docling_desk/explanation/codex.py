@@ -42,6 +42,13 @@ class CodexExplanationProvider:
             CodexProvider._stop(self.process)
 
     def complete(self, task: str, payload: dict, timeout: float) -> dict:
+        return self.complete_structured(
+            payload, timeout, INSTRUCTIONS, TASKS[task], SCHEMAS[task].model_json_schema()
+        )
+
+    def complete_structured(
+        self, payload: dict, timeout: float, instructions: str, task_instructions: str, schema: dict
+    ) -> dict:
         self.usage = None
         if self.cancelled.is_set():
             raise ExplanationError("interrupted", "解説処理を中断しました。")
@@ -90,13 +97,13 @@ class CodexExplanationProvider:
                 stdout, _ = process.communicate(
                     json.dumps(
                         {
-                            "task": task,
+                            "task": "structured",
                             "payload": payload,
                             "model": self.profile.model,
                             "work": str(work),
-                            "instructions": INSTRUCTIONS,
-                            "task_instructions": TASKS[task],
-                            "schema": SCHEMAS[task].model_json_schema(),
+                            "instructions": instructions,
+                            "task_instructions": task_instructions,
+                            "schema": schema,
                         },
                         ensure_ascii=False,
                     ),
@@ -169,13 +176,11 @@ def worker() -> None:
                 sandbox=Sandbox.read_only,
                 approval_mode=ApprovalMode.deny_all,
                 base_instructions=payload.get("instructions", INSTRUCTIONS),
-                developer_instructions=payload.get("task_instructions", TASKS[payload["task"]]),
+                developer_instructions=payload["task_instructions"],
             )
             result = thread.run(
                 json.dumps(payload["payload"], ensure_ascii=False, separators=(",", ":")),
-                output_schema=cast(
-                    JsonObject, payload.get("schema", SCHEMAS[payload["task"]].model_json_schema())
-                ),
+                output_schema=cast(JsonObject, payload["schema"]),
             )
             if result.status.value != "completed" or not result.final_response:
                 raise RuntimeError("explanation did not complete")

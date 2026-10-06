@@ -51,7 +51,7 @@
 | 分析POSTの既定上限 | 1回/秒 | 15回/秒 |
 | 結果取得GETの既定上限 | 1回/秒 | 50回/秒 |
 
-これらはAzure側の上限です。アプリの原本上限は計画どおり50 MiB・PDF100ページとし、AzureへはOCR対象ページをPNGで一枚ずつ送ります。F0でも、各PNGが4 MBを超えれば送れません。画像の幅・高さは各50〜10,000ピクセルの範囲で検査します。F0の「最初の2ページ」は1要求への制約であり、月間の無料利用枠とは別です。[サービス制限](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/service-limits?view=doc-intel-4.0.0)、[Read入力要件](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/prebuilt/read?view=doc-intel-4.0.0#input-requirements)。
+これらはAzure側の上限です。アプリの原本上限は50 MiBです。ページ数は固定制限を設けず、必要な場合は `DOCLING_MAX_PAGES` で指定します。AzureへはOCR対象ページをPNGで一枚ずつ送ります。F0でも、各PNGが4 MBを超えれば送れません。画像の幅・高さは各50〜10,000ピクセルの範囲で検査します。F0の「最初の2ページ」は1要求への制約であり、月間の無料利用枠とは別です。[サービス制限](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/service-limits?view=doc-intel-4.0.0)、[Read入力要件](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/prebuilt/read?view=doc-intel-4.0.0#input-requirements)。
 
 ## 2 Document Intelligenceを作成する
 

@@ -47,7 +47,10 @@ def test_worker_requires_token_and_rejects_arbitrary_paths(worker):
     assert client.get("/files/unknown/original.txt").status_code == 404
 
 
-def test_validation_checks_hash_and_pdf_page_limit(worker):
+def test_validation_checks_hash_and_pdf_page_limit(worker, monkeypatch):
+    from docling_desk.knowledge import worker as worker_mod
+
+    monkeypatch.setattr(worker_mod, "MAX_PAGES", 100)
     client, root = worker
     payload = uploaded(root, b"valid")
     payload["sha256"] = "a" * 64
@@ -243,3 +246,18 @@ def test_viewer_rewrites_svg_links_without_inserting_tokens_in_text(tmp_path):
     html = base64.b64decode(result["body_base64"]).decode()
     assert f'xlink:href="{prefix}file/plot.svg"' in html
     assert "Literal /static/example.css" in html
+
+
+def test_default_shared_page_limit_accepts_530_pages(worker):
+    client, root = worker
+    pdf = pymupdf.open()
+    for _ in range(530):
+        pdf.new_page()
+    payload = uploaded(root, pdf.tobytes(), ".pdf")
+    pdf.close()
+    assert (
+        client.post(
+            "/internal/v1/validate", json=payload, headers={"Authorization": f"Bearer {TOKEN}"}
+        ).status_code
+        == 200
+    )

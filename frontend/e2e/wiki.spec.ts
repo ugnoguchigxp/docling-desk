@@ -226,19 +226,29 @@ test("Shared text search returns document and Wiki citations, then opens the sou
   await dialog.getByRole("button", { name: "検索", exact: true }).click();
   const results = dialog.locator(".knowledge-results");
   await expect(
-    results.getByRole("button", { name: /Wiki · 検索用の記事/ }),
+    results.getByRole("link", { name: /Wiki · 検索用の記事/ }),
   ).toBeVisible();
   await expect(
-    results.getByRole("button", { name: /資料 ·/ }).first(),
+    results.getByRole("link", { name: /資料 ·/ }).first(),
   ).toBeVisible();
-  await results.getByRole("checkbox").first().check();
-  await dialog
-    .getByRole("button", { name: "選んだ本文からRAGの根拠を取得" })
-    .click();
-  await expect(dialog.getByLabel("RAGの根拠本文")).toHaveValue(/\[S1\]/);
+  await expect(results.getByRole("checkbox")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "RAG", exact: true }).click();
+  await expect(dialog.getByRole("region", { name: "RAGの回答" })).toContainText(
+    "本文にある用語",
+  );
+  await expect(
+    dialog.getByRole("link", { name: /\[S1\].*本文を開く/ }),
+  ).toBeVisible();
   await page.screenshot({ path: "../.cache/wiki-qa/shared-search.png" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(dialog).toBeVisible();
+  expect(
+    await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth),
+  ).toBe(true);
+  await page.screenshot({ path: "../.cache/wiki-qa/rag-mobile.png" });
+  await page.setViewportSize({ width: 1440, height: 900 });
   await results
-    .getByRole("button", { name: /資料 ·/ })
+    .getByRole("link", { name: /資料 ·/ })
     .first()
     .click();
   await expect(dialog).toBeHidden();
@@ -399,7 +409,7 @@ test("Dropping Markdown in Wiki imports an article without uploading a document"
   expect(uploads).toEqual([]);
 });
 
-test("Completed searches revalidate deleted sources and hide copied context", async ({
+test("Completed RAG answers revalidate deleted sources and hide outdated answers", async ({
   page,
   request,
 }) => {
@@ -427,16 +437,15 @@ test("Completed searches revalidate deleted sources and hide copied context", as
     .fill("unique-revalidation-text");
   await dialog.getByRole("button", { name: "検索", exact: true }).click();
   await expect(dialog.locator(".knowledge-results li")).toHaveCount(1);
-  await dialog.getByRole("checkbox").check();
-  await dialog
-    .getByRole("button", { name: "選んだ本文からRAGの根拠を取得" })
-    .click();
-  await expect(dialog.getByLabel("RAGの根拠本文")).toBeVisible();
+  await dialog.getByRole("button", { name: "RAG", exact: true }).click();
+  await expect(dialog.getByRole("region", { name: "RAGの回答" })).toBeVisible();
   expect((await request.delete("/api/wiki/sources/" + source)).status()).toBe(
     200,
   );
   await expect(dialog.locator(".knowledge-results li")).toHaveCount(0);
-  await expect(dialog.getByLabel("RAGの根拠本文")).toHaveCount(0);
+  await expect(dialog.getByRole("region", { name: "RAGの回答" })).toHaveCount(
+    0,
+  );
   await expect(dialog).toContainText("出典が更新されました");
   expect(searches).toBe(1);
 });

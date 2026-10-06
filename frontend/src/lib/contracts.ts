@@ -99,6 +99,8 @@ const record = fields({
   wait_reason: maybe(string),
 });
 const translationUnit = fields({
+  preview_unavailable_reason: maybe(string),
+  unavailable_reason: maybe(string),
   id: string,
   kind,
   number: unitNumber,

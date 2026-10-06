@@ -342,6 +342,7 @@ def create_router(data: Callable[[], Path]) -> APIRouter:
         knowledge = manager(request)
         return {**knowledge.status(), "configuration_error": knowledge.config_error}
 
+    @router.post("/api/knowledge/answers", status_code=202)
     @router.post("/api/knowledge/search", status_code=202)
     def search(request: Request, value: SearchInput):
         value.query = value.query.strip()
@@ -352,7 +353,10 @@ def create_router(data: Callable[[], Path]) -> APIRouter:
         ):
             raise HTTPException(422, "検索文は空にせず、1000トークン以内で入力してください。")
         try:
-            return manager(request).start_search(value.model_dump())
+            knowledge = manager(request)
+            if request.url.path.endswith("/answers"):
+                return knowledge.start_answer(value.model_dump())
+            return knowledge.start_search(value.model_dump())
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
 
@@ -362,7 +366,7 @@ def create_router(data: Callable[[], Path]) -> APIRouter:
             result = manager(request).retrieval(retrieval_id)
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
-        if not result or result["kind"] not in {"text", "search"}:
+        if not result or result["kind"] not in {"text", "search", "answer"}:
             raise HTTPException(404, "検索が見つかりません。")
         return result
 

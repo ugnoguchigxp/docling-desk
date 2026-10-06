@@ -7,15 +7,19 @@ import html
 import json
 import math
 import re
+import shutil
 import threading
 from collections import defaultdict
 from difflib import SequenceMatcher
 from io import BytesIO
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import cast
+from uuid import uuid4
 
 import lxml.etree as etree  # ty: ignore[unresolved-import]  # lxml's installed binary extension.
 import pymupdf
+from fontTools.feaLib.builder import addOpenTypeFeaturesFromString
 from fontTools.fontBuilder import FontBuilder
 from fontTools.pens.cu2quPen import Cu2QuPen
 from fontTools.pens.transformPen import TransformPen
@@ -36,7 +40,7 @@ NS = {"s": SVG}
 XLINK = "http://www.w3.org/1999/xlink"
 NOTICE = "原本側はPowerPointの描画から生成したHTML/SVGです。文字はテキスト、図形はベクターとして保持し、翻訳用に元の文字枠との対応を記録しています。"
 PDF_NOTICE = "PDFの描画をHTML/SVGで保持しています。文字はテキスト、図形はベクターです。スキャン画像内の文字は原本画像のままです。"
-RENDERER_VERSION = 2
+RENDERER_VERSION = 3
 PDF_RENDER_LOCK = threading.Lock()
 
 
@@ -264,20 +268,26 @@ def web_font(content: bytes, cmap: dict[int, int]) -> bytes:
         return output.getvalue()
 
 
-def outline_font(glyphs: dict[int, tuple[str, float]]) -> bytes:
+def outline_font(glyphs: dict[int | str, tuple[str, float]]) -> bytes:
     """Embed the renderer's exact glyph outlines even when a PDF omits its font.
 
     This creates a real Unicode font, not images or visible outlined text.
     The SVG text remains selectable and replaceable.
     """
     units = 2048
-    names = {u: f"u{u:06x}" for u in glyphs}
+    sequences = {chr(u) if isinstance(u, int) else u: value for u, value in glyphs.items()}
+    # A cluster retains every Unicode character. GSUB renders its single PDF
+    # outline, while selection and copying still expose the original sequence.
+    for sequence in list(sequences):
+        for char in sequence:
+            sequences.setdefault(char, ("", 0))
+    names = {u: "u" + "_".join(f"{ord(c):06x}" for c in u) for u in sequences}
     builder = FontBuilder(units, isTTF=True)
     builder.setupGlyphOrder([".notdef", *names.values()])
-    builder.setupCharacterMap(names)
+    builder.setupCharacterMap({ord(u): name for u, name in names.items() if len(u) == 1})
     outlines = {".notdef": TTGlyphPen(None).glyph()}
     metrics = {".notdef": (units, 0)}
-    for unicode, (path, advance) in glyphs.items():
+    for unicode, (path, advance) in sequences.items():
         pen = TTGlyphPen(None)
         parse_path(path, TransformPen(Cu2QuPen(pen, max_err=0.5), (units, 0, 0, units, 0, 0)))
         glyph = pen.glyph()
@@ -302,6 +312,15 @@ def outline_font(glyphs: dict[int, tuple[str, float]]) -> bytes:
     )
     builder.setupPost(keepGlyphNames=False)
     builder.setupMaxp()
+    rules = [
+        f"sub {' '.join(names[c] for c in sequence)} by {names[sequence]};"
+        for sequence in sorted(names, key=len, reverse=True)
+        if len(sequence) > 1
+    ]
+    if rules:
+        addOpenTypeFeaturesFromString(
+            builder.font, "feature rlig { " + " ".join(rules) + " } rlig;"
+        )
     output = BytesIO()
     builder.font.save(output)
     return output.getvalue()
@@ -328,6 +347,174 @@ def pdf_textboxes(page) -> list[dict]:
     return boxes
 
 
+def glyph_clusters(chars) -> list[list]:
+    clusters = []
+    for char in chars:
+        if char[1] == -1:
+            # PyMuPDF's continuation has the same origin and zero advance.
+            if (
+                not clusters
+                or char[2] != clusters[-1][0][2]
+                or abs(char[3][2] - char[3][0]) > 0.001
+            ):
+                raise ValueError("PDFの合字の後続文字が不正です。")
+            clusters[-1].append(char)
+        else:
+            clusters.append([char])
+    return clusters
+
+
+def position_clusters(node, clusters) -> None:
+    # Explicit per-character x positions disable font ligatures in browsers.
+    # Use one positioned tspan per cluster, keeping the complete Unicode text.
+    spans = list(node)
+    coordinates = []
+    for span in spans:
+        text = "".join(span.itertext())
+        xs = re.split(r"[\s,]+", span.get("x", "").strip())
+        ys = re.split(r"[\s,]+", span.get("y", "").strip())
+        if len(xs) not in {1, len(text)} or len(ys) not in {1, len(text)}:
+            raise ValueError("PDFの合字の文字位置を対応付けできません。")
+        coordinates.extend(
+            (xs[min(i, len(xs) - 1)], ys[min(i, len(ys) - 1)]) for i in range(len(text))
+        )
+    if len(coordinates) != sum(map(len, clusters)):
+        raise ValueError("PDFの合字の文字数が一致しません。")
+    for span in spans:
+        node.remove(span)
+    node.set("data-glyph-clusters", "true")
+    cursor = 0
+    for cluster in clusters:
+        x, y = coordinates[cursor]
+        span = etree.SubElement(node, f"{{{SVG}}}tspan", x=x, y=y)
+        span.text = "".join(chr(c[0]) for c in cluster)
+        cursor += len(cluster)
+
+
+def render_page(document, page, number: int, boxes: list[dict]) -> tuple[str, dict, str]:
+    font_maps, font_files, fallback_glyphs = defaultdict(dict), {}, defaultdict(dict)
+    width, height = page.rect.width, page.rect.height
+    tree = etree.fromstring(page.get_svg_image(text_as_path=False).encode())
+    # Avoid duplicate clip/gradient IDs in the standalone multi-slide HTML.
+    for element in tree.iter():
+        if element.get("id"):
+            element.set("id", f"p{number}-" + element.get("id"))
+        for attribute, value in list(element.attrib.items()):
+            if value.startswith("#") and attribute.endswith("href"):
+                element.set(attribute, f"#p{number}-" + value[1:])
+            elif "url(#" in value:
+                element.set(attribute, value.replace("url(#", f"url(#p{number}-"))
+    fonts = {f[3]: f[0] for f in page.get_fonts()}
+    nodes, traces = tree.findall(".//s:text", NS), page.get_texttrace()
+    if len(nodes) != len(traces):
+        raise ValueError(f"スライド{number}の文字と描画を対応付けできません。")
+    fragments = []
+    glyph_uses, glyph_paths, cursor = None, {}, 0
+    clusters_by_trace = [glyph_clusters(t["chars"]) for t in traces]
+    for index, (node, trace) in enumerate(zip(nodes, traces, strict=True), 1):
+        text = "".join(node.itertext())
+        if text != "".join(chr(c[0]) for c in trace["chars"]):
+            raise ValueError(f"スライド{number}の文字列が描画と一致しません。")
+        node_id = f"p{number}-text-{index}"
+        node.set("id", node_id)
+        box = match_box(trace, text, boxes)
+        if box:
+            node.set("data-source-id", box["id"])
+            box["node_ids"].append(node_id)
+        font_name = node.get("font-family")
+        xref = fonts.get(font_name) or fonts.get(trace["font"])
+        alias = f"pdf-font-p{number}-{xref}" if xref else font_name
+        embedded = False
+        clusters = clusters_by_trace[index - 1]
+        has_ligatures = any(len(c) > 1 for c in clusters)
+        if xref and not has_ligatures:
+            name, extension, _, content = document.extract_font(xref)
+            if content and extension in {"ttf", "otf"}:
+                pairs = {unicode: glyph for unicode, glyph, *_ in trace["chars"]}
+                key = xref
+                if any(u in font_maps[xref] and font_maps[xref][u] != g for u, g in pairs.items()):
+                    # Keep alternate glyphs in their own face, without changing other runs.
+                    key = f"{xref}-p{number}-{index}"
+                    alias = f"pdf-font-p{number}-{key}"
+                font_files[key] = (content, extension)
+                font_maps[key].update(pairs)
+                embedded = True
+        if not embedded:
+            if glyph_uses is None:
+                outlined = etree.fromstring(page.get_svg_image(text_as_path=True).encode())
+                glyph_uses = outlined.xpath("//*[@data-text]")
+                if len(glyph_uses) != sum(len(c) for c in clusters_by_trace):
+                    raise ValueError(f"ページ{number}のフォント輪郭と文字を対応付けできません。")
+                glyph_paths = {
+                    p.get("id"): p.get("d", "") for p in outlined.findall(".//s:defs/s:path", NS)
+                }
+            font_key = xref or re.sub(r"[^a-zA-Z0-9]", "_", trace["font"])
+            alias = f"pdf-outline-p{number}-{font_key}"
+            run_glyphs = {}
+            for use, cluster in zip(
+                glyph_uses[cursor : cursor + len(clusters)],
+                clusters,
+                strict=True,
+            ):
+                char = cluster[0]
+                if use.get("data-text") != chr(char[0]):
+                    raise ValueError("PDFのフォント輪郭と文字列が一致しません。")
+                path = glyph_paths[use.get(f"{{{XLINK}}}href", "").removeprefix("#")]
+                advance = (char[3][2] - char[3][0]) / trace["size"] if trace["size"] else 1
+                run_glyphs["".join(chr(c[0]) for c in cluster)] = (path, advance)
+            if any(
+                sequence in fallback_glyphs[alias]
+                and (
+                    fallback_glyphs[alias][sequence][0] != path
+                    or abs(fallback_glyphs[alias][sequence][1] - advance) > 0.0001
+                )
+                for sequence, (path, advance) in run_glyphs.items()
+            ):
+                alias += f"-run{index}"
+            fallback_glyphs[alias].update(run_glyphs)
+        if has_ligatures:
+            position_clusters(node, clusters)
+        cursor += len(clusters)
+        node.set("font-family", alias)
+        node.set(
+            "style",
+            f"font-family:{json.dumps(alias)},Arial,sans-serif;font-size:{float(node.get('font-size')):g}px",
+        )
+        fragments.append(
+            {
+                "id": node_id,
+                "text": text,
+                "bbox": list(trace["bbox"]),
+                "font": font_name,
+                "size": trace["size"],
+                "color": trace["color"],
+                "direction": trace["dir"],
+                "source_id": box["id"] if box else None,
+                "source_text_differs": bool(
+                    box and normalize(text) not in normalize(box["source_text"])
+                ),
+            }
+        )
+    layout = {
+        "number": number,
+        "width": width,
+        "height": height,
+        "textboxes": boxes,
+        "fragments": fragments,
+    }
+    tree.set("data-text-layout", json.dumps(layout, ensure_ascii=False))
+    css = []
+    for alias, glyphs in fallback_glyphs.items():
+        encoded = base64.b64encode(outline_font(glyphs)).decode()
+        css.append(f'@font-face{{font-family:"{alias}";src:url(data:font/ttf;base64,{encoded})}}')
+    for xref, (content, extension) in font_files.items():
+        encoded = base64.b64encode(web_font(content, font_maps[xref])).decode()
+        css.append(
+            f'@font-face{{font-family:"pdf-font-p{number}-{xref}";src:url(data:font/{extension};base64,{encoded})}}'
+        )
+    return etree.tostring(tree, encoding="unicode"), layout, "\n".join(css)
+
+
 def build_editable_preview(source: Path, pdf: Path, folder: Path) -> str:
     pdf_relative = (
         "original.pdf"
@@ -337,196 +524,98 @@ def build_editable_preview(source: Path, pdf: Path, folder: Path) -> str:
     deck = Presentation(str(source)) if source.suffix.lower() == ".pptx" else None
     if deck is not None and (deck.slide_width is None or deck.slide_height is None):
         raise ValueError("PowerPointのページ寸法がありません。")
-    deck_width = float(deck.slide_width or 0) / 12700 if deck is not None else 0
-    deck_height = float(deck.slide_height or 0) / 12700 if deck is not None else 0
     original_digest, pdf_digest = digest(source), digest(pdf)
     directory = folder / "editable-preview"
-    font_maps, font_files, fallback_glyphs, trees, pages = (
-        defaultdict(dict),
-        {},
-        defaultdict(dict),
-        [],
-        [],
-    )
     with pymupdf.open(pdf) as document:
         if document.needs_pass or not 0 < len(document) <= MAX_PAGES:
             raise ValueError("暗号化PDF、空のPDF、またはページ数の上限を超えるPDFです。")
         if deck is not None and len(document) != len(deck.slides):
             raise ValueError("PowerPointとPDFのページ数が一致しません。")
         if deck is not None and any(
-            abs(p.rect.width - deck_width) > 0.1 or abs(p.rect.height - deck_height) > 0.1
+            abs(p.rect.width - float(deck.slide_width or 0) / 12700) > 0.1
+            or abs(p.rect.height - float(deck.slide_height or 0) / 12700) > 0.1
             for p in document
         ):
             raise ValueError("PowerPointとPDFのページ寸法が一致しません。")
-        for number, page in enumerate(document, 1):
-            width, height = page.rect.width, page.rect.height
-            tree = etree.fromstring(page.get_svg_image(text_as_path=False).encode())
-            # Avoid duplicate clip/gradient IDs in the standalone multi-slide HTML.
-            for element in tree.iter():
-                if element.get("id"):
-                    element.set("id", f"p{number}-" + element.get("id"))
-                for attribute, value in list(element.attrib.items()):
-                    if value.startswith("#") and attribute.endswith("href"):
-                        element.set(attribute, f"#p{number}-" + value[1:])
-                    elif "url(#" in value:
-                        element.set(attribute, value.replace("url(#", f"url(#p{number}-"))
-            fonts = {f[3]: f[0] for f in page.get_fonts()}
-            nodes, traces = tree.findall(".//s:text", NS), page.get_texttrace()
-            if len(nodes) != len(traces):
-                raise ValueError(f"スライド{number}の文字と描画を対応付けできません。")
-            boxes = (
-                source_textboxes(deck.slides[number - 1])
-                if deck is not None
-                else pdf_textboxes(page)
-            )
-            fragments = []
-            glyph_uses, glyph_paths, cursor = None, {}, 0
-            for index, (node, trace) in enumerate(zip(nodes, traces, strict=True), 1):
-                text = "".join(node.itertext())
-                if text != "".join(chr(c[0]) for c in trace["chars"]):
-                    raise ValueError(f"スライド{number}の文字列が描画と一致しません。")
-                node_id = f"p{number}-text-{index}"
-                node.set("id", node_id)
-                box = match_box(trace, text, boxes)
-                if box:
-                    node.set("data-source-id", box["id"])
-                    box["node_ids"].append(node_id)
-                font_name = node.get("font-family")
-                xref = fonts.get(font_name) or fonts.get(trace["font"])
-                alias = f"pdf-font-{xref}" if xref else font_name
-                embedded = False
-                if xref:
-                    name, extension, _, content = document.extract_font(xref)
-                    if content and extension in {"ttf", "otf"}:
-                        pairs = {unicode: glyph for unicode, glyph, *_ in trace["chars"]}
-                        key = xref
-                        if any(
-                            u in font_maps[xref] and font_maps[xref][u] != g
-                            for u, g in pairs.items()
-                        ):
-                            # Keep alternate glyphs in their own face, without changing other runs.
-                            key = f"{xref}-p{number}-{index}"
-                            alias = f"pdf-font-{key}"
-                        font_files[key] = (content, extension)
-                        font_maps[key].update(pairs)
-                        embedded = True
-                if not embedded:
-                    if glyph_uses is None:
-                        outlined = etree.fromstring(page.get_svg_image(text_as_path=True).encode())
-                        glyph_uses = outlined.xpath("//*[@data-text]")
-                        if len(glyph_uses) != sum(len(t["chars"]) for t in traces):
-                            raise ValueError(
-                                f"ページ{number}のフォント輪郭と文字を対応付けできません。"
-                            )
-                        glyph_paths = {
-                            p.get("id"): p.get("d", "")
-                            for p in outlined.findall(".//s:defs/s:path", NS)
-                        }
-                    font_key = xref or re.sub(r"[^a-zA-Z0-9]", "_", trace["font"])
-                    alias = f"pdf-outline-p{number}-{font_key}"
-                    for use, char in zip(
-                        glyph_uses[cursor : cursor + len(trace["chars"])],
-                        trace["chars"],
-                        strict=True,
-                    ):
-                        if use.get("data-text") != chr(char[0]):
-                            raise ValueError("PDFのフォント輪郭と文字列が一致しません。")
-                        path = glyph_paths[use.get(f"{{{XLINK}}}href", "").removeprefix("#")]
-                        advance = (char[3][2] - char[3][0]) / trace["size"] if trace["size"] else 1
-                        fallback_glyphs[alias][char[0]] = (path, advance)
-                cursor += len(trace["chars"])
-                node.set("font-family", alias)
-                node.set(
-                    "style",
-                    f"font-family:{json.dumps(alias)},Arial,sans-serif;font-size:{float(node.get('font-size')):g}px",
+        # Only one page's SVG, font outlines and layout are alive at a time.
+        # Publish the complete directory only after every page succeeds.
+        with TemporaryDirectory(prefix=".editable-preview-", suffix=".tmp", dir=folder) as work:
+            staging = Path(work) / "editable-preview"
+            staging.mkdir()
+            assets = ["Preview.html", "fonts.css", "text-layout.json"]
+            fragments_count = mapped_count = 0
+            with (
+                (staging / "Preview.html").open("w") as preview,
+                (staging / "text-layout.json").open("w") as layouts,
+                (staging / "fonts.css").open("w") as fonts,
+            ):
+                preview.write(
+                    '<!doctype html><html lang="ja"><head><meta charset="utf-8">'
+                    f"<title>{html.escape(source.name)}</title><style>body{{margin:0;background:#e8edf2}}.slide{{margin:12px auto;background:white}}iframe{{width:100%;height:100%;border:0}}</style></head><body>"
                 )
-                fragments.append(
-                    {
-                        "id": node_id,
-                        "text": text,
-                        "bbox": list(trace["bbox"]),
-                        "font": font_name,
-                        "size": trace["size"],
-                        "color": trace["color"],
-                        "direction": trace["dir"],
-                        "source_id": box["id"] if box else None,
-                        "source_text_differs": bool(
-                            box and normalize(text) not in normalize(box["source_text"])
-                        ),
-                    }
-                )
-            pages.append(
-                {
-                    "number": number,
-                    "width": width,
-                    "height": height,
-                    "textboxes": boxes,
-                    "fragments": fragments,
-                }
-            )
-            trees.append(tree)
-    directory.mkdir(exist_ok=True)
-    (directory / "manifest.json").unlink(missing_ok=True)
-    css = []
-    for alias, glyphs in fallback_glyphs.items():
-        encoded = base64.b64encode(outline_font(glyphs)).decode()
-        css.append(f'@font-face{{font-family:"{alias}";src:url(data:font/ttf;base64,{encoded})}}')
-    for xref, (content, extension) in font_files.items():
-        # Keep embedded fonts in CSS data URLs, avoiding opaque-frame CORS restrictions.
-        content = web_font(content, font_maps[xref])
-        encoded = base64.b64encode(content).decode()
-        css.append(
-            f'@font-face{{font-family:"pdf-font-{xref}";src:url(data:font/{extension};base64,{encoded})}}'
-        )
-    font_css = "\n".join(css)
-    (directory / "fonts.css").write_text(font_css)
-    styles = (
-        "html,body{margin:0;padding:0;background:#e8edf2}.slide{position:relative;"
-        "margin:12px auto;background:white}"
-        ".slide svg{display:block;width:100%;height:100%}.slide text{user-select:text}" + font_css
-    )
-    sections = []
-    assets = ["Preview.html", "fonts.css", "text-layout.json"]
-    for number, tree in enumerate(trees, 1):
-        tree.set("data-text-layout", json.dumps(pages[number - 1], ensure_ascii=False))
-        svg = etree.tostring(tree, encoding="unicode")
-        svg_path = directory / f"slide-{number}.svg"
-        svg_path.write_text(svg)
-        assets.append(svg_path.name)
-        page = pages[number - 1]
-        section = f'<div class="slide" data-number="{number}" style="width:{page["width"]:g}px;height:{page["height"]:g}px">{svg}</div>'
-        sections.append(section)
-        page_path = directory / f"page-{number}.html"
-        page_path.write_text(
-            '<!doctype html><html lang="ja"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><style>html,body,.slide,svg{margin:0;width:100%;height:100%;overflow:hidden}svg{display:block}text{user-select:text}</style></head><body>'
-            + svg
-            + "</body></html>"
-        )
-        assets.append(page_path.name)
-    (directory / "Preview.html").write_text(
-        '<!doctype html><html lang="ja"><head><meta charset="utf-8">'
-        f"<title>{html.escape(source.name)}</title><style>{styles}</style></head><body>"
-        + "".join(sections)
-        + "</body></html>"
-    )
-    (directory / "text-layout.json").write_text(
-        json.dumps({"version": 1, "pages": pages}, ensure_ascii=False, indent=2)
-    )
-    if digest(source) != original_digest or digest(pdf) != pdf_digest:
-        raise ValueError("生成中に原本またはPDFが変更されました。")
-    manifest = {
-        "version": RENDERER_VERSION,
-        "renderer": "Native PDF / editable SVG text",
-        "pdf": pdf_relative,
-        "source_sha256": original_digest,
-        "pdf_sha256": pdf_digest,
-        "pages": len(pages),
-        "assets": assets,
-        "text_fragments": sum(len(p["fragments"]) for p in pages),
-        "mapped_fragments": sum(bool(f["source_id"]) for p in pages for f in p["fragments"]),
-    }
-    (directory / "manifest.json").write_text(json.dumps(manifest, indent=2))
-    return (directory / "Preview.html").relative_to(folder).as_posix()
+                layouts.write('{"version":2,"pages":[')
+                for number, page in enumerate(document, 1):
+                    boxes = (
+                        source_textboxes(deck.slides[number - 1])
+                        if deck is not None
+                        else pdf_textboxes(page)
+                    )
+                    svg, layout, css = render_page(document, page, number, boxes)
+                    (staging / f"slide-{number}.svg").write_text(svg)
+                    (staging / f"layout-{number}.json").write_text(
+                        json.dumps(layout, ensure_ascii=False)
+                    )
+                    (staging / f"fonts-{number}.css").write_text(css)
+                    fonts.write(css + "\n")
+                    (staging / f"page-{number}.html").write_text(
+                        f'<!doctype html><html lang="ja"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts-{number}.css"><style>html,body,svg{{margin:0;width:100%;height:100%;overflow:hidden}}svg{{display:block}}text{{user-select:text}}</style></head><body>{svg}</body></html>'
+                    )
+                    preview.write(
+                        f'<div class="slide" data-number="{number}" style="width:{layout["width"]:g}px;height:{layout["height"]:g}px"><iframe loading="lazy" src="page-{number}.html" title="ページ {number}" sandbox></iframe></div>'
+                    )
+                    layouts.write(
+                        ("," if number > 1 else "") + json.dumps(layout, ensure_ascii=False)
+                    )
+                    assets.extend(
+                        f"{stem}-{number}.{ext}"
+                        for stem, ext in [
+                            ("slide", "svg"),
+                            ("layout", "json"),
+                            ("fonts", "css"),
+                            ("page", "html"),
+                        ]
+                    )
+                    fragments_count += len(layout["fragments"])
+                    mapped_count += sum(bool(f["source_id"]) for f in layout["fragments"])
+                preview.write("</body></html>")
+                layouts.write("]}")
+            if digest(source) != original_digest or digest(pdf) != pdf_digest:
+                raise ValueError("生成中に原本またはPDFが変更されました。")
+            manifest = {
+                "version": RENDERER_VERSION,
+                "renderer": "Native PDF / editable SVG text",
+                "pdf": pdf_relative,
+                "source_sha256": original_digest,
+                "pdf_sha256": pdf_digest,
+                "pages": len(document),
+                "assets": assets,
+                "text_fragments": fragments_count,
+                "mapped_fragments": mapped_count,
+            }
+            (staging / "manifest.json").write_text(json.dumps(manifest, indent=2))
+            previous = folder / f".editable-preview-old-{uuid4().hex}.tmp"
+            if directory.exists():
+                directory.rename(previous)
+            try:
+                staging.rename(directory)
+            except OSError:
+                if previous.exists():
+                    previous.rename(directory)
+                raise
+            finally:
+                if previous.exists() and directory.exists():
+                    shutil.rmtree(previous)
+    return "editable-preview/Preview.html"
 
 
 def ensure_pdf_preview(source: Path, folder: Path) -> str:
@@ -571,11 +660,17 @@ def replace_textbox(tree, page: dict, source_id: str, text: str) -> None:
 
 def translated_slide_html(directory: Path, number: int, replacements: dict[str, str]) -> str:
     """A translation consumer can replace a whole source textbox, preserving native graphics."""
-    page = json.loads((directory / "text-layout.json").read_text())["pages"][number - 1]
+    path = directory / f"layout-{number}.json"
+    page = (
+        json.loads(path.read_text())
+        if path.exists()
+        else json.loads((directory / "text-layout.json").read_text())["pages"][number - 1]
+    )
     tree = etree.fromstring((directory / f"slide-{number}.svg").read_bytes())
     for source_id, text in replacements.items():
         replace_textbox(tree, page, source_id, text)
-    styles = (directory / "fonts.css").read_text()
+    css = directory / f"fonts-{number}.css"
+    styles = (css if css.exists() else directory / "fonts.css").read_text()
     return (
         '<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>body{margin:0}'
         + styles

@@ -496,3 +496,35 @@ def test_the_cli_refuses_to_push_during_an_unfinished_restore(tmp_path, monkeypa
     monkeypatch.setattr(blob_mirror, "create_mirror", lambda data: mirror)
     assert blob_mirror.main(["push"]) == 2
     assert "pull" in capsys.readouterr().out
+
+
+def test_preview_staging_directories_are_not_uploaded(setup):
+    data, store, mirror = setup
+    mirror.roots = ("content", "derived")
+    write(
+        data,
+        "derived/documents/a/.editable-preview-work.tmp/editable-preview/page-1.html",
+        b"partial",
+    )
+    write(data, "derived/documents/a/.editable-preview-old.tmp/page-1.html", b"old")
+    write(data, "derived/documents/a/editable-preview/page-1.html", b"complete")
+    assert mirror.push().uploaded == 1
+    assert set(store.blobs) == {"derived/documents/a/editable-preview/page-1.html"}
+
+
+def test_derived_manifests_and_bindings_wait_for_page_assets(setup):
+    data, store, mirror = setup
+    mirror.roots = ("content", "derived")
+    write(data, "derived/documents/a/editable-preview/manifest.json", b"manifest")
+    write(data, "derived/documents/a/translation-source.json", b"bindings")
+    page = write(data, "derived/documents/a/editable-preview/page-1.html", b"page")
+    os.utime(page, None)
+    assert mirror.push().deferred == 3
+    assert not store.blobs
+    mirror.settle = 0
+    assert mirror.push().uploaded == 3
+    assert list(store.blobs) == [
+        "derived/documents/a/editable-preview/page-1.html",
+        "derived/documents/a/editable-preview/manifest.json",
+        "derived/documents/a/translation-source.json",
+    ]

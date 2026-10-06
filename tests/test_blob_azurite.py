@@ -82,3 +82,63 @@ def test_blob_removed_elsewhere_heals_and_lost_state_resends_nothing(store, tmp_
     (local / "runtime/blob-sync.json").unlink()
     report = Mirror(local, store).push()
     assert report.unchanged == 1 and report.uploaded == 0 and not report.errors
+
+
+def test_powerpoint_artifacts_and_binding_restore_without_reextracting(store, tmp_path):
+    import json
+    from unittest.mock import patch
+
+    from docling_core.types.doc import DoclingDocument
+    from test_powerpoint_recovery import ligature_sources
+
+    from docling_desk.documents.conversion import Job, save_job
+    from docling_desk.storage import document_folder
+    from docling_desk.translation.source import file_digest, read_source, source_map
+
+    root = tmp_path / "source"
+    folder = document_folder(root, "b" * 32)
+    folder.mkdir(parents=True)
+    # Use a saved two-slide Docling fixture and generate a ligature PDF preview.
+    from shutil import copyfile
+
+    copyfile(Path("tests/fixtures/documents/slide/document.json"), folder / "document.json")
+    source, pdf = ligature_sources(folder)
+    original = root / "content/documents" / folder.name / "original.pptx"
+    original.parent.mkdir(parents=True)
+    source.replace(original)
+    from docling_desk.preview.editable_preview import build_editable_preview
+
+    preview = build_editable_preview(original, pdf, folder)
+    from docling_desk.preview.slides import export_slide_layout
+
+    export_slide_layout(
+        DoclingDocument.load_from_json(folder / "document.json"), original, folder, preview
+    )
+    save_job(
+        folder,
+        Job(
+            id=folder.name,
+            filename="ligatures.pptx",
+            state="success",
+            pages=2,
+            preview=preview,
+            slide_layout=True,
+        ),
+    )
+    first = source_map(folder)
+    for path in root.rglob("*"):
+        if path.is_file():
+            old = time.time() - 60
+            os.utime(path, (old, old))
+    assert not Mirror(root, store, derived=True).push().errors
+    other = tmp_path / "empty"
+    assert Mirror(other, store, derived=True).pull().downloaded > 0
+    file_digest.cache_clear()
+    read_source.cache_clear()
+    restored = document_folder(other, folder.name)
+    assert json.loads((restored / "slides.json").read_text())["slides"][1]["preview"]
+    with patch(
+        "docling_desk.translation.source.build_source",
+        side_effect=AssertionError("must reuse restored binding"),
+    ):
+        assert source_map(restored) == first

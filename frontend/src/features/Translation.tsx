@@ -48,8 +48,10 @@ export function useTranslation(
         contracts.translations,
       ),
     enabled: isDone(job),
+    retry: false,
+    refetchOnWindowFocus: false,
     refetchInterval: (q) =>
-      q.state.error ||
+      !q.state.error &&
       q.state.data?.units.some((u) =>
         Object.values(u.languages).some((r) => active.includes(r.state)),
       )
@@ -85,7 +87,7 @@ export function useTranslation(
     dialogLock.current = true;
     try {
       const result = await overview.refetch();
-      if (!result.data) {
+      if (result.error || !result.data) {
         setError(errorText(result.error));
         return;
       }
@@ -131,6 +133,9 @@ export function useTranslation(
     }
   }
   const warnings: string[] = [];
+  if (unit?.preview_unavailable_reason)
+    warnings.push(unit.preview_unavailable_reason);
+  if (unit?.unavailable_reason) warnings.push(unit.unavailable_reason);
   if (data) {
     const count = data.units.filter((u) =>
       Object.values(u.languages).some((r) => active.includes(r.state)),
@@ -180,7 +185,9 @@ export function useTranslation(
         <ActionLink
           key={`${u.id}:${lang}`}
           className="translation-download"
-          href={withBase(`/api/jobs/${job.id}/translations/${lang}/${u.id}?download=true`)}
+          href={withBase(
+            `/api/jobs/${job.id}/translations/${lang}/${u.id}?download=true`,
+          )}
         >
           {lang === "en" ? "英訳" : "日本語訳"} {unitLabel(u.kind, u.number)}{" "}
           JSON

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from pathlib import Path
 from statistics import median
@@ -87,6 +88,13 @@ def shape_font_sizes(source: Path) -> dict[tuple[int, int, int, int, int], float
 
 def split_quicklook(preview: Path, folder: Path, page_count: int) -> dict[int, str]:
     """Keep source rendering in script-blocked local frames, using shared existing assets."""
+    if preview.parent.name == "editable-preview":
+        manifest = json.loads((preview.parent / "manifest.json").read_text())
+        if manifest.get("version", 0) >= 3:
+            paths = {n: preview.parent / f"page-{n}.html" for n in range(1, page_count + 1)}
+            if manifest["pages"] != page_count or not all(p.is_file() for p in paths.values()):
+                return {}
+            return {n: p.relative_to(folder).as_posix() for n, p in paths.items()}
     tree = html.fromstring(preview.read_text(encoding="utf-8"))
     slides = tree.xpath('//div[contains(concat(" ",normalize-space(@class)," ")," slide ")]')
     if len(slides) != page_count:

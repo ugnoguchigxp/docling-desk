@@ -14,6 +14,7 @@ from uuid import uuid4
 import tiktoken
 
 from docling_desk.documents.library import LOCK, ancestors, load
+from docling_desk.knowledge.answer import AnswerProvider
 from docling_desk.knowledge.embedding_azure import AzureEmbedding, EmbeddingError, paced_request
 from docling_desk.knowledge.store import Store, digest, normalized
 from docling_desk.knowledge.terms import expand_terms
@@ -23,6 +24,7 @@ class Knowledge:
     def __init__(self, data: Path, provider: AzureEmbedding | None = None):
         self.store = Store(data)
         self.provider = provider
+        self.active_answer = None
         self.owner = uuid4().hex
         self.stop = threading.Event()
         self.wake = threading.Event()
@@ -31,6 +33,9 @@ class Knowledge:
 
     def close(self):
         self.stop.set()
+        active_answer = self.active_answer
+        if active_answer:
+            active_answer[1].cancel()
         self.wake.set()
         self.thread.join(timeout=1)
 
@@ -40,7 +45,7 @@ class Knowledge:
 
     def create_task(self, kind: str, value: dict, output: dict | None = None) -> dict:
         value = dict(value)
-        if kind in {"search", "index"} and self.provider:
+        if kind in {"search", "index", "answer"} and self.provider:
             value["_embedding_profile"] = self.provider.profile
         with self.store.connection() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -48,12 +53,12 @@ class Knowledge:
             request_id = value.get("client_request_id")
             if request_id:
                 for row in db.execute(
-                    "SELECT * FROM tasks WHERE kind IN ('text','search') AND json_extract(input,'$.client_request_id')=? LIMIT 1",
+                    "SELECT * FROM tasks WHERE kind IN ('text','search','answer') AND json_extract(input,'$.client_request_id')=? LIMIT 1",
                     (request_id,),
                 ):
                     previous = json.loads(row["input"])
                     if previous.get("client_request_id") == request_id:
-                        if previous != value:
+                        if previous != value or row["kind"] != kind:
                             raise ValueError("同じ検索IDで異なる条件は指定できません。")
                         return task_value(row)
             active = db.execute(
@@ -85,11 +90,14 @@ class Knowledge:
             return task_value(row) if row else None
 
     def cancel(self, task_id: str):
+        active_answer = self.active_answer
         with self.store.connection() as db:
             db.execute(
                 "UPDATE tasks SET state='cancelled',updated=? WHERE id=? AND state IN ('queued','running')",
                 (time.time(), task_id),
             )
+        if active_answer and active_answer[0] == task_id:
+            active_answer[1].cancel()
         self.wake.set()
 
     def work(self):
@@ -107,7 +115,7 @@ class Knowledge:
                         ),
                     )
                     row = db.execute(
-                        "SELECT * FROM tasks WHERE state='queued' ORDER BY CASE WHEN kind='search' THEN 0 ELSE 1 END,created LIMIT 1"
+                        "SELECT * FROM tasks WHERE state='queued' ORDER BY CASE WHEN kind IN ('search','answer') THEN 0 ELSE 1 END,created LIMIT 1"
                     ).fetchone()
                     if row:
                         db.execute(
@@ -140,17 +148,23 @@ class Knowledge:
             heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
             heartbeat_thread.start()
             try:
-                if not self.provider or value.get("_embedding_profile") != self.provider.profile:
-                    raise EmbeddingError(
-                        "Azure embeddingの設定が変更されました。処理を再実行してください。"
-                    )
-                if row["kind"] == "index":
-                    output = self.index(task_id)
+                if row["kind"] == "answer":
+                    output = self.answer(task_id, value)
                 else:
-                    self.validate_scope(value)
-                    vector = self.embed([value["query"]], task_id)[0]
-                    self.refresh()
-                    output = self.search(value, vector)
+                    if (
+                        not self.provider
+                        or value.get("_embedding_profile") != self.provider.profile
+                    ):
+                        raise EmbeddingError(
+                            "Azure embeddingの設定が変更されました。処理を再実行してください。"
+                        )
+                    if row["kind"] == "index":
+                        output = self.index(task_id)
+                    else:
+                        self.validate_scope(value)
+                        vector = self.embed([value["query"]], task_id)[0]
+                        self.refresh()
+                        output = self.search(value, vector)
                 if output is None:
                     self.update(task_id, state="queued")
                 else:
@@ -318,6 +332,80 @@ class Knowledge:
             return self.retrieval(self.create_task("search", value, output)["id"])
         return self.create_task("search", value)
 
+    def start_answer(self, value: dict) -> dict:
+        self.refresh()
+        self.validate_scope(value)
+        if value["mode"] != "text" and not self.provider:
+            raise ValueError("Azure embeddingが未設定です。全文検索を選んでください。")
+        return self.create_task("answer", {**value, "limit": 5})
+
+    def answer(self, task_id: str, value: dict) -> dict:
+        self.validate_scope(value)
+        vector = None
+        if value["mode"] != "text":
+            if not self.provider or value.get("_embedding_profile") != self.provider.profile:
+                raise ValueError("Azure embeddingの設定が変更されました。再実行してください。")
+            vector = self.embed([value["query"]], task_id)[0]
+        output = self.search({**value, "limit": 5}, vector)
+        empty = {
+            **output,
+            "results": [],
+            "answer": "回答の根拠となる本文が見つかりませんでした。",
+            "citations": [],
+            "unknowns": [],
+        }
+        if not output["results"]:
+            return empty
+        provider = AnswerProvider()
+        self.active_answer = (task_id, provider)
+        try:
+            if self.cancelled(task_id):
+                raise ValueError("RAGを中止しました。")
+            selected = provider.select(
+                value["query"],
+                [
+                    {k: h[k] for k in ("chunk_id", "title", "text", "locator")}
+                    for h in output["results"]
+                ],
+            )
+            if self.cancelled(task_id):
+                raise ValueError("RAGを中止しました。")
+            if not selected:
+                return empty
+            hits = {h["chunk_id"]: h for h in output["results"]}
+            output["results"] = [hits[cid] for cid in selected]
+            evidence, citations = [], []
+            self.refresh()
+            with LOCK:
+                chunks = {c["id"]: c for c in self.selected_chunks(value)}
+                for hit in output["results"]:
+                    if hit["chunk_id"] not in chunks:
+                        raise ValueError("出典が更新されました。RAGをやり直してください。")
+                    label = f"S{len(evidence) + 1}"
+                    evidence.append(
+                        {
+                            "label": label,
+                            "title": hit["title"],
+                            "locator": hit["locator"],
+                            "text": self.store.context(hit["chunk_id"]),
+                        }
+                    )
+                    citations.append({**hit, "label": label})
+            response = provider.answer(value["query"], evidence)
+        finally:
+            self.active_answer = None
+        self.refresh()
+        with LOCK:
+            allowed = {c["id"] for c in self.selected_chunks(value)}
+            if any(hit["chunk_id"] not in allowed for hit in output["results"]):
+                raise ValueError("出典が更新されました。RAGをやり直してください。")
+        return {
+            **output,
+            "answer": response["answer"],
+            "unknowns": response["unknowns"],
+            "citations": [c for c in citations if c["label"] in response["citation_ids"]],
+        }
+
     def validate_scope(self, value):
         source = value.get("source_id")
         if source is not None and (not source or not self.store.source(source)):
@@ -352,11 +440,14 @@ class Knowledge:
 
     def search(self, value, query_vector=None):
         self.refresh()
+        # Wiki sync takes the storage guard before the library lock. Fetch it
+        # before LOCK so concurrent result polling cannot invert that order.
+        wiki_sources = self.store.sources("wiki")
         with LOCK:
             chunks = self.selected_chunks(value)
             query = normalized(value["query"])
             terms = query.split()
-            expanded = expand_terms(value["query"], self.store.sources("wiki"))
+            expanded = expand_terms(value["query"], wiki_sources)
             alternatives = [terms, *[normalized(phrase).split() for phrase in expanded]]
             text_scores = {}
             with self.store.connection() as db:
@@ -452,6 +543,10 @@ class Knowledge:
                     if r["chunk_id"] in allowed
                 ]
                 task["output"]["stale"] = len(original) != len(task["output"]["results"])
+                if task["output"]["stale"]:
+                    task["output"].pop("answer", None)
+                    task["output"].pop("citations", None)
+                    task["output"].pop("unknowns", None)
             return task
 
     def context(self, task_id: str, chunk_ids: list[str], budget: int) -> dict:

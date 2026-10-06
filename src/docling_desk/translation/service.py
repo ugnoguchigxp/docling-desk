@@ -440,6 +440,9 @@ def overview(folder: Path) -> dict:
         units = []
         for unit in source["units"]:
             row = {k: unit[k] for k in ("id", "kind", "number", "mode", "excluded_count")}
+            for key in ("preview_unavailable_reason", "unavailable_reason"):
+                if unit.get(key):
+                    row[key] = unit[key]
             row["segments_count"] = len(unit["segments"])
             row["languages"] = {}
             for language in sorted(LANGUAGES):

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import html
 import json
 import logging
@@ -58,6 +57,7 @@ from docling_desk.preview.editable_preview import (
     editable_preview,
     ensure_pdf_preview,
 )
+from docling_desk.preview.hashing import digest
 from docling_desk.preview.office_linux import office_html
 from docling_desk.preview.powerpoint_export import export_powerpoint
 from docling_desk.preview.slides import export_slide_layout
@@ -316,9 +316,7 @@ def _convert_job(folder: Path, job: Job, *, ocr_runtime: OcrRuntime | None = Non
         profile = OcrProfile.model_validate(job.ocr_profile) if job.ocr_profile else load_profile()
         job.ocr_profile = profile.model_dump(mode="json")
         if runtime is None:
-            runtime = make_runtime(
-                profile, folder, hashlib.sha256(source.read_bytes()).hexdigest(), job.id
-            )
+            runtime = make_runtime(profile, folder, digest(source), job.id)
         source_text = read_text_input(source) if source.suffix in TEXT_DOCUMENT_SUFFIXES else ""
         if source.suffix in TEXT_SUFFIXES:
             doc = plain_document(source, source_text)

@@ -63,7 +63,8 @@ def test_new_pptx_automatically_uses_native_pdf_and_text_html(tmp_path, native_r
     preview, notice = office_preview(path, tmp_path)
     assert preview == "editable-preview/Preview.html"
     assert "テキスト" in notice
-    assert "First source" in (tmp_path / preview).read_text()
+    assert "First source" in (tmp_path / "editable-preview/page-1.html").read_text()
+    assert 'loading="lazy"' in (tmp_path / preview).read_text()
     assert len(native_renderer) == 1
     assert path.read_bytes() == before
     assert not list(export.WORKSPACE.iterdir())
@@ -92,7 +93,7 @@ def test_verified_older_pdf_can_rebuild_html_without_rerender(tmp_path, monkeypa
         export.subprocess, "run", lambda *a, **k: pytest.fail("Valid PDF must be reused")
     )
     assert office_preview(path, tmp_path)[0] == "editable-preview/Preview.html"
-    assert json.loads(manifest.read_text())["version"] == 2
+    assert json.loads(manifest.read_text())["version"] == 3
 
 
 @pytest.mark.parametrize("failure", ["missing", "timeout", "wrong_pages"])

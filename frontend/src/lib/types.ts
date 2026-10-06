@@ -102,6 +102,8 @@ export interface TranslationRecord {
   next_attempt_at?: string;
 }
 export interface TranslationUnit {
+  preview_unavailable_reason?: string;
+  unavailable_reason?: string;
   id: string;
   kind: Kind;
   number: number;
