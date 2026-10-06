@@ -29,6 +29,7 @@ from docling_desk.config import MAX_PAGES, MIN_FREE, MODEL_MANIFEST, MODELS
 from docling_desk.documents.conversion import Job, convert_job, validate_input
 from docling_desk.documents.ocr_operations import FileOcrLedger, HttpOcrLedger
 from docling_desk.documents.ocr_profiles import make_runtime
+from docling_desk.knowledge.larm_lifecycle import install_larm_lifecycle
 from docling_desk.operations.models import problems as model_problems
 from docling_desk.storage import job_file
 
@@ -71,7 +72,7 @@ class PrivateRequests:
         self.app, self.token = app, token
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or not scope["path"].startswith("/internal/"):
+        if scope["type"] != "http" or (not scope["path"].startswith("/internal/") or scope["path"].startswith("/internal/larm/")):
             await self.app(scope, receive, send)
             return
         header = Headers(scope=scope).get("authorization", "")
@@ -108,7 +109,7 @@ class PrivateRequests:
         await self.app(scope, replay, send)
 
 
-def create_worker(root: Path, token: str) -> FastAPI:
+def create_worker(root: Path, token: str, larm_token: str = "") -> FastAPI:
     if len(token) < 32:
         raise ValueError("KNOWLEDGE_WORKER_TOKEN must have at least 32 characters")
     root = root.resolve()
@@ -153,6 +154,8 @@ def create_worker(root: Path, token: str) -> FastAPI:
     )
 
     app.add_middleware(PrivateRequests, token=token)
+
+    install_larm_lifecycle(app, larm_token)
 
     @app.get("/health/live")
     def live() -> dict:
@@ -332,7 +335,10 @@ def read_jsonl(path: Path) -> list[dict]:
 
 def app_factory() -> FastAPI:
     raw = os.environ.get("KNOWLEDGE_ARTIFACT_ROOT")
-    token = os.environ.get("KNOWLEDGE_WORKER_TOKEN", "")
+    token_file = os.environ.get("KNOWLEDGE_WORKER_TOKEN_FILE")
+    token = Path(token_file).read_text().strip() if token_file else os.environ.get("KNOWLEDGE_WORKER_TOKEN", "")
+    larm_file = os.environ.get("KNOWLEDGE_LARM_TOKEN_FILE")
+    larm_token = Path(larm_file).read_text().strip() if larm_file else ""
     if not raw:
         raise ValueError("KNOWLEDGE_ARTIFACT_ROOT is required; legacy data/ is never used")
-    return create_worker(Path(raw), token)
+    return create_worker(Path(raw), token, larm_token)

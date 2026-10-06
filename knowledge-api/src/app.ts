@@ -19,6 +19,7 @@ import {
   viewerRequestSchema,
   viewerResultSchema,
 } from "./contracts";
+import { installLarmLifecycle } from "./larm-lifecycle";
 import { ocrProvider, ocrRequest } from "./ocr";
 import type { AnswerProvider, EmbeddingProvider, Extractor } from "./providers";
 import { checkpoint } from "./quality";
@@ -35,6 +36,10 @@ export type ApiOptions = {
   embedding?: EmbeddingProvider;
   answer?: AnswerProvider;
   workerToken?: string;
+  larmToken?: string;
+  processorLifecycle?: (
+    method: "activity" | "drain" | "resume",
+  ) => Promise<{ bootId: string; activeJobs: number }>;
   ocrMonthlySubmissions?: number;
   searchGate?: () => Promise<void>;
 };
@@ -182,6 +187,16 @@ export function createApi(options: ApiOptions) {
       throw new ApiError(429, "rate_limited", "Rate limit exceeded", true);
     await next();
   });
+  if (options.larmToken) {
+    installLarmLifecycle(app, store, {
+      token: options.larmToken,
+      processor:
+        options.processorLifecycle ??
+        (async () => {
+          throw new ApiError(503, "processor_activity_unavailable");
+        }),
+    });
+  }
   app.post("/internal/v1/jobs/:job_id/ocr", async (c) => {
     const wanted = options.workerToken;
     const header = c.req.header("authorization") ?? "";

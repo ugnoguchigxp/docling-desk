@@ -116,3 +116,15 @@ Azureの設定根拠: [ingress](https://learn.microsoft.com/en-us/azure/containe
 - XLSXとDOCXはLibreOfficeが出力したHTMLを既存のサンドボックス表示へ渡します。Excelはシート単位、Wordは文書全体で表示します。XLSXのHTMLでは保存値と異なる再計算結果が表示される場合がありますが、Doclingの抽出は原本から独立して行います。
 - PDFのOCRエンジンが変わるため、macOSと抽出文字や位置が完全一致するとは扱いません。日本語・英語以外はTesseract言語データとOCR設定の追加が必要です。
 - 既存の保存結果は自動一括変換しません。macOS用プレビューのキャッシュは継続表示できます。Linuxで新規追加した資料はLinux用の処理で生成します。
+
+## LARMが制御するCPU専用Knowledge group
+
+`deploy/compose.larm.yml` はKnowledge APIとCPU processorを一つの固定groupとして扱う構成です。両imageには本checkoutのlifecycle adapterを含め、実行時にはimmutable image IDまたはregistry digestを指定します。APIはloopbackの18766だけを公開し、processor、Docker socket、GPU deviceをhostやconsumerへ公開しません。既存の常駐Composeとは別project・別volumeです。
+
+必要な設定は `LARM_DOCLING_API_IMAGE`、`LARM_DOCLING_PROCESSOR_IMAGE`、`LARM_DOCLING_SECRET_ROOT` です。Secret directoryには `clients.json`、`worker-token`、`lifecycle-token` を配置します。host directoryは専用rootless accountだけが辿れる0700、bind secret fileはcontainerのUID 10001から読める0444とします。client、worker、lifecycleのcredentialは別々です。processorへclient設定は渡しません。Embedding・回答生成・外部OCRは初期には設定しません。
+
+APIの `KNOWLEDGE_LARM_TOKEN_FILE` とprocessorの同名設定が同じlifecycle secretを読むと、privateの `/internal/larm/activity`、`drain`、`resume` が有効になります。APIはjob queue、running job、API request、processor requestを集約し、両processのboot IDを返します。drain中は新規API要求と新規processor処理を拒否し、APIの既存queueは継続します。resumeにはAPIが発行したdrain tokenが必要です。API/processorへの業務認証は独立して維持します。LAN入口では `/internal/` を公開しないでください。
+
+通常停止は、有効な利用権がなく、同じboot ID・drain tokenの活動が全てゼロであることを制御側が再確認してから行います。単に `docker compose stop` を実行すると、Dockerが期限後に強制終了するため、この契約を満たしません。LARMの専用controllerはTERMだけを送り、期限超過で資源枠を維持します。DBとartifact volumeは通常停止で削除しません。
+
+本構成はsource段階です。image build、rootless cgroup制限、private networkのloopback入口、CPU抽出fixture、資料の永続性を実機受入してから有効化します。read-only filesystemの一時書込先は `/tmp` とprocessorの `/home/docling` です。新しいhostへ配備する際は、LARM repositoryのdocling分離ホスティング実装・配備受入記録を参照してください。
