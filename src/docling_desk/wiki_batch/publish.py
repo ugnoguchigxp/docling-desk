@@ -9,19 +9,43 @@ import posixpath
 
 from docling_desk.knowledge.catalog import csv_rows, evidence_body, safe_file, split_frontmatter
 
-from .files import NeedsReview, atomic_write, frontmatter, hash_text, write_json
+from .files import NeedsReview, atomic_write, frontmatter, hash_text, js_json, write_json
 from .markdown import restore
 from .writer_lock import wiki_lock
 
 
-def assert_inputs(repository, snapshot, models):
+def assert_source(repository, snapshot):
+    repository.refresh()
+    current = next((p for p in repository.pages if p["key"] == snapshot["page"]["key"]), None)
+    if current is None or any(
+        current.get(key, "") != snapshot["page"].get(key, "")
+        for key in ("source_hash", "title_original", "category", "original_path", "ja_path")
+    ):
+        raise NeedsReview("登録時から原文の対応・タイトル・分類が変更されました。")
     original = repository.read(snapshot["page"]["original_path"])
-    translated = repository.read(snapshot["page"]["ja_path"])
     if (
         hash_text(evidence_body(original["body"])) != snapshot["sourceBodyHash"]
         or original["meta"].get("source_hash") != snapshot["page"]["source_hash"]
     ):
         raise NeedsReview("翻訳開始後に原文が変更されました。")
+    expected = hash_text(
+        js_json(
+            {
+                "sourceHash": current["source_hash"],
+                "body": evidence_body(original["body"]),
+                "title": current["title_original"],
+                "category": str(current.get("category", "")),
+            }
+        )
+    )
+    if expected != snapshot["inputHash"]:
+        raise NeedsReview("登録時の入力ハッシュと原文が一致しません。")
+    return current
+
+
+def assert_inputs(repository, snapshot, models):
+    assert_source(repository, snapshot)
+    translated = repository.read(snapshot["page"]["ja_path"])
     if (
         snapshot["meta"].get("translation_status") != "untranslated"
         or hash_text(translated["raw"]) != snapshot["jaHash"]
@@ -112,8 +136,7 @@ def _publish(repository, job, snapshot, file):
         }.items()
     ):
         raise NeedsReview("公開候補の識別情報が不正です。")
-    repository.refresh()
-    page = next((p for p in repository.pages if p["key"] == job["page_key"]), None)
+    page = assert_source(repository, snapshot)
     if page is None or page["source_hash"] != saved["source_hash"]:
         raise NeedsReview("原本の対応が変更されました。")
     original = repository.read(page["original_path"])

@@ -38,6 +38,34 @@ if base.exists():
 shutil.copytree(browser_source(), base)
 # Browser data shares only immutable snapshots, never the live data directory.
 settings.DATA = base
+if os.environ.get("UI_SYNTHETIC") == "1":
+    from urllib.parse import quote
+
+    from docling_desk.wiki_batch.repository import Repository
+
+    workspace = base / "synthetic-wiki-workspace"
+    fixture = json.loads((ROOT / "tests/fixtures/wiki_batch/legacy-snapshot.json").read_text())
+    record = fixture["snapshot"]["page"]
+    appendix = "\n\n## 書き出し原本\n"
+    for label, filename in (
+        ("原本Markdown", "原本 メモ.md"),
+        ("原本CSV", "下位/目次 一覧.csv"),
+        ("添付ファイル", "下位/添付 ファイル.bin"),
+        ("欠落原本", "missing.md"),
+    ):
+        appendix += f"[{label}](../../../../sources/notion/{quote('日本語 フォルダー/' + filename)})\n\n"
+    for field, name in (("original_path", "original"), ("ja_path", "ja")):
+        file = workspace / record[field]
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_text(fixture[name] + appendix)
+    (workspace / "manifests").mkdir()
+    (workspace / "manifests/pages.jsonl").write_text(json.dumps(record) + "\n")
+    originals = workspace / "sources/notion/日本語 フォルダー"
+    (originals / "下位").mkdir(parents=True)
+    (originals / "原本 メモ.md").write_bytes("# 書き出し原本\r\n\r\n[CSV](下位/目次%20一覧.csv)\r\n".encode())
+    (originals / "下位/目次 一覧.csv").write_bytes("title,page_path\r\n原本,../原本%20メモ.md\r\n".encode())
+    (originals / "下位/添付 ファイル.bin").write_bytes(b"\x00\xffsynthetic-attachment\r\n")
+    Repository(workspace, base).sync()
 os.environ["DOCLING_TRANSLATION_INTERVAL_SECONDS"] = "0"
 os.environ["DOCLING_TRANSLATION_RETRY_SECONDS"] = "0"
 from conftest import FixedProvider

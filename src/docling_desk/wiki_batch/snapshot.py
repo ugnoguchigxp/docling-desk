@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from docling_desk.knowledge.catalog import evidence_body
 
-from . import prompts
 from .files import hash_text, js_json
+from .instructions import defaults, load, validate
 from .markdown import packets_for, rewrite_links, split_markdown
-from .terminology import VERSION, collect_terms, load_registry, term_packets
+from .terminology import INPUT_CHARS, VERSION, collect_terms, load_registry, term_packets
 
 ENGINE = "python-wiki-batch-v1"
 RESEARCH_VERSION = "wiki-fts-reading-v3-registered-terms"
@@ -17,19 +17,32 @@ LIMITS = {
     "documentsPerRound": 2,
     "totalDocuments": 6,
 }
+REQUEST_POLICY = {
+    "inputChars": INPUT_CHARS,
+    "minOutputTokens": 2048,
+    "maxOutputTokens": 8192,
+    "researchOutputTokens": 2048,
+    "resolveOutputTokens": 4096,
+}
+LEGACY_REQUEST_POLICY = {**REQUEST_POLICY, "minOutputTokens": 4096, "researchOutputTokens": 4096}
 
 
-def recipe_hash_for(references, models=None, terminology=None, engine=None):
+def request_policy(snapshot):
+    return REQUEST_POLICY if snapshot.get("engine") == ENGINE else LEGACY_REQUEST_POLICY
+
+
+def recipe_hash_for(references, models=None, terminology=None, engine=None, instructions=None):
+    instructions = validate(instructions) if instructions is not None else defaults()
     value = {
         "version": ENGINE if engine == ENGINE else "translation-batch-v5-registered-terms",
-        "draft": prompts.DRAFT,
-        "verify": prompts.VERIFY,
-        "analyze": prompts.ANALYZE,
-        "plan": prompts.PLAN_SEARCH,
-        "read": prompts.READ_RELATED,
-        "synthesize": prompts.SYNTHESIZE_RESEARCH,
-        "assess": prompts.ASSESS_RESEARCH,
-        "resolve": prompts.RESOLVE_TERMS,
+        "draft": instructions["draft"],
+        "verify": instructions["verify"],
+        "analyze": instructions["analyze"],
+        "plan": instructions["plan"],
+        "read": instructions["read"],
+        "synthesize": instructions["synthesize"],
+        "assess": instructions["assess"],
+        "resolve": instructions["resolve"],
         "limits": LIMITS,
         "termVersion": VERSION,
     }
@@ -40,7 +53,8 @@ def recipe_hash_for(references, models=None, terminology=None, engine=None):
     return hash_text(js_json(value))
 
 
-def snapshot_for(repository, page, models, registry=None):
+def snapshot_for(repository, page, models, registry=None, instructions=None):
+    instructions = load(repository.root) if instructions is None else validate(instructions)
     registry = load_registry(repository.root) if registry is None else registry
     original, translated = repository.read(page["original_path"]), repository.read(page["ja_path"])
     if original["meta"].get("source_hash") != page["source_hash"]:
@@ -69,6 +83,13 @@ def snapshot_for(repository, page, models, registry=None):
         "sourceText": body,
         "researchVersion": RESEARCH_VERSION,
         "models": models,
+        "instructions": instructions,
+        "conditions": {
+            "limits": dict(LIMITS),
+            "termVersion": VERSION,
+            "researchVersion": RESEARCH_VERSION,
+            "requestPolicy": dict(REQUEST_POLICY),
+        },
         "inputHash": hash_text(
             js_json(
                 {
@@ -83,5 +104,5 @@ def snapshot_for(repository, page, models, registry=None):
         "packets": packets,
         "references": references,
         "terminology": terminology,
-        "recipeHash": recipe_hash_for(references, models, terminology, ENGINE),
+        "recipeHash": recipe_hash_for(references, models, terminology, ENGINE, instructions),
     }

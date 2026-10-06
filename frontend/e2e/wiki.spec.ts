@@ -1,5 +1,65 @@
 import { test, expect } from "@playwright/test";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
+
+test("Workspace original links open read-only Markdown, CSV and exact attachment bytes", async ({
+  page,
+  request,
+}) => {
+  test.skip(
+    process.env.UI_SYNTHETIC !== "1",
+    "Requires the synthetic workspace",
+  );
+  const catalog = (await (await request.get("/api/wiki/catalog")).json())
+    .articles;
+  const original = catalog.find(
+    (s: { external_key?: string; language?: string }) =>
+      s.external_key === "requirements/R-1" && s.language === "original",
+  );
+  await page.goto(`/?mode=wiki&source=${original.id}`);
+  const reader = page.locator(".wiki-body");
+  await reader
+    .getByRole("link", { name: "欠落原本", exact: true })
+    .click({ force: true });
+  await expect(page.locator(".wiki-message")).toContainText(
+    "原本が見つからない",
+  );
+  const [raw] = await Promise.all([
+    page.waitForEvent("popup"),
+    reader.getByRole("link", { name: "原本Markdown", exact: true }).click(),
+  ]);
+  await expect(raw.getByText("書き出し原本（読み取り専用）")).toBeVisible();
+  await expect(raw.locator("main")).toContainText("書き出し原本");
+  const [csv] = await Promise.all([
+    raw.waitForEvent("popup"),
+    raw.getByRole("link", { name: "CSV", exact: true }).click(),
+  ]);
+  await expect(csv.locator("main table")).toContainText("原本");
+  const [download] = await Promise.all([
+    raw.waitForEvent("download"),
+    raw.getByRole("link", { name: "原本を取得", exact: true }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe("原本 メモ.md");
+  expect(await readFile((await download.path())!)).toEqual(
+    Buffer.from("# 書き出し原本\r\n\r\n[CSV](下位/目次%20一覧.csv)\r\n"),
+  );
+  const [attachment] = await Promise.all([
+    page.waitForEvent("popup"),
+    reader.getByRole("link", { name: "添付ファイル", exact: true }).click(),
+  ]);
+  await expect(
+    attachment.getByText("この添付ファイルは取得して開いてください。"),
+  ).toBeVisible();
+  const [binary] = await Promise.all([
+    attachment.waitForEvent("download"),
+    attachment.getByRole("link", { name: "原本を取得", exact: true }).click(),
+  ]);
+  expect(await readFile((await binary.path())!)).toEqual(
+    Buffer.from([0, 255, ...Buffer.from("synthetic-attachment\r\n")]),
+  );
+  await raw.close();
+  await csv.close();
+  await attachment.close();
+});
 
 test("CSV contents opens a page and unpublished Japanese displays original", async ({
   page,

@@ -70,6 +70,13 @@ async def local_only(
                 "style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; "
                 "form-action 'none'; sandbox allow-scripts"
             )
+    elif request.url.path.startswith("/api/wiki/sources/") and request.url.path.endswith(
+        "/original"
+    ):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; "
+            "object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+        )
     elif request.url.path == "/static/frontend/print.html":
         # A passive same-origin shell populated by the parent UI. Original
         # document viewers retain their opaque origin and existing sandbox.

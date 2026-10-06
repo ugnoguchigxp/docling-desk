@@ -51,11 +51,13 @@ def render(
     articles: list[dict],
     documents: list[dict],
     load_article=None,
+    original_link=None,
+    workspace=None,
 ) -> str:
     md = MarkdownIt("commonmark", {"html": False, "linkify": False}).enable("table")
     by_path = {(s["namespace"], s["path"]): s for s in articles}
     current = by_path.get((namespace, path), {})
-    workspace = current.get("workspace")
+    workspace = current.get("workspace") or workspace
 
     def registered_path(target):
         return by_path.get((namespace, target)) or next(
@@ -103,6 +105,15 @@ def render(
                         + text
                         + "</a>"
                     )
+                elif href and original_link:
+                    resolved = posixpath.normpath(
+                        posixpath.join(posixpath.dirname(path), unquote(href))
+                    )
+                    url = original_link(resolved, "")
+                    if url:
+                        text = f'<a href="{html.escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">{text}</a>'
+                    else:
+                        text = f'<span title="原本が見つからないか、参照が許可されていません" aria-disabled="true">{text}</span>'
                 values.append("<td>" + text + "</td>")
             cells.append("<tr>" + "".join(values) + "</tr>")
         return (
@@ -141,7 +152,8 @@ def render(
         resolved = posixpath.normpath(posixpath.join(posixpath.dirname(path), unquote(parsed.path)))
         article = registered_path(resolved)
         if not article:
-            return "", False
+            url = original_link(resolved, unquote(parsed.fragment)) if original_link else ""
+            return url, bool(url)
         anchor = unquote(parsed.fragment)
         if anchor:
             if article["id"] not in linked_outlines:
@@ -177,13 +189,39 @@ def render(
                 child.attrSet("href", href or "#")
                 if not href:
                     child.attrSet("aria-disabled", "true")
-                    child.attrSet("title", "未登録または利用できないリンクです")
+                    child.attrSet(
+                        "title",
+                        "原本が見つからないか、参照が許可されていません"
+                        if original_link
+                        else "未登録または利用できないリンクです",
+                    )
                 if external:
                     child.attrSet("target", "_blank")
                     child.attrSet("rel", "noopener noreferrer")
             if child.type == "image":
                 # Remote images do not cause unrequested network access or leak article locations.
-                child.type, child.content, child.children = "text", f"[画像: {child.content}]", None
+                label = f"[画像: {child.content}]"
+                src = child.attrGet("src") or ""
+                try:
+                    parsed = urlsplit(src)
+                    resolved = posixpath.normpath(
+                        posixpath.join(posixpath.dirname(path), unquote(parsed.path))
+                    )
+                    url = (
+                        original_link(resolved, "")
+                        if original_link and not parsed.scheme and not parsed.netloc
+                        else ""
+                    )
+                except ValueError:
+                    url = ""
+                child.type, child.children = "text", None
+                child.content = label
+                if url:
+                    child.type = "html_inline"
+                    child.content = (
+                        f'<a href="{html.escape(url, quote=True)}" target="_blank" '
+                        f'rel="noopener noreferrer">{html.escape(label)}</a>'
+                    )
     return md.renderer.render(tokens, md.options, {})
 
 

@@ -2,22 +2,27 @@
 
 from __future__ import annotations
 
+import html
 import re
 import threading
 from collections.abc import Callable
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Literal
+from urllib.parse import quote, urlencode
 
 import tiktoken
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
 from docling_desk.documents.library import LOCK
 from docling_desk.knowledge.catalog import evidence_body, manifest_metadata
 from docling_desk.knowledge.content import normalize_path, parse, render
 from docling_desk.knowledge.embedding_azure import AzureEmbedding, EmbeddingError
+from docling_desk.knowledge.originals import Originals
 from docling_desk.knowledge.service import Knowledge
 from docling_desk.operations.backup import exclusive_write
 
@@ -222,8 +227,90 @@ def create_router(data: Callable[[], Path]) -> APIRouter:
                 knowledge.store.sources("wiki", include_body=False),
                 knowledge.store.sources("document", include_body=False),
                 knowledge.store.source,
+                lambda path, fragment: Originals(knowledge.store.data).link(
+                    displayed, path, fragment
+                ),
             ),
         }
+
+    @router.get("/api/wiki/sources/{source_id}/original")
+    def original(request: Request, source_id: str, path: str, download: bool = False):
+        knowledge = manager(request)
+        source = knowledge.store.source(source_id)
+        if not source or source["kind"] != "wiki":
+            raise HTTPException(404, "Wiki記事が見つかりません。")
+        originals = Originals(knowledge.store.data)
+        stack = ExitStack()
+        try:
+            stream = stack.enter_context(originals.open(source, path))
+        except (OSError, ValueError):
+            stack.close()
+            return HTMLResponse(
+                '<!doctype html><html lang="ja"><meta charset="utf-8">'
+                "<title>原本を参照できません</title><h1>原本を参照できません</h1>"
+                "<p>ファイルが見つからないか、登録した原本領域の外、またはシンボリックリンクです。"
+                "ワークスペースの同期と原本の保存場所を確認してください。</p></html>",
+                status_code=404,
+                headers={
+                    "Content-Security-Policy": "default-src 'none'",
+                    "Cache-Control": "no-store",
+                },
+            )
+        name = path.rsplit("/", 1)[-1]
+        if download:
+
+            def chunks():
+                try:
+                    while block := stream.read(64 * 1024):
+                        yield block
+                finally:
+                    stack.close()
+
+            return StreamingResponse(
+                chunks(),
+                media_type="application/octet-stream",
+                headers={
+                    "Content-Disposition": "attachment; filename*=UTF-8''" + quote(name, safe=""),
+                    "X-Content-Type-Options": "nosniff",
+                    "Cache-Control": "no-store",
+                },
+                background=BackgroundTask(stack.close),
+            )
+        with stack:
+            raw = stream.read(MAX_WIKI_BYTES + 1)
+        content = "<p>この添付ファイルは取得して開いてください。</p>"
+        if path.lower().endswith((".md", ".markdown", ".csv")):
+            try:
+                if len(raw) > MAX_WIKI_BYTES:
+                    raise ValueError
+                body = raw.decode("utf-8-sig")
+                content = render(
+                    body,
+                    source["namespace"],
+                    path,
+                    knowledge.store.sources("wiki", include_body=False),
+                    knowledge.store.sources("document", include_body=False),
+                    knowledge.store.source,
+                    lambda target, fragment: originals.link(source, target, fragment),
+                    workspace=source.get("workspace"),
+                )
+            except ValueError:
+                content = "<p>この原本は画面で表示できません。取得して内容を確認してください。</p>"
+        url = request.url.path + "?" + urlencode({"path": path, "download": "true"})
+        return HTMLResponse(
+            '<!doctype html><html lang="ja"><meta charset="utf-8">'
+            f"<title>{html.escape(name)} — 原本</title>"
+            "<style>body{max-width:70rem;margin:2rem auto;padding:0 1rem;overflow-wrap:anywhere;"
+            "font:16px/1.6 system-ui}table{border-collapse:collapse}td,th{border:1px solid #aaa;"
+            "padding:.4rem}pre{overflow:auto}</style>"
+            f"<header><h1>{html.escape(name)}</h1><p>書き出し原本（読み取り専用）</p>"
+            f'<a href="{html.escape(url, quote=True)}">原本を取得</a></header><hr><main>{content}</main></html>',
+            headers={
+                "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
+                "X-Content-Type-Options": "nosniff",
+                "Cache-Control": "no-store",
+            },
+        )
 
     @router.get("/api/wiki/sources/{source_id}/markdown")
     def markdown(request: Request, source_id: str):

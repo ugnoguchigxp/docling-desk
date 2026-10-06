@@ -110,7 +110,9 @@ class Repository:
     def sync(self, key=None):
         self.refresh()
         store = Store(self.data)
-        workspace = hash_text(str(self.root))
+        from docling_desk.knowledge.originals import Originals
+
+        workspace = Originals(self.data).register(self.root)
         grouped = {}
         for page in self.pages:
             if key is not None and key != page["key"]:

@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from docling_desk.config import DATA as DEFAULT_DATA
 
 from .files import NeedsReview, worker_lock
+from .instructions import load as load_instructions
 from .provider import AzureClient, Runtime, config_from_env
 from .repository import Repository
 from .snapshot import snapshot_for
@@ -36,6 +37,7 @@ def main(argv=None):
             "terms-check",
             "prepare",
             "import-workspace",
+            "instructions",
         ],
     )
     parser.add_argument(
@@ -49,6 +51,9 @@ def main(argv=None):
         type=Path,
         default=Path(os.environ.get("DOCLING_DATA_DIR", DEFAULT_DATA)),
         help="画面用の保存領域",
+    )
+    parser.add_argument(
+        "--instructions", type=Path, help="翻訳指示のJSON。省略時はワークスペースの設定"
     )
     parser.add_argument("--key")
     parser.add_argument(
@@ -64,6 +69,7 @@ def main(argv=None):
         or (args.collection and args.action != "enqueue")
         or (args.limit is not None and args.action not in {"enqueue", "run"})
         or (args.prepare_action and args.action != "prepare")
+        or (args.instructions and args.action not in {"instructions", "enqueue", "run"})
     ):
         parser.error("指定した操作ではこの絞り込みオプションを利用できません")
     args.prepare_action = args.prepare_action or "check"
@@ -87,6 +93,8 @@ def main(argv=None):
     signal.signal(signal.SIGTERM, stop)
 
     def execute():
+        if args.action == "instructions":
+            return {"schemaVersion": 1, "instructions": load_instructions(root, args.instructions)}
         if args.action == "import-workspace":
             from .migration import import_workspace
 
@@ -120,6 +128,7 @@ def main(argv=None):
                 return store.status()
             if args.action == "retry":
                 return {"requeued": store.retry(args.key)}
+            instructions = load_instructions(root, args.instructions)
             repository = Repository(root, args.data)
             repository.sync()
 
@@ -156,7 +165,7 @@ def main(argv=None):
                     if runtime.stopping():
                         break
                     try:
-                        snapshot = snapshot_for(repository, page, models, registry)
+                        snapshot = snapshot_for(repository, page, models, registry, instructions)
                     except NeedsReview as exc:
                         errors.append({"key": page["key"], "error": str(exc)})
                         store.event(
@@ -177,7 +186,9 @@ def main(argv=None):
             ).fetchone()[0]
             registration = enqueue(3 if args.trial else args.limit, True) if not count else None
             client = AzureClient(store, config, runtime)
-            result = BatchWorker(store, client, repository, runtime).run(args.limit, args.trial)
+            result = BatchWorker(store, client, repository, runtime, instructions=instructions).run(
+                args.limit, args.trial
+            )
             return {
                 **result,
                 **(

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import math
 
-from . import prompts
 from .files import (
     FatalProviderError,
     NeedsReview,
@@ -15,18 +14,25 @@ from .files import (
     js_json,
     utf16_length,
 )
+from .instructions import load, validate
 from .markdown import parse_json, restore, validate_translation, verify_result
 from .provider import Runtime, wait_until
 from .publish import assert_inputs, candidate, publish
 from .research import research_for, translation_context
-from .snapshot import recipe_hash_for
-from .terminology import INPUT_CHARS, consistency_checks, term_context, term_issues
+from .snapshot import LIMITS, REQUEST_POLICY, RESEARCH_VERSION, recipe_hash_for, request_policy
+from .terminology import VERSION, consistency_checks, term_context, term_issues
 
 
 class BatchWorker:
-    def __init__(self, store, client, repository, runtime=None, publisher=publish):
+    def __init__(
+        self, store, client, repository, runtime=None, publisher=publish, instructions=None
+    ):
         self.store, self.client, self.repository = store, client, repository
+        self.instructions = (
+            load(repository.root) if instructions is None else validate(instructions)
+        )
         self.runtime, self.publisher = runtime or Runtime(), publisher
+        self.request_policy = REQUEST_POLICY
 
     def check(self):
         if self.runtime.stopping() or self.store.setting("paused") == "1":
@@ -35,15 +41,15 @@ class BatchWorker:
     def send(self, role, instructions, value, key, job_id):
         self.check()
         text = js_json(value)
-        if utf16_length(text) > INPUT_CHARS:
+        if utf16_length(text) > self.request_policy["inputChars"]:
             raise NeedsReview("翻訳・検証の入力予算を超えています。")
         request = {
             "instructions": instructions,
             "input": text,
             "maxOutputTokens": min(
-                8192,
+                self.request_policy["maxOutputTokens"],
                 max(
-                    2048,
+                    self.request_policy["minOutputTokens"],
                     math.ceil(
                         sum(utf16_length(u["text"]) for u in value.get("units", [])) * 1.5 + 512
                     ),
@@ -54,6 +60,11 @@ class BatchWorker:
         saved = self.store.checkpoint(job_id, step)
         if saved and saved["hash"] != hash_text(text):
             raise NeedsReview("保存した要求と再開後の入力が一致しません。")
+        legacy = self.store.checkpoint(job_id, "term-input/call/" + key[len(job_id) + 1 :])
+        if legacy is not None and (
+            legacy.get("requestHash") != hash_text(text) or legacy.get("role") != role
+        ):
+            raise NeedsReview("保存した旧形式の要求と再開後の入力が一致しません。")
         self.store.save(job_id, step, {"hash": hash_text(text)})
         return parse_json(self.client.request(role, request, key, job_id))
 
@@ -61,17 +72,38 @@ class BatchWorker:
         snapshot = json.loads(job["payload"])
         if snapshot.get("preparationError"):
             raise NeedsReview(snapshot["preparationError"])
+        instructions = validate(snapshot.get("instructions", self.instructions))
+        if instructions != self.instructions:
+            raise NeedsReview("登録時から翻訳指示が変わりました。")
+        if "conditions" in snapshot and snapshot["conditions"] != {
+            "limits": LIMITS,
+            "termVersion": VERSION,
+            "researchVersion": RESEARCH_VERSION,
+            "requestPolicy": REQUEST_POLICY,
+        }:
+            raise NeedsReview("登録時の処理条件をこのワーカーでは実行できません。")
+        if snapshot.get("engine") not in {None, "python-wiki-batch-v1"}:
+            raise NeedsReview("未対応の翻訳エンジンです。")
+        self.request_policy = request_policy(snapshot)
+        if (
+            job["input_hash"] != snapshot["inputHash"]
+            or job["recipe_hash"] != snapshot["recipeHash"]
+        ):
+            raise NeedsReview("保存したジョブと処理条件が一致しません。")
+        if snapshot.get("models") != self.client.models:
+            raise NeedsReview("登録時からモデルのデプロイ名が変わりました。")
         if snapshot["recipeHash"] != recipe_hash_for(
             snapshot["references"],
             snapshot.get("models"),
             snapshot.get("terminology"),
             snapshot.get("engine"),
+            instructions,
         ):
             raise NeedsReview("登録時から翻訳の処理条件が変わりました。")
         if job["status"] != "publishing":
             assert_inputs(self.repository, snapshot, self.client.models)
             research = research_for(
-                self.store, self.client, self.runtime, self.repository, job, snapshot
+                self.store, self.client, self.runtime, self.repository, job, snapshot, instructions
             )
             terms, resolution = snapshot["terminology"], research["registeredTerminology"]
             for packet in snapshot["packets"]:
@@ -108,7 +140,9 @@ class BatchWorker:
                         f"{job['page_key']}：下訳 {packet['position'] + 1}/{len(snapshot['packets'])}"
                     )
                     draft = validate_translation(
-                        self.send("draft", prompts.DRAFT, value, prefix + "/draft", job["id"]),
+                        self.send(
+                            "draft", instructions["draft"], value, prefix + "/draft", job["id"]
+                        ),
                         packet,
                     )
                     self.store.save_packet(job["id"], packet["position"], draft)
@@ -118,7 +152,7 @@ class BatchWorker:
                     result = verify_result(
                         self.send(
                             "verify",
-                            prompts.VERIFY,
+                            instructions["verify"],
                             {**value, "translation": draft, "terminologyIssues": issues},
                             prefix + suffix,
                             job["id"],
@@ -149,7 +183,7 @@ class BatchWorker:
                     draft = validate_translation(
                         self.send(
                             "draft",
-                            prompts.DRAFT,
+                            instructions["draft"],
                             {
                                 **value,
                                 "previousTranslation": draft,
@@ -180,7 +214,11 @@ class BatchWorker:
                 if result is None:
                     result = verify_result(
                         self.send(
-                            "verify", prompts.VERIFY, value, job["id"] + "/" + step, job["id"]
+                            "verify",
+                            instructions["verify"],
+                            value,
+                            job["id"] + "/" + step,
+                            job["id"],
                         ),
                         {"units": value["units"]},
                     )

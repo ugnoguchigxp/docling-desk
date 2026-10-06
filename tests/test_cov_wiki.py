@@ -2462,7 +2462,7 @@ def test_cli_commands(tmp_path, monkeypatch, capsys):
     (root / "data/translation/publication.json").unlink()
 
     class Worker:
-        def __init__(self, store, client, repository, runtime):
+        def __init__(self, store, client, repository, runtime, instructions=None):
             self.store = store
 
         def run(self, limit, trial):

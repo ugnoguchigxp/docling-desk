@@ -478,6 +478,7 @@ export function Wiki({
                       return;
                     if (anchor.getAttribute("aria-disabled") === "true") {
                       e.preventDefault();
+                      setMessage(anchor.title || "リンク先を参照できません。");
                       return;
                     }
                     const href = anchor.getAttribute("href");

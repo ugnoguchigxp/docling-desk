@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from . import prompts
 from .files import NeedsReview, Stopped, hash_text, js_json, utf16_length, write_json
+from .instructions import defaults, validate
 from .markdown import parse_json
 from .repository import chunks_for
-from .snapshot import LIMITS, RESEARCH_VERSION
+from .snapshot import LIMITS, RESEARCH_VERSION, request_policy
 from .terminology import (
     INPUT_CHARS,
     VERSION,
@@ -125,7 +125,11 @@ def assessment(value):
     }
 
 
-def research_for(store, client, runtime, repository, job, snapshot):
+def research_for(store, client, runtime, repository, job, snapshot, instructions=None):
+    instructions = validate(
+        snapshot.get("instructions", defaults()) if instructions is None else instructions
+    )
+    policy = request_policy(snapshot)
     job_id, terms = job["id"], snapshot.get("terminology")
     if (
         snapshot.get("researchVersion") != RESEARCH_VERSION
@@ -164,11 +168,11 @@ def research_for(store, client, runtime, repository, job, snapshot):
         store.save(job_id, step, result)
         return result
 
-    def ask(instructions, value, step):
+    def ask(instruction, value, step):
         if "registeredTerminology" not in value:
             value = {**value, "registeredTerminology": candidates_for_text(terms, js_json(value))}
         text = js_json(value)
-        if utf16_length(text) > INPUT_CHARS:
+        if utf16_length(text) > policy["inputChars"]:
             raise NeedsReview("調査入力が予算を超えています。")
         previous = store.checkpoint(job_id, "input/" + step)
         digest = hash_text(text)
@@ -179,9 +183,11 @@ def research_for(store, client, runtime, repository, job, snapshot):
             client.request(
                 "draft",
                 {
-                    "instructions": instructions,
+                    "instructions": instruction,
                     "input": text,
-                    "maxOutputTokens": 4096 if instructions == prompts.RESOLVE_TERMS else 2048,
+                    "maxOutputTokens": policy["resolveOutputTokens"]
+                    if instruction == instructions["resolve"]
+                    else policy["researchOutputTokens"],
                 },
                 f"{job_id}/research/{step}",
                 job_id,
@@ -255,7 +261,9 @@ def research_for(store, client, runtime, repository, job, snapshot):
         analyses.append(
             checkpoint(
                 f"analyze/{i}",
-                lambda value=value, i=i: analysis(ask(prompts.ANALYZE, value, f"analyze/{i}")),
+                lambda value=value, i=i: analysis(
+                    ask(instructions["analyze"], value, f"analyze/{i}")
+                ),
             )
         )
     plan = analyses[0]
@@ -267,7 +275,7 @@ def research_for(store, client, runtime, repository, job, snapshot):
             value["readings"] = analyses[i : i + 3]
             plan = checkpoint(
                 f"plan/{i}",
-                lambda value=value, i=i: analysis(ask(prompts.PLAN_SEARCH, value, f"plan/{i}"), 8),
+                lambda value=value, i=i: analysis(ask(instructions["plan"], value, f"plan/{i}"), 8),
             )
     mandatory = {}
     for occurrence in pending:
@@ -353,7 +361,7 @@ def research_for(store, client, runtime, repository, job, snapshot):
                 f"read/{i}",
                 lambda document=document, i=i: reading(
                     ask(
-                        prompts.READ_RELATED,
+                        instructions["read"],
                         {
                             "source": plan,
                             "document": document,
@@ -391,14 +399,14 @@ def research_for(store, client, runtime, repository, job, snapshot):
                 interpretation = checkpoint(
                     step,
                     lambda value=value, step=step: reading(
-                        ask(prompts.SYNTHESIZE_RESEARCH, value, step), documents
+                        ask(instructions["synthesize"], value, step), documents
                     ),
                 )
         decision = checkpoint(
             f"assess/{round_number}",
             lambda: assessment(
                 ask(
-                    prompts.ASSESS_RESEARCH,
+                    instructions["assess"],
                     {
                         "source": plan,
                         "interpretation": interpretation,
@@ -488,7 +496,7 @@ def research_for(store, client, runtime, repository, job, snapshot):
             decisions = checkpoint(
                 step,
                 lambda value=value, step=step, occurrences=occurrences, ids=ids: parse_decisions(
-                    ask(prompts.RESOLVE_TERMS, value, step),
+                    ask(instructions["resolve"], value, step),
                     terms,
                     occurrences,
                     citations | ids | {"source:" + i for i in ids},

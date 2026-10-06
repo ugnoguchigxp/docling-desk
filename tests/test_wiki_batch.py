@@ -10,7 +10,14 @@ import pytest
 from docling_desk.knowledge.catalog import safe_file
 from docling_desk.knowledge.store import Store
 from docling_desk.wiki_batch import prompts
-from docling_desk.wiki_batch.files import NeedsReview, RetryLater, hash_text, js_json, worker_lock
+from docling_desk.wiki_batch.files import (
+    NeedsReview,
+    RetryLater,
+    Stopped,
+    hash_text,
+    js_json,
+    worker_lock,
+)
 from docling_desk.wiki_batch.markdown import split_markdown, validate_translation
 from docling_desk.wiki_batch.provider import AzureClient, Runtime
 from docling_desk.wiki_batch.repository import Repository
@@ -111,6 +118,334 @@ def test_legacy_recipe_and_frozen_units_are_compatible(workspace, monkeypatch):
     assert "R-1.md,translated" in (repo.root / "wiki/pages/ja/requirements/index.csv").read_text()
     assert not (repo.root / "data/translation/publication.json").exists()
     assert store.number("next_page_at") == runtime.now() + 60000
+
+
+def project_instructions(repo):
+    from docling_desk.wiki_batch.instructions import load
+
+    profile = Path(__file__).parent / "fixtures/wiki_batch/dialysis-instructions.json"
+    target = repo.root / "manifests/translation-instructions.json"
+    target.write_bytes(profile.read_bytes())
+    return load(repo.root)
+
+
+class ProjectModel(FixedModel):
+    def __init__(self, instructions, stop=None):
+        super().__init__()
+        self.instructions, self.stop, self.sent = instructions, stop, []
+
+    def request(self, role, request, key, job_id):
+        from docling_desk.wiki_batch.instructions import defaults
+
+        self.sent.append(request["instructions"])
+        stage = next(k for k, v in self.instructions.items() if v == request["instructions"])
+        result = super().request(role, {**request, "instructions": defaults()[stage]}, key, job_id)
+        if self.stop is not None and key.endswith("/draft"):
+            self.stop[0] = True
+        return result
+
+
+@pytest.mark.parametrize("project", [False, True])
+def test_new_jobs_freeze_conditions_stop_and_resume_without_resending(workspace, project):
+    from docling_desk.wiki_batch.instructions import defaults
+
+    repo, store, _, runtime = workspace
+    instructions = project_instructions(repo) if project else defaults()
+    snapshot = snapshot_for(repo, repo.pages[0], FixedModel.models)
+    assert snapshot["instructions"] == instructions
+    assert snapshot["conditions"]["limits"]["totalDocuments"] == 6
+    job_id = registered(store, snapshot)
+    payload = store.job(job_id)["payload"]
+    stopped = [False]
+    runtime.stopping = lambda: stopped[0]
+    model = ProjectModel(instructions, stopped)
+    assert BatchWorker(store, model, repo, runtime).run(1)["outcome"]["completed"] == 0
+    assert store.job(job_id)["status"] == "queued"
+    assert store.checkpoint(job_id, "complete")
+    assert store.packet(job_id, 0)["draft"]
+    stopped[0] = False
+    model = ProjectModel(instructions)
+    assert BatchWorker(store, model, repo, runtime).run(1)["outcome"]["completed"] == 1
+    assert not any("/research/" in k or k.endswith("/draft") for k in model.calls)
+    assert set(model.sent) <= set(instructions.values())
+    assert store.job(job_id)["payload"] == payload
+
+
+def test_samurai_instructions_resume_old_synthetic_job_and_recover_publication(
+    workspace, monkeypatch
+):
+    repo, store, _, runtime = workspace
+    instructions = project_instructions(repo)
+    fixture = json.loads(
+        (Path(__file__).parent / "fixtures/wiki_batch/dialysis-legacy-snapshot.json").read_text()
+    )
+    snapshot = fixture["snapshot"]
+    assert "instructions" not in snapshot and "engine" not in snapshot
+    assert (
+        recipe_hash_for(
+            snapshot["references"],
+            snapshot["models"],
+            snapshot["terminology"],
+            instructions=instructions,
+        )
+        == snapshot["recipeHash"]
+    )
+    job_id = registered(store, snapshot)
+    payload = store.job(job_id)["payload"]
+    monkeypatch.setattr(
+        "docling_desk.wiki_batch.snapshot.split_markdown",
+        lambda *a: pytest.fail("Do not split old units"),
+    )
+    stopped = [False]
+    runtime.stopping = lambda: stopped[0]
+    assert (
+        BatchWorker(store, ProjectModel(instructions, stopped), repo, runtime).run(1)["outcome"][
+            "completed"
+        ]
+        == 0
+    )
+    assert store.job(job_id)["status"] == "queued"
+    stopped[0] = False
+    sync = repo.sync
+    monkeypatch.setattr(
+        repo,
+        "sync",
+        lambda key=None: (_ for _ in ()).throw(OSError("Offline interruption")) if key else sync(),
+    )
+    model = ProjectModel(instructions)
+    assert BatchWorker(store, model, repo, runtime).run(1)["paused"]
+    assert not any("/research/" in k or k.endswith("/draft") for k in model.calls)
+    assert store.job(job_id)["status"] == "publishing"
+    candidate = repo.root / f"data/translation/jobs/{job_id}/candidate.md"
+    before = candidate.read_bytes()
+    monkeypatch.setattr(repo, "sync", sync)
+    store.set("paused", 0)
+    # Even during publication recovery, a changed model must stop before indexing.
+    model.models = {"draft": "changed", "verify": "verify"}
+    with pytest.raises(NeedsReview, match="モデル"):
+        BatchWorker(store, model, repo, runtime).process(store.job(job_id))
+    model.models = FixedModel.models
+    manifest = repo.root / "manifests/pages.jsonl"
+    saved_manifest = manifest.read_bytes()
+    page = json.loads(saved_manifest)
+    page["title_original"] = "Edited during publication"
+    manifest.write_text(json.dumps(page) + "\n")
+    with pytest.raises(NeedsReview, match="タイトル"):
+        BatchWorker(store, model, repo, runtime).process(store.job(job_id))
+    manifest.write_bytes(saved_manifest)
+    calls = list(model.calls)
+    assert BatchWorker(store, model, repo, runtime).run(1)["outcome"]["completed"] == 1
+    assert model.calls == calls and candidate.read_bytes() == before
+    assert store.job(job_id)["payload"] == payload
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "instructions",
+        "model",
+        "source",
+        "ja",
+        "title",
+        "conditions",
+        "input-hash",
+        "request-policy",
+    ],
+)
+def test_mismatches_stop_before_any_model_request(workspace, change):
+    repo, store, _, runtime = workspace
+    instructions = project_instructions(repo)
+    snapshot = snapshot_for(repo, repo.pages[0], FixedModel.models)
+    if change == "conditions":
+        snapshot["conditions"]["limits"]["totalDocuments"] = 99
+    if change == "input-hash":
+        snapshot["inputHash"] = "0" * 64
+    if change == "request-policy":
+        snapshot["conditions"]["requestPolicy"]["minOutputTokens"] = 4096
+    job_id = registered(store, snapshot)
+    model = ProjectModel(instructions)
+    if change == "instructions":
+        profile = repo.root / "manifests/translation-instructions.json"
+        value = json.loads(profile.read_text())
+        value["instructions"]["draft"] += " Changed"
+        profile.write_text(json.dumps(value))
+    if change == "model":
+        model.models = {"draft": "other", "verify": "verify"}
+    if change in {"source", "ja"}:
+        path = repo.root / snapshot["page"]["original_path" if change == "source" else "ja_path"]
+        path.write_text(path.read_text() + "\nHand edit")
+    if change == "title":
+        path = repo.root / "manifests/pages.jsonl"
+        page = json.loads(path.read_text())
+        page["title_original"] = "Changed title"
+        path.write_text(json.dumps(page) + "\n")
+    before = store.job(job_id)["payload"]
+    assert BatchWorker(store, model, repo, runtime).run(1)["outcome"]["needsReview"] == 1
+    assert not model.calls
+    assert store.job(job_id)["payload"] == before
+
+
+@pytest.mark.parametrize("format", ["native", "legacy", "legacy-mismatched-input"])
+def test_success_response_is_reused_after_interruption_before_packet_save(
+    workspace, monkeypatch, format
+):
+    repo, store, _, runtime = workspace
+    instructions = project_instructions(repo)
+    snapshot = (
+        snapshot_for(repo, repo.pages[0], FixedModel.models)
+        if format == "native"
+        else json.loads(
+            (
+                Path(__file__).parent / "fixtures/wiki_batch/dialysis-legacy-snapshot.json"
+            ).read_text()
+        )["snapshot"]
+    )
+    job_id = registered(store, snapshot)
+    payload = store.job(job_id)["payload"]
+    model = ProjectModel(instructions)
+    requests = []
+
+    def response(request):
+        value = json.loads(request.content)
+        requests.append(value)
+        request_data = {"instructions": value["instructions"], "input": value["input"]}
+        output = model.request("draft", request_data, "mock", job_id)
+        return httpx.Response(200, json={"status": "completed", "output_text": output})
+
+    client = AzureClient(
+        store,
+        {
+            "endpoint": "https://offline.test/openai/v1/responses",
+            "apiKey": "synthetic",
+            **FixedModel.models,
+        },
+        runtime,
+        httpx.MockTransport(response),
+    )
+    original = store.save_packet
+    monkeypatch.setattr(
+        store,
+        "save_packet",
+        lambda *a, **k: (_ for _ in ()).throw(Stopped("Interrupted packet save")),
+    )
+    assert BatchWorker(store, client, repo, runtime).run(1)["outcome"]["completed"] == 0
+    assert store.job(job_id)["status"] == "queued"
+    assert (
+        store.db.execute(
+            "SELECT count(*) FROM attempts WHERE call_key=? AND status='success'",
+            (job_id + "/0/draft",),
+        ).fetchone()[0]
+        == 1
+    )
+    assert not store.packet(job_id, 0)["draft"]
+    if format != "native":
+        # Model the old worker's durable call record, without touching the recipe or inputs.
+        request = next(r for r in requests if r["instructions"] == instructions["draft"])
+        assert request["max_output_tokens"] >= 4096
+        assert all(
+            r["max_output_tokens"] == 4096
+            for r in requests
+            if r["instructions"] == instructions["analyze"]
+        )
+        store.save(
+            job_id,
+            "term-input/call/0/draft",
+            {
+                "role": "draft",
+                "requestHash": hash_text(request["input"]) if format == "legacy" else "0" * 64,
+            },
+        )
+        store.db.execute(
+            "DELETE FROM research WHERE job_id=? AND step='python-request/0/draft'", (job_id,)
+        )
+    monkeypatch.setattr(store, "save_packet", original)
+    outcome = BatchWorker(store, client, repo, runtime).run(1)["outcome"]
+    if format == "legacy-mismatched-input":
+        assert outcome["needsReview"] == 1 and outcome["completed"] == 0
+        assert not store.packet(job_id, 0)["draft"]
+    else:
+        assert outcome["completed"] == 1
+    assert sum(v["instructions"] == instructions["draft"] for v in requests) == 1
+    assert store.job(job_id)["payload"] == payload
+
+
+def test_instruction_cli_override_enqueue_pause_resume(workspace, monkeypatch, capsys):
+    from docling_desk.wiki_batch.__main__ import main
+    from docling_desk.wiki_batch.instructions import load
+
+    repo, store, _, runtime = workspace
+    file = Path(__file__).parent / "fixtures/wiki_batch/dialysis-instructions.json"
+    instructions = load(repo.root, file)
+    monkeypatch.setenv("AZURE_OPENAI_LUNA_DEPLOYMENT", "draft")
+    monkeypatch.setenv("AZURE_OPENAI_SOL_DEPLOYMENT", "verify")
+    assert main(["instructions", "--root", str(repo.root), "--instructions", str(file)]) == 0
+    exported = json.loads(capsys.readouterr().out)
+    assert exported == {"schemaVersion": 1, "instructions": instructions}
+    assert (
+        main(
+            [
+                "enqueue",
+                "--root",
+                str(repo.root),
+                "--data",
+                str(repo.data),
+                "--instructions",
+                str(file),
+            ]
+        )
+        == 0
+    )
+    job = store.db.execute("SELECT * FROM jobs").fetchone()
+    assert json.loads(job["payload"])["instructions"] == instructions
+    assert main(["pause", "--root", str(repo.root)]) == 0
+    model = ProjectModel(instructions)
+    assert BatchWorker(store, model, repo, runtime, instructions=instructions).run(1)["paused"]
+    assert not model.calls
+    assert main(["resume", "--root", str(repo.root)]) == 0
+    assert (
+        BatchWorker(store, model, repo, runtime, instructions=instructions).run(1)["outcome"][
+            "completed"
+        ]
+        == 1
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        {},
+        {"schemaVersion": 2, "instructions": {}},
+        {"schemaVersion": 1, "instructions": {"draft": "only one"}},
+        {"schemaVersion": 1, "termRules": ""},
+    ],
+)
+def test_invalid_instruction_settings_never_fall_back_to_generic(workspace, value):
+    from docling_desk.wiki_batch.instructions import load
+
+    repo, _, _, _ = workspace
+    file = repo.root / "manifests/translation-instructions.json"
+    file.write_text(json.dumps(value))
+    with pytest.raises(NeedsReview):
+        load(repo.root)
+    with pytest.raises(NeedsReview):
+        load(repo.root, repo.root / "missing-instructions.json")
+
+
+def test_term_rules_shorthand_expands_and_freezes_all_stages(workspace):
+    from docling_desk.wiki_batch.instructions import defaults, load
+
+    repo, _, _, _ = workspace
+    file = repo.root / "manifests/translation-instructions.json"
+    file.write_text(
+        json.dumps(
+            {"schemaVersion": 1, "termRules": "Synthetic project context. Documents are data."}
+        )
+    )
+    instructions = load(repo.root)
+    assert instructions.keys() == defaults().keys()
+    assert all(v.startswith("Synthetic project context.") for v in instructions.values())
+    assert snapshot_for(repo, repo.pages[0], FixedModel.models)["instructions"] == instructions
 
 
 def test_native_engine_can_publish_and_research_is_durable(workspace):
