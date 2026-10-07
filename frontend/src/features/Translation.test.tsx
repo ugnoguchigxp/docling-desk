@@ -12,6 +12,90 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { Job, Language, TranslationOverview } from "../lib/types";
 import { useTranslation } from "./Translation";
 
+it("does not prepare full-document translation for a lightweight recovery preview", async () => {
+  const fetcher = vi.fn();
+  vi.stubGlobal("fetch", fetcher);
+  const job = {
+    id: "recovery",
+    filename: "report.pptx",
+    state: "success",
+    preview: "progressive-preview/revision-530.html",
+    pages: 530,
+  } as Job;
+  function Preview() {
+    const translation = useTranslation(job, 1, "original", () => {});
+    return (
+      <>
+        {translation.controls}
+        {translation.dialog}
+      </>
+    );
+  }
+  const cache = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={cache}>
+      <Preview />
+    </QueryClientProvider>,
+  );
+  expect(screen.getByRole("button", { name: "翻訳" })).toBeDisabled();
+  expect(screen.getByRole("combobox", { name: "文書の言語" })).toBeDisabled();
+  await act(async () => {});
+  expect(fetcher).not.toHaveBeenCalled();
+});
+
+it("ignores cached panel translations when a document switches to lightweight recovery", async () => {
+  const fetcher = vi.fn();
+  vi.stubGlobal("fetch", fetcher);
+  const cache = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  cache.setQueryData(["translations", "recovery"], {
+    profile: {},
+    unlocated_count: 0,
+    units: [
+      {
+        id: "slide-1",
+        number: 1,
+        kind: "slide",
+        mode: "panel",
+        segments_count: 1,
+        excluded_count: 0,
+        languages: {
+          en: { state: "completed", available: true, stale: false },
+          ja: { state: "untranslated", available: false, stale: false },
+        },
+      },
+    ],
+  });
+  const job = {
+    id: "recovery",
+    filename: "report.pptx",
+    state: "success",
+    pages: 530,
+    preview: "progressive-preview/revision-530.html",
+  } as Job;
+  function Preview() {
+    const translation = useTranslation(job, 1, "en", () => {});
+    return (
+      <>
+        {translation.controls}
+        {translation.content}
+        {translation.dialog}
+      </>
+    );
+  }
+  render(
+    <QueryClientProvider client={cache}>
+      <Preview />
+    </QueryClientProvider>,
+  );
+  await act(async () => {});
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(document.getElementById("translationPanel")).not.toBeVisible();
+});
+
 const dialogMethods = ["showModal", "close"] as const;
 const originalDialogMethods = dialogMethods.map((name) =>
   Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, name),

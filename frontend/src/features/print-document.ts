@@ -2,7 +2,12 @@ import { fileUrl, request } from "../lib/api";
 import * as contracts from "../lib/contracts";
 import { isDocument } from "../lib/formats";
 import { withBase } from "../lib/base";
-import type { Job, Language, Slides } from "../lib/types";
+import {
+  isLightweightPreview,
+  type Job,
+  type Language,
+  type Slides,
+} from "../lib/types";
 
 async function readText(url: string, signal: AbortSignal) {
   const response = await fetch(withBase(url), { signal, cache: "no-store" });
@@ -52,20 +57,30 @@ export async function printUnits(
       },
     ];
   if (name.endsWith(".pptx")) {
-    if (!job.slide_layout) return extracted();
+    const lightweight = isLightweightPreview(job);
+    if (!job.slide_layout && !lightweight) return extracted();
     const data = await request<Slides>(
       fileUrl(job.id, "slides.json"),
       { signal },
       contracts.slides,
     );
-    if (!data.slides.length || data.slides.some((s) => !s.preview))
+    if (lightweight && !data.slides.some((s) => s.preview))
+      throw new Error("印刷できるページがまだありません。");
+    if (
+      !data.slides.length ||
+      (!lightweight && data.slides.some((s) => !s.preview))
+    )
       return extracted();
-    return data.slides.map((s) => ({
-      number: s.number,
-      url: `${base}/slides/${s.number}`,
-      width: s.width,
-      height: s.height,
-    }));
+    return data.slides
+      .filter((s) => !!s.preview)
+      .map((s) => ({
+        number: s.number,
+        url: lightweight
+          ? fileUrl(job.id, s.preview!)
+          : `${base}/slides/${s.number}`,
+        width: s.width,
+        height: s.height,
+      }));
   }
   if (name.endsWith(".pdf")) {
     const raw = await readText(`${base}/pdf`, signal);
@@ -107,14 +122,15 @@ export function selectPrintUnits(
 ) {
   if (scope === "all") return units;
   if (scope === "current") return units.filter((u) => u.number === current);
+  const last = Math.max(0, ...units.map((u) => u.number));
   const numbers = new Set<number>();
   for (const part of range.split(/[,、]/)) {
     const match = /^\s*(\d+)\s*(?:-\s*(\d+)\s*)?$/.exec(part);
     if (!match) throw new Error("範囲は「1-3, 5」のように入力してください。");
     const start = Number(match[1]),
       end = Number(match[2] || match[1]);
-    if (start < 1 || end < start || end > units.length)
-      throw new Error(`範囲は1〜${units.length}で指定してください。`);
+    if (start < 1 || end < start || end > last)
+      throw new Error(`範囲は1〜${last}で指定してください。`);
     for (let n = start; n <= end; n++) numbers.add(n);
   }
   return units.filter((u) => numbers.has(u.number));

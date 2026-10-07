@@ -11,7 +11,7 @@ import {
 import { errorText } from "../lib/api";
 import { withBase } from "../lib/base";
 import { isDocument } from "../lib/formats";
-import type { Job, Language } from "../lib/types";
+import { isLightweightPreview, type Job, type Language } from "../lib/types";
 import {
   printUnits,
   renderPrintDocument,
@@ -66,7 +66,9 @@ export function PrintPreview({
     !extracted &&
     /\.(pdf|pptx)$/i.test(job.original_filename || job.filename);
   const whole = extracted || isDocument(job.original_filename || job.filename);
-  const [scope, setScope] = useState("all"),
+  const [scope, setScope] = useState(
+      isLightweightPreview(job) ? "current" : "all",
+    ),
     [range, setRange] = useState("");
   const [settings, setSettings] = useState<PrintSettings>({
     paper: fixed ? "source" : "a4",

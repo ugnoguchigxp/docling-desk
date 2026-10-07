@@ -57,6 +57,58 @@ def test_existing_files_and_nested_navigation_persist(client):
     assert client.get("/files/" + id + "/original.pdf").content == b"%PDF-1.4 test"
 
 
+def test_library_responds_while_translation_source_is_busy(client):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from docling_desk.translation.store import LOCK as TRANSLATION_LOCK
+
+    id = file(client)
+    translation = desk_config.DATA / id / "translations" / "en"
+    translation.mkdir(parents=True)
+    (translation / "page-1.json").write_text('{"state":"completed","result":{"text":"saved"}}')
+    with ThreadPoolExecutor(max_workers=1) as worker:
+        with TRANSLATION_LOCK:
+            response = worker.submit(client.get, "/api/library").result(timeout=2)
+            assert worker.submit(client.get, "/api/jobs").result(timeout=2).status_code == 200
+            detail = worker.submit(client.get, "/api/jobs/" + id).result(timeout=2)
+            assert detail.status_code == 200
+            assert detail.json()["id"] == id
+        assert response.status_code == 200
+        assert response.json()["jobs"][0]["id"] == id
+        assert response.json()["jobs"][0]["translations"]["en"] == {
+            "saved": 1,
+            "active": 0,
+            "failed": 0,
+        }
+        assert client.get("/api/jobs").status_code == 200
+
+
+def test_library_releases_organization_lock_before_reading_translation_records(client, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    from docling_desk.api import library
+
+    id = file(client)
+    reading, release = Event(), Event()
+
+    def slow_summary(folder):
+        reading.set()
+        assert release.wait(timeout=5)
+        return {}
+
+    monkeypatch.setattr(library, "summary", slow_summary)
+    with ThreadPoolExecutor(max_workers=2) as worker:
+        listing = worker.submit(client.get, "/api/library")
+        try:
+            assert reading.wait(timeout=2)
+            detail = worker.submit(client.get, "/api/jobs/" + id).result(timeout=2)
+            assert detail.status_code == 200
+        finally:
+            release.set()
+        assert listing.result(timeout=2).status_code == 200
+
+
 def test_rename_retains_source_and_downloads_with_display_name(client):
     id = file(client)
     assert operation(client, "rename", [("file", id)], name="新資料.pdf").status_code == 200
@@ -301,3 +353,69 @@ def test_no_trash_or_restore_api(client):
     for action in ("trash", "restore"):
         assert operation(client, action, [("file", id)]).status_code == 422
     assert (desk_config.DATA / id).exists()
+
+
+def test_passive_recovery_page_inlines_only_matching_fonts_without_changing_saved_files(client):
+    id = file(client, "deck.pptx")
+    folder = desk_config.DATA / id / "progressive-preview"
+    folder.mkdir()
+    raw = '<html><head><link rel="stylesheet" href="fonts-2.css"></head><body><svg xmlns="http://www.w3.org/2000/svg"><text>page 2</text></svg></body></html>'
+    (folder / "page-2.html").write_text(raw)
+    css = "@font-face{src:url(data:font/ttf;base64,AA==)}/* </style><script> */"
+    (folder / "fonts-2.css").write_text(css)
+    response = client.get(f"/files/{id}/progressive-preview/page-2.html?inline_fonts=true")
+    assert response.status_code == 200
+    assert "<link " not in response.text
+    assert "data:font/ttf" in response.text
+    assert "<script>" not in response.text
+    assert "sandbox" in response.headers["content-security-policy"]
+    assert "allow-same-origin" not in response.headers["content-security-policy"]
+    assert (folder / "page-2.html").read_text() == raw
+    thumb = client.get(f"/files/{id}/progressive-preview/page-2.html?thumbnail=true")
+    assert thumb.status_code == 200
+    assert thumb.headers["content-type"].startswith("image/svg+xml")
+    assert thumb.text.startswith("<svg ")
+    assert "data:font/ttf" in thumb.text
+    (folder / "fonts-2.css").unlink()
+    assert (
+        client.get(f"/files/{id}/progressive-preview/page-2.html?inline_fonts=true").status_code
+        == 404
+    )
+    assert client.get(f"/files/{id}/progressive-preview/page-2.html").status_code == 200
+
+
+@pytest.mark.parametrize("query", ["inline_fonts=true", "thumbnail=true"])
+@pytest.mark.parametrize("broken", ["page-1.html", "fonts-1.css"])
+def test_unreadable_recovery_asset_returns_a_reason_not_a_server_error(client, query, broken):
+    id = file(client, "deck.pptx")
+    folder = desk_config.DATA / id / "progressive-preview"
+    folder.mkdir()
+    (folder / "page-1.html").write_text(
+        '<html><head><link rel="stylesheet" href="fonts-1.css"></head><body>'
+        '<svg xmlns="http://www.w3.org/2000/svg"><text>saved</text></svg></body></html>'
+    )
+    (folder / "fonts-1.css").write_text("text{font-family:sans-serif}")
+    (folder / broken).write_bytes(b"\xff\xfe")
+    response = client.get(f"/files/{id}/progressive-preview/page-1.html?{query}")
+    assert response.status_code == 409
+    assert response.json()["detail"]
+
+
+@pytest.mark.parametrize("query", ["inline_fonts=true", "thumbnail=true"])
+def test_recovery_asset_removed_during_read_returns_not_found(client, monkeypatch, query):
+    id = file(client, "deck.pptx")
+    folder = desk_config.DATA / id / "progressive-preview"
+    folder.mkdir()
+    (folder / "page-1.html").write_text('<link rel="stylesheet" href="fonts-1.css">')
+    (folder / "fonts-1.css").write_text("")
+    read_text = Path.read_text
+
+    def removed(path, *args, **kwargs):
+        if path == folder / "fonts-1.css":
+            raise FileNotFoundError("concurrent replacement")
+        return read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", removed)
+    response = client.get(f"/files/{id}/progressive-preview/page-1.html?{query}")
+    assert response.status_code == 404
+    assert response.json()["detail"]

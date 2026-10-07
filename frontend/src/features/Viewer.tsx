@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { Button, ActionLink, DisclosureMenu } from "../components/ui";
 import { originalUrl } from "../lib/api";
 import { withBase } from "../lib/base";
-import { isDone } from "../lib/types";
+import { isDone, isLightweightPreview } from "../lib/types";
 import { isDocument } from "../lib/formats";
 import { DocumentViewer } from "../viewer/DocumentViewer";
 import { useTranslation } from "./Translation";
@@ -19,6 +19,7 @@ export function Viewer(
 ) {
   const [current, setCurrent] = useState<number | null>(
     props.job.slide_layout ||
+      isLightweightPreview(props.job) ||
       isDocument(props.job.original_filename || props.job.filename)
       ? props.initialUnit || 1
       : null,

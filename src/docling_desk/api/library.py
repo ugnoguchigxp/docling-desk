@@ -38,9 +38,9 @@ def jobs() -> list[Job]:
 def library_snapshot() -> dict:
     with LOCK:
         result = snapshot(config.DATA)
-        for job in result["jobs"]:
-            job["translations"] = summary(document_folder(config.DATA, job["id"]))
-        return result
+    for job in result["jobs"]:
+        job["translations"] = summary(document_folder(config.DATA, job["id"]))
+    return result
 
 
 @router.post("/api/folders", response_model=Folder, status_code=201)

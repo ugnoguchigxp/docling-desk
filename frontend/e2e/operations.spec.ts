@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { waitForViewerSurface } from "./viewer-ready";
 const diagnostics = new WeakMap<Page, string[]>();
 test.beforeEach(({ page }) => {
   const issues: string[] = [];
@@ -105,9 +106,9 @@ for (const [format, id] of [
     await open(page, id);
     if (format === "PDF") {
       // The original frame and its controls finish loading asynchronously.
-      await expect(page.locator("#explanationDisclosure")).toContainText(
-        "未作成の解説",
-      );
+      await expect(page.locator("#explanationDisclosure")).toHaveCount(0);
+      await waitForViewerSurface(page);
+      await waitForViewerSurface(page);
       await expect(
         page.frameLocator("#original").locator("#pdfPage"),
       ).toHaveValue("1");
@@ -139,6 +140,10 @@ for (const [format, id] of [
     await page.keyboard.press("Tab");
     await page.keyboard.press("Enter");
     await expect(page.locator("#printPreviewDialog")).toBeVisible();
+    await expect(page.locator("#printPreviewFrame")).toHaveCSS(
+      "pointer-events",
+      "auto",
+    );
     await page.keyboard.press("Escape");
     await expect(page.locator("#printPreviewDialog")).toBeHidden();
     await expect(page.locator("#saveMenu summary")).toBeFocused();
@@ -219,10 +224,9 @@ test("PPTX preview text copy starts in glyph gaps and clears on slide reselectio
   // The saved SVG deck includes individually positioned glyphs and background
   // paths. The Quick Look smoke fixture alone cannot reproduce this regression.
   await open(page, "a".repeat(32));
-  // The disclosure arrives asynchronously and moves the canvas below it.
-  await expect(page.locator("#explanationDisclosure")).toContainText(
-    "未作成の解説",
-  );
+  // Wait for the page glyphs before measuring selection coordinates.
+  await expect(page.locator("#explanationDisclosure")).toHaveCount(0);
+  await waitForViewerSurface(page);
   const preview = page.frameLocator("#slideCanvas iframe");
   const text = preview.locator("text").first();
   await expect(text).toBeVisible();
@@ -436,10 +440,9 @@ for (const [name, id] of [
       });
     }
     await open(page, id);
-    // Wait for the initial disclosure, which changes the iframe's position.
-    await expect(page.locator("#explanationDisclosure")).toContainText(
-      "未作成の解説",
-    );
+    await expect(page.locator("#explanationDisclosure")).toHaveCount(0);
+    await waitForViewerSurface(page);
+    await waitForViewerSurface(page);
     const original = page.frameLocator("#original");
     await page
       .locator("#original")
@@ -519,9 +522,8 @@ test("PDF keeps its page when scroll arrives before a hidden tab's resize restor
     };
   });
   await open(page, pdf);
-  await expect(page.locator("#explanationDisclosure")).toContainText(
-    "未作成の解説",
-  );
+  await expect(page.locator("#explanationDisclosure")).toHaveCount(0);
+  await waitForViewerSurface(page);
   const original = page.frameLocator("#original");
   const stage = original.locator("#pdfStage");
   await original.locator("#pdfPage").fill("2");
@@ -602,7 +604,17 @@ test("translation submit has one POST, selected units, force and pacing", async 
   page,
 }) => {
   await open(page, slide);
+  // Measure dialog interactions after the source frame has loaded, rather
+  // than while Chrome is still committing a newly created iframe surface.
+  await expect(
+    page.frameLocator("#slideCanvas iframe").locator("body"),
+  ).toContainText("合成サンプル");
+  await waitForViewerSurface(page);
   await page.locator("#translateOpen").click();
+  await expect(page.locator("#slideCanvas iframe")).toHaveCSS(
+    "pointer-events",
+    "none",
+  );
   await page.locator("#translationScope").selectOption("selected");
   await page.locator("#translationUnitList input").first().uncheck();
   await page.locator("#translationSubmit").click();
@@ -619,6 +631,10 @@ test("translation submit has one POST, selected units, force and pacing", async 
   expect(body.force).toBe(true);
   expect(body.interval_seconds).toBe(0);
   await expect(page.locator("#translationDialog")).toBeHidden();
+  await expect(page.locator("#slideCanvas iframe")).toHaveCSS(
+    "pointer-events",
+    "auto",
+  );
 });
 test("explanation polling recovers after failure and never restarts saved generation", async ({
   page,

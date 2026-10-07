@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { waitForViewerSurface } from "./viewer-ready";
 
 const out = resolve(process.env.PRINT_QA_DIRECTORY || "../qa/print-preview");
 
@@ -36,11 +37,7 @@ for (const kind of ["SVG", "background", "lazy"])
               : `<img loading="lazy" style="margin-top:10000px" src="/files/${id}/delayed.png">`,
       }),
     );
-    await page.goto(`/?job=${id}`);
-    await page.locator("#saveMenu summary").click();
-    await page
-      .getByRole("button", { name: "プリントプレビュー", exact: true })
-      .click();
+    await openPrintDialog(page, id);
     await expect(
       page.frameLocator("#printPreviewFrame").locator(".print-unit"),
     ).toHaveCount(2);
@@ -69,11 +66,7 @@ test("retry discovery failure stays blocked when paper settings change", async (
       ? route.fulfill({ status: 503, body: "metadata failure" })
       : route.continue(),
   );
-  await page.goto(`/?job=${id}`);
-  await page.locator("#saveMenu summary").click();
-  await page
-    .getByRole("button", { name: "プリントプレビュー", exact: true })
-    .click();
+  await openPrintDialog(page, id);
   const dialog = page.locator("#printPreviewDialog");
   await expect(dialog.getByRole("alert")).toContainText("HTTP 500");
   pageFails = false;
@@ -97,11 +90,7 @@ test("retry reloads a failed print shell", async ({ page }) => {
   await page.route("**/static/frontend/print.html", (route) =>
     failed ? route.abort() : route.continue(),
   );
-  await page.goto(`/?job=${"9".repeat(32)}`);
-  await page.locator("#saveMenu summary").click();
-  await page
-    .getByRole("button", { name: "プリントプレビュー", exact: true })
-    .click();
+  await openPrintDialog(page, "9".repeat(32));
   const dialog = page.locator("#printPreviewDialog");
   await expect(dialog.getByRole("alert")).toBeVisible();
   failed = false;
@@ -185,14 +174,18 @@ test("available original preview can print even if text extraction failed", asyn
     page.frameLocator("#printPreviewFrame").locator(".print-unit"),
   ).toHaveCount(2);
 });
-async function openPrint(page: Page, id: string, previewText?: string) {
+async function openPrintDialog(page: Page, id: string, previewText?: string) {
   await page.goto(`/?job=${id}`);
+  await waitForViewerSurface(page);
+  const source = page.locator("#original:visible,#slideCanvas iframe:visible");
   if (previewText)
     await expect(page.frameLocator("#original").locator("body")).toContainText(
       previewText,
     );
   await page.locator("#saveMenu summary").click();
   await expect(page.locator("#saveMenu")).toHaveAttribute("open", "");
+  if (await source.count())
+    await expect(source).toHaveCSS("pointer-events", "none");
   const trigger = page.getByRole("button", {
     name: "プリントプレビュー",
     exact: true,
@@ -202,6 +195,10 @@ async function openPrint(page: Page, id: string, previewText?: string) {
     await trigger.focus();
     await trigger.press("Enter");
   } else await trigger.click();
+  await expect(page.locator("#printPreviewDialog")).toBeVisible();
+}
+async function openPrint(page: Page, id: string, previewText?: string) {
+  await openPrintDialog(page, id, previewText);
   await expect(page.getByRole("button", { name: "印刷・PDF保存" })).toBeEnabled(
     { timeout: 45000 },
   );
@@ -352,11 +349,7 @@ test("failed page loading blocks printing and supports retry", async ({
   await page.route(`**/view/${id}/pages/2?**`, (route) =>
     fail ? route.fulfill({ status: 500, body: "failure" }) : route.continue(),
   );
-  await page.goto(`/?job=${id}`);
-  await page.locator("#saveMenu summary").click();
-  await page
-    .getByRole("button", { name: "プリントプレビュー", exact: true })
-    .click();
+  await openPrintDialog(page, id);
   await expect(
     page.locator("#printPreviewDialog").getByRole("alert"),
   ).toContainText("HTTP 500");

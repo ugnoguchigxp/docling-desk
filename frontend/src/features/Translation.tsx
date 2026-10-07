@@ -16,6 +16,7 @@ import {
 import { errorText, post, request } from "../lib/api";
 import {
   isDone,
+  isLightweightPreview,
   unitLabel,
   unitNames,
   type Job,
@@ -39,6 +40,7 @@ export function useTranslation(
   onLanguage: (lang: Language) => void,
 ) {
   const cache = useQueryClient();
+  const lightweight = !!job.preview && isLightweightPreview(job);
   const overview = useQuery({
     queryKey: ["translations", job.id],
     queryFn: ({ signal }) =>
@@ -47,7 +49,7 @@ export function useTranslation(
         { signal },
         contracts.translations,
       ),
-    enabled: isDone(job),
+    enabled: isDone(job) && !lightweight,
     retry: false,
     refetchOnWindowFocus: false,
     refetchInterval: (q) =>
@@ -58,7 +60,7 @@ export function useTranslation(
         ? 1500
         : false,
   });
-  const data = overview.data,
+  const data = lightweight ? undefined : overview.data,
     unit = data?.units.find((u) => u.number === current) || data?.units[0],
     record = language === "original" ? null : unit?.languages[language],
     revision = record?.result_created_at || "";
@@ -70,7 +72,7 @@ export function useTranslation(
         { signal },
         contracts.translationPanel,
       ),
-    enabled: !!record?.available && unit?.mode === "panel",
+    enabled: !lightweight && !!record?.available && unit?.mode === "panel",
   });
   const [opened, setOpened] = useState(false),
     [target, setTarget] = useState<"en" | "ja">("en"),
@@ -83,7 +85,7 @@ export function useTranslation(
   const lock = useRef(false),
     dialogLock = useRef(false);
   async function open() {
-    if (dialogLock.current) return;
+    if (lightweight || dialogLock.current) return;
     dialogLock.current = true;
     try {
       const result = await overview.refetch();
@@ -105,7 +107,7 @@ export function useTranslation(
     }
   }
   async function submit() {
-    if (!data || !unit || lock.current) return;
+    if (lightweight || !data || !unit || lock.current) return;
     const ids =
       scope === "all" ? null : scope === "current" ? [unit.id] : selected;
     if (ids && !ids.length) {
@@ -176,8 +178,8 @@ export function useTranslation(
         `ページ位置のない要素 ${data.unlocated_count}件は翻訳対象外です。`,
       );
   }
-  if (overview.error) warnings.push(overview.error.message);
-  if (panel.error) warnings.push(panel.error.message);
+  if (!lightweight && overview.error) warnings.push(overview.error.message);
+  if (!lightweight && panel.error) warnings.push(panel.error.message);
   const downloads = data?.units.flatMap((u) =>
     (["en", "ja"] as const)
       .filter((lang) => u.languages[lang].available)
@@ -198,8 +200,12 @@ export function useTranslation(
     <>
       <Button
         id="translateOpen"
-        title="この資料を翻訳"
-        disabled={!isDone(job)}
+        title={
+          lightweight
+            ? "この軽量プレビューでは翻訳を利用できません。"
+            : "この資料を翻訳"
+        }
+        disabled={!isDone(job) || lightweight}
         onClick={() => void open()}
       >
         翻訳
@@ -207,7 +213,8 @@ export function useTranslation(
       <SelectField
         id="translationLanguage"
         aria-label="文書の言語"
-        value={language}
+        disabled={lightweight}
+        value={lightweight ? "original" : language}
         onChange={(e) => onLanguage(e.target.value as Language)}
       >
         <option value="original">原文</option>
@@ -250,7 +257,7 @@ export function useTranslation(
     <Dialog
       id="translationDialog"
       aria-labelledby="translationTitle"
-      open={opened}
+      open={opened && !lightweight}
       onClose={() => {
         if (!busy) setOpened(false);
       }}

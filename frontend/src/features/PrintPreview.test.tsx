@@ -123,6 +123,50 @@ async function loadFrame() {
   );
 }
 
+it("defaults a large recovery deck to printing only the current saved page", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input), location.origin);
+      if (url.pathname.endsWith("slides.json"))
+        return Response.json({
+          slides: [
+            {
+              number: 1,
+              width: 320,
+              height: 180,
+              preview: "progressive-preview/page-1.html",
+            },
+            {
+              number: 530,
+              width: 320,
+              height: 180,
+              preview: "progressive-preview/page-530.html",
+            },
+          ],
+        });
+      return response(pageHtml);
+    }),
+  );
+  openPreview(
+    {
+      filename: "large.pptx",
+      pages: 530,
+      preview: "progressive-preview/revision-530.html",
+    },
+    { current: 530 },
+  );
+  await loadFrame();
+  expect(screen.getByLabelText("印刷範囲")).toHaveValue("current");
+  const requested = vi.mocked(fetch).mock.calls.map(([url]) => String(url));
+  expect(requested.some((url) => url.includes("page-530.html"))).toBe(true);
+  expect(
+    requested.some(
+      (url) => url.includes("page-1.html") || url.includes("/view/"),
+    ),
+  ).toBe(false);
+});
+
 beforeEach(() => {
   frameDoc = "ok";
   frameWindow = "ok";
@@ -151,12 +195,16 @@ beforeEach(() => {
     value: { ready: Promise.resolve() },
   });
   sharedWindow.HTMLImageElement.prototype.decode = () => Promise.resolve();
-  Object.defineProperty(sharedWindow.HTMLImageElement.prototype, "naturalWidth", {
-    configurable: true,
-    get() {
-      return 8;
+  Object.defineProperty(
+    sharedWindow.HTMLImageElement.prototype,
+    "naturalWidth",
+    {
+      configurable: true,
+      get() {
+        return 8;
+      },
     },
-  });
+  );
   Object.defineProperty(HTMLIFrameElement.prototype, "contentDocument", {
     configurable: true,
     get() {
@@ -205,7 +253,10 @@ afterEach(() => {
 
 describe("PrintPreview", () => {
   it("prepares a pdf, changes paper and zoom, and prints", async () => {
-    const { onClose } = openPreview({}, { language: "original", revision: "r/1" });
+    const { onClose } = openPreview(
+      {},
+      { language: "original", revision: "r/1" },
+    );
     expect(screen.getByText("report.pdf")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
       "印刷用の文書を読み込んでいます…",

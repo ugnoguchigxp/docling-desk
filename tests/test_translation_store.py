@@ -51,3 +51,26 @@ def test_corrupt_translation_does_not_prevent_startup_or_library(tmp_path):
     path.write_text("{broken")
     interrupt_pending(tmp_path)
     assert summary(folder)["en"] == {"saved": 0, "active": 0, "failed": 1}
+
+
+@pytest.mark.parametrize("state", [[], {}, None])
+def test_corrupt_record_state_is_reported_without_blocking_the_library(tmp_path, state):
+    atomic_json(result_path(tmp_path, "en", "slide-1"), {"state": state, "result": None})
+    assert summary(tmp_path)["en"] == {"saved": 0, "active": 0, "failed": 1}
+
+
+def test_summary_does_not_retain_all_saved_translation_bodies(tmp_path):
+    import tracemalloc
+
+    for number in range(1, 201):
+        atomic_json(
+            result_path(tmp_path, "en", f"slide-{number}"),
+            {"state": "completed", "result": {"text": "x" * 65536}},
+        )
+    tracemalloc.start()
+    try:
+        assert summary(tmp_path)["en"] == {"saved": 200, "active": 0, "failed": 0}
+        _, peak = tracemalloc.get_traced_memory()
+        assert peak < 2 * 1024**2
+    finally:
+        tracemalloc.stop()

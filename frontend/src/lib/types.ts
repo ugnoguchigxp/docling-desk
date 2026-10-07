@@ -198,6 +198,13 @@ export const unitLabel = (kind: Kind, number: number) =>
   kind === "document" ? unitNames.document : `${unitNames[kind]} ${number}`;
 export const isDone = (job?: Job | null) =>
   !!job && ["success", "partial"].includes(job.state);
+// Persisted recovery previews have page metadata but deliberately omit the
+// expensive extraction overlays used by the ordinary slide renderer.
+export const isLightweightPreview = (
+  job: Pick<Job, "filename" | "original_filename" | "preview">,
+) =>
+  /\.pptx$/i.test(job.original_filename || job.filename) &&
+  /^progressive-preview\/revision-\d+\.html$/.test(job.preview || "");
 export const itemKey = (item: ItemRef) => `${item.kind}:${item.id}`;
 export const itemName = (item: Item) =>
   item.kind === "file" ? item.filename : item.name;

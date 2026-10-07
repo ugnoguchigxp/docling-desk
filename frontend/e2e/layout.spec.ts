@@ -97,11 +97,8 @@ async function prepare(page: Page, path: string, c: Case) {
   await session.detach();
   await page.goto(`${path}?job=${c.job.id}`);
   await expect(page.locator("#filename")).toHaveText(c.job.filename);
-  // Initial metadata changes the available height. Apply the same user actions
-  // only after that disclosure and the initial frame have finished loading.
-  await expect(page.locator("#explanationDisclosure")).toContainText(
-    "未作成の解説",
-  );
+  // Apply user actions after the initial frame has finished loading.
+  await expect(page.locator("#explanationDisclosure")).toHaveCount(0);
   await ready(page);
   if (c.job.slide_layout) {
     await expect(page.locator("#slideCanvas iframe")).toBeVisible();

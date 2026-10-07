@@ -173,6 +173,8 @@ beforeEach(() => {
         });
       }
       if (url.includes("elements.json")) return Response.json([]);
+      if (/\/(one|two)\.html$/.test(url))
+        return new Response(`<svg><text>${url}</text></svg>`);
       return new Response("missing", { status: 404 });
     }),
   );
@@ -186,6 +188,81 @@ afterEach(() => {
 });
 
 describe("DocumentViewer", () => {
+  it("uses saved recovery pages for initial links and table source navigation", async () => {
+    const onUnitChange = vi.fn();
+    render(
+      <Viewer
+        job={job({
+          filename: "deck.pptx",
+          pages: 530,
+          preview: "progressive-preview/revision-530.html",
+        })}
+        initialUnit={2}
+        onUnitChange={onUnitChange}
+      />,
+    );
+    const selected = await screen.findByTitle("原本プレビュー・スライド 2");
+    expect(selected).toHaveAttribute(
+      "src",
+      "/files/job/two.html?inline_fonts=true",
+    );
+    expect(original()).toHaveAttribute("src", "about:blank");
+    expect(original()).toHaveAttribute("hidden");
+    expect(document.getElementById("explanationDisclosure")).toBeNull();
+    expect(document.querySelector(".lightweight-preview-notice")).toBeNull();
+    expect(onUnitChange).toHaveBeenLastCalledWith(2);
+    fireEvent.click(screen.getByRole("button", { name: "前のスライド" }));
+    await waitFor(() => expect(onUnitChange).toHaveBeenLastCalledWith(1));
+    fireEvent.click(screen.getByRole("tab", { name: "表を操作" }));
+    fireEvent.click(await screen.findByRole("button", { name: "表の出典" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("スライド")).toHaveValue("2"),
+    );
+    expect(screen.getByLabelText("プレビューを大きく開く")).toHaveAttribute(
+      "href",
+      "/files/job/two.html?inline_fonts=true",
+    );
+  });
+
+  it("never opens the 530-frame legacy preview when recovery metadata fails", async () => {
+    slidesMode = "error";
+    render(
+      <Viewer
+        job={job({
+          filename: "deck.pptx",
+          pages: 530,
+          preview: "progressive-preview/revision-530.html",
+        })}
+      />,
+    );
+    await screen.findByText("bad slides");
+    expect(original()).toHaveAttribute("src", "about:blank");
+    expect(original()).toHaveAttribute("hidden");
+    expect(screen.getByLabelText("プレビューを大きく開く")).not.toBeVisible();
+    expect(screen.getByLabelText("プレビューを大きく開く")).not.toHaveAttribute(
+      "href",
+    );
+  });
+
+  it("keeps page controls available while a recovery page is not yet generated", async () => {
+    slidesMode = "empty";
+    render(
+      <Viewer
+        job={job({
+          filename: "deck.pptx",
+          pages: 530,
+          preview: "progressive-preview/revision-1.html",
+          state: "partial",
+        })}
+      />,
+    );
+    await screen.findByText(
+      "このページのプレビューはまだありません。作成済みのページを選んでください。",
+    );
+    expect(screen.getByLabelText("スライド")).toBeVisible();
+    expect(original()).toHaveAttribute("src", "about:blank");
+  });
+
   it("renders each preview target and warning", () => {
     const cases: {
       job: Partial<Job>;
@@ -308,7 +385,9 @@ describe("DocumentViewer", () => {
       "抽出中です。完了するとプレビューを表示します。",
     );
     cleanup();
-    render(<Viewer job={job({ state: "failed", error: null, preview: null })} />);
+    render(
+      <Viewer job={job({ state: "failed", error: null, preview: null })} />,
+    );
     expect(document.getElementById("viewerMessage")).toHaveAttribute("hidden");
     expect(document.getElementById("noPreview")).toHaveAttribute("hidden");
   });
@@ -349,16 +428,15 @@ describe("DocumentViewer", () => {
     expect(screen.getByText("解説の操作")).toBeInTheDocument();
     expect(screen.getByText("その他メニュー")).toBeInTheDocument();
     expect(document.getElementById("preview")).toHaveClass("explanation-open");
-    expect(document.getElementById("explanationDisclosure")).not.toHaveAttribute(
-      "hidden",
-    );
-    expect(screen.getByRole("link", { name: "プレビューを大きく開く" })).toHaveAttribute(
-      "href",
-      "/view/job/pdf",
-    );
+    expect(document.getElementById("explanationDisclosure")).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "プレビューを大きく開く" }),
+    ).toHaveAttribute("href", "/view/job/pdf");
     fireEvent.click(screen.getByRole("button", { name: "資料一覧へ戻る" }));
     expect(onBack).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: "この箇所について質問" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "この箇所について質問" }),
+    );
     expect(onQuestion).toHaveBeenCalledWith("", 1);
     const frame = original();
     const post = vi.spyOn(frame.contentWindow!, "postMessage");
@@ -411,9 +489,7 @@ describe("DocumentViewer", () => {
     fireEvent.click(screen.getByRole("tab", { name: "RAGデータ" }));
     fireEvent.click(screen.getByRole("tab", { name: "原本プレビュー" }));
     expect(screen.getByText("tables-hidden")).toBeInTheDocument();
-    expect(document.getElementById("explanationDisclosure")).not.toHaveAttribute(
-      "hidden",
-    );
+    expect(document.getElementById("explanationDisclosure")).toBeNull();
   });
 
   it("rejects units outside the document and hides embedded chrome", () => {
@@ -428,11 +504,13 @@ describe("DocumentViewer", () => {
     );
     expect(screen.queryByRole("button", { name: "資料一覧へ戻る" })).toBeNull();
     expect(document.getElementById("originalOpen")).toHaveAttribute("hidden");
-    expect(document.getElementById("explanationDisclosure")).toHaveAttribute(
-      "hidden",
+    expect(document.getElementById("explanationDisclosure")).toBeNull();
+    expect(
+      screen.getByRole("tab", { name: "本文プレビュー" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "この箇所について質問" }),
     );
-    expect(screen.getByRole("tab", { name: "本文プレビュー" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "この箇所について質問" }));
     expect(onQuestion).toHaveBeenCalledWith("", 1);
     const post = vi.spyOn(original().contentWindow!, "postMessage");
     window.dispatchEvent(
@@ -484,7 +562,9 @@ describe("DocumentViewer", () => {
       />,
     );
     expect(onUnitChange).toHaveBeenCalledWith(2);
-    const link = await screen.findByRole("link", { name: "プレビューを大きく開く" });
+    const link = await screen.findByRole("link", {
+      name: "プレビューを大きく開く",
+    });
     await waitFor(() =>
       expect(link.getAttribute("href")).toContain("/view/job/slides/2"),
     );
@@ -538,7 +618,7 @@ describe("DocumentViewer", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps a partial document disclosure available", () => {
+  it("does not restore removed disclosure banners for partial documents", () => {
     render(
       <Viewer
         job={job({ state: "partial" })}
@@ -555,10 +635,8 @@ describe("DocumentViewer", () => {
         }}
       />,
     );
-    expect(screen.getByText("部分開示")).toBeInTheDocument();
+    expect(screen.queryByText("部分開示")).toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: "構造・参照" }));
-    expect(document.getElementById("explanationDisclosure")).toHaveAttribute(
-      "hidden",
-    );
+    expect(document.getElementById("explanationDisclosure")).toBeNull();
   });
 });

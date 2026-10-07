@@ -17,7 +17,12 @@ import {
 } from "../components/ui";
 import { Icon } from "../components/Icons";
 import { fileUrl, object, request } from "../lib/api";
-import type { Job, Language, Slides as SlideData } from "../lib/types";
+import {
+  isLightweightPreview,
+  type Job,
+  type Language,
+  type Slides as SlideData,
+} from "../lib/types";
 export function useSlides(
   job: Job,
   visible: boolean,
@@ -27,6 +32,8 @@ export function useSlides(
   revision: string,
 ) {
   const source = useViewerSource();
+  const lightweight = isLightweightPreview(job);
+  const enabled = job.slide_layout || lightweight;
   const data = useQuery({
     queryKey: ["slides", job.id, job.preview],
     queryFn: ({ signal }) =>
@@ -35,7 +42,7 @@ export function useSlides(
         { signal },
         contracts.slides,
       ),
-    enabled: job.slide_layout,
+    enabled,
   });
   const [fit, setFit] = useState(true),
     [zoom, setZoom] = useState(1),
@@ -47,7 +54,8 @@ export function useSlides(
     rail = useRef<HTMLElement>(null),
     frame = useRef<HTMLIFrameElement>(null);
   const page = data.data?.slides.find((s) => s.number === number),
-    active = !!page?.preview && job.slide_layout,
+    active = !!page?.preview && enabled,
+    hasMetadata = !!data.data,
     index = data.data?.slides.findIndex((s) => s.number === number) ?? 0;
   const scale = useCallback(() => {
     if (!page || !visible || !stage.current) return;
@@ -79,16 +87,18 @@ export function useSlides(
       window.removeEventListener("resize", scale);
     };
   }, [scale, thumbnails]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (stage.current) {
       stage.current.scrollLeft = 0;
       stage.current.scrollTop = 0;
     }
+  }, [number, visible, thumbnails]);
+  useLayoutEffect(() => {
     if (visible && thumbnails)
       rail.current
         ?.querySelector<HTMLElement>(`[data-page="${number}"]`)
         ?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [number, visible, thumbnails]);
+  }, [number, visible, thumbnails, hasMetadata]);
   useEffect(() => {
     if (!data.data || !rail.current) return;
     const root = rail.current;
@@ -107,6 +117,7 @@ export function useSlides(
         queue.length
       ) {
         const img = queue.shift()!;
+        queued.delete(img);
         if (!img.dataset.url || !img.isConnected) continue;
         loading++;
         inFlight.add(img);
@@ -133,16 +144,17 @@ export function useSlides(
     };
     const observer = new IntersectionObserver(
       (entries) => {
-        for (const e of entries)
-          if (
-            e.isIntersecting &&
-            e.target instanceof HTMLImageElement &&
-            e.target.dataset.url &&
-            !queued.has(e.target)
-          ) {
+        for (const e of entries) {
+          if (!(e.target instanceof HTMLImageElement)) continue;
+          if (!e.isIntersecting) {
+            queued.delete(e.target);
+            const index = queue.indexOf(e.target);
+            if (index >= 0) queue.splice(index, 1);
+          } else if (e.target.dataset.url && !queued.has(e.target)) {
             queued.add(e.target);
             queue.push(e.target);
           }
+        }
         load();
       },
       { root: rail.current, rootMargin: "120px 0px" },
@@ -156,14 +168,19 @@ export function useSlides(
       observer.disconnect();
       for (const img of inFlight) {
         // React StrictMode can stop and restart this effect before a thumbnail
-        // finishes. Keep the URL available for the replacement observer.
-        img.dataset.url = img.getAttribute("src") || "";
+        // finishes. Keep the URL available for the replacement observer,
+        // preserving a new URL that React committed during a mode change.
+        img.dataset.url ||= img.getAttribute("src") || "";
         img.removeAttribute("src");
       }
     };
-  }, [data.data]);
+  }, [data.data, lightweight]);
   const url = page?.preview
-    ? source.url(`/view/${job.id}/slides/${number}?language=${language}`)
+    ? source.url(
+        lightweight
+          ? fileUrl(job.id, page.preview) + "?inline_fonts=true"
+          : `/view/${job.id}/slides/${number}?language=${language}`,
+      )
     : "";
   const lastDelivery = useRef({ url: "", revision: "" });
   useEffect(() => {
@@ -175,7 +192,8 @@ export function useSlides(
       previous.url !== url ||
       previous.revision === revision ||
       !frame.current ||
-      language === "original"
+      language === "original" ||
+      lightweight
     )
       return;
     const s = stage.current,
@@ -191,7 +209,7 @@ export function useSlides(
       };
     f.addEventListener("load", restore, { once: true });
     return () => f.removeEventListener("load", restore);
-  }, [revision, url, language]);
+  }, [revision, url, language, lightweight]);
   const setManual = (value: number) => {
     setZoom(Math.min(4, Math.max(0.1, value)));
     setFit(false);
@@ -236,7 +254,9 @@ export function useSlides(
     <div
       id="slideControls"
       className="slide-controls"
-      hidden={!visible || !active}
+      hidden={
+        !visible || (!active && !(lightweight && data.data?.slides.length))
+      }
     >
       <IconButton
         id="slideThumbnailsToggle"
@@ -249,7 +269,7 @@ export function useSlides(
         id="slidePrevious"
         icon="back"
         label="前のスライド"
-        disabled={index === 0}
+        disabled={index <= 0}
         onClick={() => move(-1)}
       />
       <SelectField
@@ -259,7 +279,11 @@ export function useSlides(
         onChange={(e) => select(Number(e.target.value))}
       >
         {data.data?.slides.map((s) => (
-          <option key={s.number} value={s.number}>
+          <option
+            key={s.number}
+            value={s.number}
+            disabled={lightweight && !s.preview}
+          >
             {s.number} / {data.data.slides.length}
           </option>
         ))}
@@ -318,14 +342,16 @@ export function useSlides(
       <StatusMessage
         id="previewStatus"
         hidden={
-          !job.slide_layout ||
+          !enabled ||
           (!data.isPending && !data.error && !(!active && !!data.data))
         }
       >
         {data.error?.message ||
           (data.isPending
             ? "スライドを読み込んでいます…"
-            : "スライド別表示を取得できないため、文書全体のプレビューを表示します。")}
+            : lightweight
+              ? "このページのプレビューはまだありません。作成済みのページを選んでください。"
+              : "スライド別表示を取得できないため、文書全体のプレビューを表示します。")}
       </StatusMessage>
       <div id="slides" hidden={!active}>
         <nav
@@ -371,9 +397,17 @@ export function useSlides(
                 <img
                   alt={`スライド ${s.number}のプレビュー`}
                   decoding="async"
-                  data-url={source.url(
-                    `/api/jobs/${job.id}/slides/${s.number}/thumbnail`,
-                  )}
+                  data-url={
+                    lightweight
+                      ? s.preview
+                        ? source.url(
+                            fileUrl(job.id, s.preview) + "?thumbnail=true",
+                          )
+                        : undefined
+                      : source.url(
+                          `/api/jobs/${job.id}/slides/${s.number}/thumbnail`,
+                        )
+                  }
                 />
               </span>
               <span>{s.number}</span>
@@ -426,7 +460,7 @@ export function useSlides(
                   key={`${number}:${selectionRevision}`}
                   ref={frame}
                   title={`原本プレビュー・スライド ${number}`}
-                  sandbox="allow-scripts"
+                  sandbox={lightweight ? "" : "allow-scripts"}
                   src={url}
                   style={{ width: page.width, height: page.height }}
                 />

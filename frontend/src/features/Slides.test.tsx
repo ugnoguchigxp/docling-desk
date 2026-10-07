@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, expect, test, vi } from "vitest";
 import { useSlides } from "./Slides";
@@ -195,7 +202,9 @@ function renderSlides(
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
   if (data.length)
-    query.setQueryData(["slides", current.id, current.preview], { slides: data });
+    query.setQueryData(["slides", current.id, current.preview], {
+      slides: data,
+    });
   function Harness({
     visible = true,
     language = "original" as Language,
@@ -264,12 +273,18 @@ test("navigates, zooms, and scales a slide deck", () => {
   expect(stage.scrollTop).toBe(0);
   act(() => window.dispatchEvent(new Event("resize")));
 
-  fireEvent.click(screen.getByRole("button", { name: "サムネイルを表示・非表示" }));
-  fireEvent.click(screen.getByRole("button", { name: "サムネイルを表示・非表示" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "サムネイルを表示・非表示" }),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "サムネイルを表示・非表示" }),
+  );
   fireEvent.click(screen.getByRole("button", { name: "前のスライド" }));
   fireEvent.click(screen.getByRole("button", { name: "次のスライド" }));
   expect(screen.getByLabelText("スライド")).toHaveValue("2");
-  fireEvent.change(screen.getByLabelText("スライド"), { target: { value: "3" } });
+  fireEvent.change(screen.getByLabelText("スライド"), {
+    target: { value: "3" },
+  });
   expect(screen.getByLabelText("スライド")).toHaveValue("3");
   fireEvent.click(screen.getByRole("button", { name: "次のスライド" }));
   fireEvent.click(screen.getByRole("button", { name: "スライド 1" }));
@@ -295,7 +310,9 @@ test("navigates, zooms, and scales a slide deck", () => {
   fireEvent.change(screen.getByLabelText("ズーム倍率"), {
     target: { value: "current" },
   });
-  fireEvent.change(screen.getByLabelText("ズーム倍率"), { target: { value: "2" } });
+  fireEvent.change(screen.getByLabelText("ズーム倍率"), {
+    target: { value: "2" },
+  });
   const zoomIn = screen.getByRole("button", { name: "拡大" });
   for (let step = 0; step < 5; step++) fireEvent.click(zoomIn);
   expect(zoomIn).toBeDisabled();
@@ -310,7 +327,9 @@ test("navigates, zooms, and scales a slide deck", () => {
   act(() => window.dispatchEvent(new Event("resize")));
   expect(stage.scrollTop).toBe(30);
   fireEvent.click(screen.getByRole("button", { name: "画面に合わせる" }));
-  fireEvent.keyDown(document.getElementById("slideSurface")!, { key: "ArrowRight" });
+  fireEvent.keyDown(document.getElementById("slideSurface")!, {
+    key: "ArrowRight",
+  });
   expect(screen.getByLabelText("スライド")).toHaveValue("1");
   fireEvent.keyDown(stage, { key: "a" });
   fireEvent.keyDown(stage, { key: "ArrowRight" });
@@ -323,11 +342,168 @@ test("navigates, zooms, and scales a slide deck", () => {
   expect(screen.getByLabelText("スライド")).not.toBeVisible();
 });
 
+test("keeps a 530-page recovery preview to one passive frame with page and zoom controls", async () => {
+  const { observers } = installSlides();
+  const data = slides(530).map((s) => ({
+    ...s,
+    preview: `progressive-preview/page-${s.number}.html`,
+  }));
+  const view = renderSlides(data, {
+    job: slideJob({
+      pages: 530,
+      slide_layout: false,
+      preview: "progressive-preview/revision-530.html",
+    }),
+  });
+  const frame = () => view.container.querySelector("iframe")!;
+  await waitFor(() => expect(frame()).not.toBeNull());
+  expect(view.container.querySelectorAll("iframe")).toHaveLength(1);
+  expect(view.container.querySelectorAll("img")).toHaveLength(530);
+  expect(view.container.querySelector("img")).not.toHaveAttribute("src");
+  expect(frame()).toHaveAttribute(
+    "src",
+    "/files/job/progressive-preview/page-1.html?inline_fonts=true",
+  );
+  expect(frame()).toHaveAttribute("sandbox", "");
+  const images = [...view.container.querySelectorAll("img")];
+  act(() =>
+    observers
+      .at(-1)!
+      .emit(
+        images.slice(0, 8).map((target) => ({ target, isIntersecting: true })),
+      ),
+  );
+  expect(images.filter((img) => img.hasAttribute("src"))).toHaveLength(2);
+  expect(images[0]).toHaveAttribute(
+    "src",
+    "/files/job/progressive-preview/page-1.html?thumbnail=true",
+  );
+  fireEvent.load(images[0]);
+  expect(images.filter((img) => img.hasAttribute("src"))).toHaveLength(3);
+
+  expect(
+    screen.getByRole("button", { name: "サムネイルを表示・非表示" }),
+  ).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "次のスライド" }));
+  expect(frame()).toHaveAttribute(
+    "src",
+    "/files/job/progressive-preview/page-2.html?inline_fonts=true",
+  );
+  fireEvent.change(screen.getByLabelText("スライド"), {
+    target: { value: "530" },
+  });
+  expect(frame()).toHaveAttribute(
+    "src",
+    "/files/job/progressive-preview/page-530.html?inline_fonts=true",
+  );
+  expect(screen.getByRole("button", { name: "次のスライド" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "拡大" }));
+  expect(
+    screen.getByRole("button", { name: "画面に合わせる" }),
+  ).toHaveAttribute("aria-pressed", "false");
+  fireEvent.click(screen.getByRole("button", { name: "画面に合わせる" }));
+  expect(
+    screen.getByRole("button", { name: "画面に合わせる" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(view.container.querySelectorAll("iframe")).toHaveLength(1);
+});
+
+test("drops offscreen thumbnails from the queue and loads them when they return", () => {
+  const { observers } = installSlides();
+  const view = renderSlides(slides(8));
+  const images = [...view.container.querySelectorAll("img")];
+  const observer = observers.at(-1)!;
+  act(() => observer.emit());
+  expect(images.filter((image) => image.hasAttribute("src"))).toHaveLength(2);
+  act(() =>
+    observer.emit([
+      ...images
+        .slice(2, 6)
+        .map((target) => ({ target, isIntersecting: false })),
+    ]),
+  );
+  fireEvent.load(images[0]);
+  expect(images[2]).not.toHaveAttribute("src");
+  expect(images[6]).toHaveAttribute("src");
+  act(() => observer.emit([{ target: images[2], isIntersecting: true }]));
+  fireEvent.load(images[1]);
+  fireEvent.load(images[6]);
+  expect(images[2]).toHaveAttribute("src");
+});
+
+test("scrolls to the initially requested page after asynchronous metadata arrives", async () => {
+  installSlides();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json({ slides: slides(530) })),
+  );
+  const view = renderSlides([], {
+    initial: 530,
+    job: slideJob({ pages: 530 }),
+  });
+  await waitFor(() =>
+    expect(view.container.querySelectorAll("img")).toHaveLength(530),
+  );
+  const scroller = vi.mocked(HTMLElement.prototype.scrollIntoView);
+  expect(scroller.mock.contexts).toContain(
+    view.container.querySelector('[data-page="530"]'),
+  );
+});
+
+test("retains manual pan when metadata gains another saved page", async () => {
+  installSlides();
+  const view = renderSlides(slides(3));
+  fireEvent.change(screen.getByLabelText("ズーム倍率"), {
+    target: { value: "2" },
+  });
+  const stage = document.getElementById("slideStage")!;
+  stage.scrollLeft = 40;
+  stage.scrollTop = 30;
+  act(() =>
+    view.query.setQueryData(["slides", "job", "preview.html"], {
+      slides: slides(4),
+    }),
+  );
+  await waitFor(() =>
+    expect(view.container.querySelectorAll("img")).toHaveLength(4),
+  );
+  expect(stage.scrollLeft).toBe(40);
+  expect(stage.scrollTop).toBe(30);
+});
+
+test("keeps the new saved-thumbnail URL when switching modes with requests in flight", () => {
+  const { observers } = installSlides();
+  const job = slideJob();
+  const view = renderSlides(slides(3), { job });
+  act(() => observers.at(-1)!.emit());
+  Object.assign(job, {
+    preview: "progressive-preview/revision-3.html",
+    slide_layout: false,
+  });
+  act(() => {
+    view.query.setQueryData(["slides", job.id, job.preview], {
+      slides: slides(3).map((slide) => ({
+        ...slide,
+        preview: `progressive-preview/page-${slide.number}.html`,
+      })),
+    });
+    view.rerenderHarness();
+  });
+  act(() => observers.at(-1)!.emit());
+  expect(view.container.querySelector("img")).toHaveAttribute(
+    "src",
+    "/files/job/progressive-preview/page-1.html?thumbnail=true",
+  );
+});
+
 test("ignores unfit messages and follows slide keys from the frame", () => {
   installSlides();
   renderSlides(slides(2));
   const source = window;
-  const send = (data: unknown, frameSource: MessageEventSource | null = source) => {
+  const send = (
+    data: unknown,
+    frameSource: MessageEventSource | null = source,
+  ) => {
     const frame = screen.getByTitle(/原本プレビュー/);
     Object.defineProperty(frame, "contentWindow", {
       configurable: true,
@@ -432,19 +608,31 @@ test("refreshes a translated slide in place and skips original revisions", () =>
 test("explains missing slide layouts and a hidden deck", async () => {
   installSlides();
   const pending = renderSlides([], { job: slideJob({ id: "pending" }) });
-  vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() => new Promise(() => undefined)),
+  );
   pending.rerenderHarness();
   expect(screen.getByText("スライドを読み込んでいます…")).toBeInTheDocument();
 
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => Response.json({ detail: "slide missing" }, { status: 500 })),
+    vi.fn(async () =>
+      Response.json({ detail: "slide missing" }, { status: 500 }),
+    ),
   );
   const failed = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   function Failed() {
-    const view = useSlides(slideJob({ id: "bad" }), true, 1, () => {}, "original", "");
+    const view = useSlides(
+      slideJob({ id: "bad" }),
+      true,
+      1,
+      () => {},
+      "original",
+      "",
+    );
     return (
       <>
         <output data-testid="slide-meta">{`${view.active}|${view.fallback}`}</output>
@@ -458,7 +646,9 @@ test("explains missing slide layouts and a hidden deck", async () => {
     </QueryClientProvider>,
   );
   expect(await screen.findByText("slide missing")).toBeInTheDocument();
-  expect(screen.getAllByTestId("slide-meta").at(-1)).toHaveTextContent("false|true");
+  expect(screen.getAllByTestId("slide-meta").at(-1)).toHaveTextContent(
+    "false|true",
+  );
 
   renderSlides([{ number: 1, width: 320, height: 180, preview: null }]);
   expect(
@@ -536,6 +726,8 @@ test("does not request thumbnails that are disconnected or already queued", () =
       { target: images()[0], isIntersecting: false },
     ]),
   );
+  expect(images().every((img) => !img.getAttribute("src"))).toBe(true);
+  act(() => observers.at(-1)?.emit());
   expect(images().some((img) => img.getAttribute("src"))).toBe(true);
 });
 

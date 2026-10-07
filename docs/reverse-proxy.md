@@ -57,6 +57,39 @@ location = /assessment { return 301 /assessment/; }
 
 起動時に `DOCLING_ROOT_PATH=/assessment` を設定します。ヘルスチェックはnginxを通さず、`Host: localhost` でコンテナの `/health/live` を呼んでください。
 
+### ページ資産とAPIのアクセス制限
+
+大量ページの資料では、画面のJavaScript・ページHTML・サムネイルをAPIと同じ小さい制限へ入れると、正常な閲覧でも503になります。API・更新操作の制限を維持し、`/static/` と `/files/` のGET・HEADだけを別枠にできます。次は任意の公開パス `/docling/` の例です。実際の接頭辞に合わせ、TLS・Basic認証など既存の保護を同じlocationに残してください。本体のJWT認証とCSPは変更しません。
+
+```nginx
+# http{} 内
+map "$request_method:$uri" $docling_api_key {
+    default $binary_remote_addr;
+    ~^(GET|HEAD):/docling/(static|files)/ "";
+}
+map "$request_method:$uri" $docling_asset_key {
+    default "";
+    ~^(GET|HEAD):/docling/(static|files)/ $binary_remote_addr;
+}
+limit_req_zone $docling_api_key zone=docling_api:10m rate=10r/s;
+limit_req_zone $docling_asset_key zone=docling_assets:10m rate=50r/s;
+
+# server{} 内。既存の認証・proxy設定と組み合わせる
+location /docling/ {
+    limit_req zone=docling_api burst=20 nodelay;
+    limit_req zone=docling_assets burst=100 nodelay;
+    proxy_pass http://127.0.0.1:18765/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto https;
+    client_max_body_size 55m;
+    proxy_read_timeout 300s;
+}
+```
+
+[nginxの公式仕様](https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req_zone)では空のキーは制限対象外です。APIのGETやすべての更新操作はAPI枠、ページ資産のGET・HEADだけは資産枠になります。設定例は自動適用しません。公開先で構文・認証・集中アクセス時の制限を確認してから反映してください。
+
+復旧済みPowerPointは選択中の保存済みページを一つだけ表示し、サムネイルは表示範囲近傍を最大2件ずつ取得します。passive sandbox内のフォントCSS要求には認証Cookieが届かない場合があるため、`inline_fonts=true` では対応する保存済みフォントをサーバーで埋め込みます。`allow-same-origin` や `allow-scripts` を追加する必要はありません。
+
 ## 制約
 
 - 旧UI（`DOCLING_LEGACY_UI=1`）と外部ビューアの埋め込み（`/viewer/`）は、接頭辞付きの公開に対応していません。

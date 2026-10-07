@@ -21,6 +21,7 @@ import { fileUrl, object } from "../lib/api";
 import { isDocument } from "../lib/formats";
 import {
   isDone,
+  isLightweightPreview,
   labels,
   type Job,
   type Language,
@@ -81,13 +82,15 @@ export function DocumentViewer({
     if (view === "tables") setTablesVisited(true);
   }, [view]);
   const wholeDocument = isDocument(job.original_filename || job.filename);
+  const lightweight = isLightweightPreview(job);
+  const slideView = job.slide_layout || lightweight;
   const workbook = job.filename.toLowerCase().endsWith(".xlsx"),
     pdf = job.filename.toLowerCase().endsWith(".pdf");
   const requestedPage = initialUnit
     ? Math.max(1, Math.min(initialUnit, wholeDocument ? 1 : job.pages || 1))
     : null;
   const [current, setCurrent] = useState<number | null>(
-      job.slide_layout || wholeDocument
+      slideView || wholeDocument
         ? wholeDocument
           ? 1
           : requestedPage || 1
@@ -149,7 +152,7 @@ export function DocumentViewer({
         number > (wholeDocument ? 1 : job.pages)
       )
         return;
-      if (job.slide_layout) setCurrent(number);
+      if (slideView) setCurrent(number);
       frame.current?.contentWindow?.postMessage(
         { type: "docling-sheet-select", jobId: job.id, number },
         "*",
@@ -159,7 +162,7 @@ export function DocumentViewer({
         "*",
       );
     },
-    [job.id, job.slide_layout, job.pages, wholeDocument],
+    [job.id, slideView, job.pages, wholeDocument],
   );
   const selectPage = useCallback(
     (number: number) => {
@@ -170,13 +173,13 @@ export function DocumentViewer({
   );
   useEffect(() => {
     pendingUnit.current = requestedPage;
-    if (requestedPage && (job.slide_layout || frameReady.current)) {
+    if (requestedPage && (slideView || frameReady.current)) {
       selectUnit(requestedPage);
       pendingUnit.current = null;
     }
-  }, [requestedPage, job.slide_layout, selectUnit]);
+  }, [requestedPage, slideView, selectUnit]);
   const notify = useCallback(() => {
-    if (job.slide_layout) return;
+    if (slideView) return;
     notifyWord();
     const w = frame.current?.contentWindow;
     w?.postMessage(
@@ -193,7 +196,7 @@ export function DocumentViewer({
       selectUnit(pendingUnit.current);
       pendingUnit.current = null;
     }
-  }, [job.id, job.slide_layout, language, revision, notifyWord, selectUnit]);
+  }, [job.id, slideView, language, revision, notifyWord, selectUnit]);
   useEffect(() => {
     notify();
   }, [notify]);
@@ -279,8 +282,16 @@ export function DocumentViewer({
               rel="noopener"
               aria-label="プレビューを大きく開く"
               title="プレビューを大きく開く"
-              hidden={embedded || !job.preview}
-              href={slides.active ? slides.url : previewUrl}
+              hidden={
+                embedded || !job.preview || (lightweight && !slides.active)
+              }
+              href={
+                slides.active
+                  ? slides.url
+                  : lightweight
+                    ? undefined
+                    : previewUrl
+              }
             >
               <Icon name="open" />
             </ActionLink>
@@ -292,13 +303,6 @@ export function DocumentViewer({
             {extensions?.menu}
           </div>
         </Toolbar>
-        <p
-          id="explanationDisclosure"
-          className="explanation-disclosure"
-          hidden={embedded || view !== "preview" || !isDone(job)}
-        >
-          {explanation.disclosure}
-        </p>
         <div
           id="viewerMessage"
           className="viewer-message"
@@ -332,11 +336,15 @@ export function DocumentViewer({
                     : ""
               }
               src={
-                job.slide_layout && !slides.fallback
+                lightweight || (job.slide_layout && !slides.fallback)
                   ? "about:blank"
                   : previewUrl
               }
-              hidden={(job.slide_layout && !slides.fallback) || !job.preview}
+              hidden={
+                lightweight ||
+                (job.slide_layout && !slides.fallback) ||
+                !job.preview
+              }
               className={wholeDocument ? "word-preview" : undefined}
               // Passive fallback frames cannot forward drop events. Let the
               // surrounding viewer receive them, as the original UI did.

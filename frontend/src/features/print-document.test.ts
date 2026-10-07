@@ -91,21 +91,82 @@ function sourceJob(
 }
 
 describe("print document", () => {
-  it("selects current and custom ranges in document order without duplicates", () => {
-    expect(selectPrintUnits(units, "all", 3, "9").map((u) => u.number)).toEqual([
-      1, 2, 3, 4, 5,
+  it.each([
+    { slides: [] },
+    { slides: [{ number: 1, width: 960, height: 720, preview: null }] },
+  ])(
+    "reports recovery pages that are not yet generated without falling back to document rendering: %j",
+    async ({ slides }) => {
+      installFetch((url) => {
+        expect(url.pathname).toBe("/files/job/slides.json");
+        return jsonResponse({ slides });
+      });
+      await expect(
+        printUnits(
+          sourceJob("large.pptx", {
+            preview: "progressive-preview/revision-1.html",
+          }),
+          signal(),
+        ),
+      ).rejects.toThrow("印刷できるページがまだありません。");
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("uses generated page assets for recovery printing without invoking the full slide renderer", async () => {
+    installFetch((url) => {
+      expect(url.pathname).toBe("/files/job/slides.json");
+      return jsonResponse({
+        slides: [
+          {
+            number: 1,
+            width: 960,
+            height: 720,
+            preview: "progressive-preview/page-1.html",
+          },
+          { number: 2, width: 960, height: 720, preview: null },
+          {
+            number: 3,
+            width: 960,
+            height: 720,
+            preview: "progressive-preview/page-3.html",
+          },
+        ],
+      });
+    });
+    const pages = await printUnits(
+      sourceJob("large.pptx", {
+        preview: "progressive-preview/revision-2.html",
+        pages: 3,
+      }),
+      signal(),
+    );
+    expect(pages.map((p) => p.url)).toEqual([
+      "/files/job/progressive-preview/page-1.html",
+      "/files/job/progressive-preview/page-3.html",
     ]);
+    expect(selectPrintUnits(pages, "current", 3, "")).toHaveLength(1);
+    expect(selectPrintUnits(pages, "range", 1, "3")).toHaveLength(1);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("selects current and custom ranges in document order without duplicates", () => {
+    expect(selectPrintUnits(units, "all", 3, "9").map((u) => u.number)).toEqual(
+      [1, 2, 3, 4, 5],
+    );
     expect(
       selectPrintUnits(units, "current", 3, "").map((u) => u.number),
     ).toEqual([3]);
-    expect(selectPrintUnits(units, "current", 9, "").map((u) => u.number)).toEqual(
-      [],
-    );
+    expect(
+      selectPrintUnits(units, "current", 9, "").map((u) => u.number),
+    ).toEqual([]);
     expect(
       selectPrintUnits(units, "range", 1, "5, 1-3, 2").map((u) => u.number),
     ).toEqual([1, 2, 3, 5]);
     expect(
-      selectPrintUnits(units, "range", 1, " 1、3 - 4 , 2 ").map((u) => u.number),
+      selectPrintUnits(units, "range", 1, " 1、3 - 4 , 2 ").map(
+        (u) => u.number,
+      ),
     ).toEqual([1, 2, 3, 4]);
     for (const range of ["", "0", "6", "3-1", "1-9999999", "1,"])
       expect(() => selectPrintUnits(units, "range", 1, range)).toThrow();
@@ -235,7 +296,10 @@ describe("print document", () => {
     ).resolves.toBeUndefined();
     const zero = doc.createElement("img");
     zero.src = "/files/job/zero.png";
-    Object.defineProperty(zero, "naturalWidth", { configurable: true, value: 0 });
+    Object.defineProperty(zero, "naturalWidth", {
+      configurable: true,
+      value: 0,
+    });
     await expect(waitForPrintAssets(doc, [zero], signal())).rejects.toThrow(
       "印刷用の画像を読み込めませんでした",
     );
@@ -272,7 +336,12 @@ describe("print document", () => {
         signal(),
       ),
     ).resolves.toEqual([{ number: 1, url: "/view/job/word" }]);
-    for (const name of ["notes.md", "notes.markdown", "notes.txt", "notes.text"])
+    for (const name of [
+      "notes.md",
+      "notes.markdown",
+      "notes.txt",
+      "notes.text",
+    ])
       await expect(printUnits(sourceJob(name), signal())).resolves.toEqual([
         { number: 1, url: "/view/job/document" },
       ]);
@@ -462,7 +531,9 @@ describe("print document", () => {
       expect(css).toContain("size:793.7008px 1122.5197px");
       expect(css.match(/font-family: One/g)).toHaveLength(1);
       expect(css).toContain("font-family: Two");
-      const sections = [...document.querySelectorAll<HTMLElement>(".print-unit")];
+      const sections = [
+        ...document.querySelectorAll<HTMLElement>(".print-unit"),
+      ];
       expect(sections.map((section) => section.dataset.number)).toEqual([
         "1",
         "2",
@@ -470,17 +541,21 @@ describe("print document", () => {
       ]);
       const fixed = sections[0].firstElementChild!.shadowRoot!;
       expect(fixed.querySelector("style")?.textContent).toContain(":host");
-      expect(fixed.querySelector("style")?.textContent).toContain(".print-body");
-      expect(fixed.querySelector(".print-body")?.getAttribute("style")).toContain(
-        "transform",
+      expect(fixed.querySelector("style")?.textContent).toContain(
+        ".print-body",
       );
+      expect(
+        fixed.querySelector(".print-body")?.getAttribute("style"),
+      ).toContain("transform");
       const flow = sections[1].firstElementChild!.shadowRoot!;
       const flowBody = flow.querySelector<HTMLElement>(".print-body")!;
       expect(flowBody.style.zoom).toBe("0.25");
       expect(flowBody.querySelector("p")?.getAttribute("style")).toContain(
         "height: 8px",
       );
-      const tables = [...flowBody.querySelectorAll<HTMLTableElement>("table.worksheet")];
+      const tables = [
+        ...flowBody.querySelectorAll<HTMLTableElement>("table.worksheet"),
+      ];
       expect(tables[0].querySelectorAll("col")).toHaveLength(1);
       expect(tables[0].style.width).toBe("76px");
       expect(tables[0].querySelector(".sheet-column-axis")).toBeNull();
@@ -489,7 +564,9 @@ describe("print document", () => {
       expect(tables[2].textContent).toContain("plain");
       expect(flowBody.textContent).toContain("stay");
       const extractedBody = sections[2].firstElementChild!.shadowRoot!;
-      expect(extractedBody.querySelector(".boundary-nav,.boundary-note")).toBeNull();
+      expect(
+        extractedBody.querySelector(".boundary-nav,.boundary-note"),
+      ).toBeNull();
       expect(extractedBody.textContent).toContain("extracted body");
       expect(decoded).toEqual(
         expect.arrayContaining([
@@ -502,8 +579,13 @@ describe("print document", () => {
       expect(decoded.join(" ")).not.toContain("evil.example");
       expect(decoded.join(" ")).not.toContain("#section");
       expect(decoded.join(" ")).not.toContain("#glyph");
-      expect(seen.some((url) => url.startsWith("/view/job/pages/1?"))).toBe(true);
-      const fixedUrl = new URL(seen.find((url) => url.includes("/pages/1"))!, location.origin);
+      expect(seen.some((url) => url.startsWith("/view/job/pages/1?"))).toBe(
+        true,
+      );
+      const fixedUrl = new URL(
+        seen.find((url) => url.includes("/pages/1"))!,
+        location.origin,
+      );
       expect(fixedUrl.searchParams.get("language")).toBe("ja");
       expect(fixedUrl.searchParams.get("revision")).toBe("r1");
       const extractedUrl = new URL(
@@ -521,7 +603,9 @@ describe("print document", () => {
     }
     installFetch((url) => {
       if (url.pathname === "/view/job/pages/9")
-        return textResponse("<!DOCTYPE html><html><body><p>letter</p></body></html>");
+        return textResponse(
+          "<!DOCTYPE html><html><body><p>letter</p></body></html>",
+        );
       return textResponse("missing", 404);
     });
     await renderPrintDocument(

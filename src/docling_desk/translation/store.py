@@ -97,21 +97,24 @@ def interrupt_pending(data: Path) -> None:
 def summary(folder: Path) -> dict:
     """Cheap library summary, without generating source maps or calling a provider."""
     result = {}
-    with LOCK:
-        for language in sorted(LANGUAGES):
-            records = []
-            for path in (folder / "translations" / language).glob("*.json"):
-                try:
-                    record = json.loads(path.read_text())
-                    if not isinstance(record, dict):
-                        raise ValueError("invalid record")
-                    records.append(record)
-                except (OSError, ValueError):
-                    records.append({"state": "failed"})
-            if records:
-                result[language] = {
-                    "saved": sum(bool(r.get("result")) for r in records),
-                    "active": sum(r.get("state") in ACTIVE for r in records),
-                    "failed": sum(r.get("state") in {"failed", "interrupted"} for r in records),
-                }
+    # Records are published with atomic replacement. Reading their persisted
+    # snapshots must not wait for a source-map build holding the translation lock.
+    for language in sorted(LANGUAGES):
+        saved = active = failed = count = 0
+        for path in (folder / "translations" / language).glob("*.json"):
+            count += 1
+            try:
+                record = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(record, dict):
+                    raise ValueError("invalid record")
+                state = record.get("state")
+                if not isinstance(state, str):
+                    state = "failed"
+                saved += bool(record.get("result"))
+                active += state in ACTIVE
+                failed += state in {"failed", "interrupted"}
+            except (OSError, ValueError):
+                failed += 1
+        if count:
+            result[language] = {"saved": saved, "active": active, "failed": failed}
     return result

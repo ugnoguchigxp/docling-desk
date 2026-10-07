@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   act,
   cleanup,
@@ -87,7 +87,12 @@ const grid = vi.hoisted(() => ({
 vi.mock("ag-grid-react", () => ({
   AgGridReact: function Grid(props: MockGridProps) {
     grid.props = props;
+    // Model updates use the current callbacks; column-only renders do not
+    // destroy and recreate the mock grid's lifecycle.
+    const currentProps = useRef(props);
+    currentProps.current = props;
     useEffect(() => {
+      const props = currentProps.current;
       const api = {
         isDestroyed: () => grid.destroyed,
         getColumnState: () => grid.columns.map((column) => ({ ...column })),

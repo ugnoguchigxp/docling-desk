@@ -1,0 +1,5 @@
+/* A newly loaded iframe can receive a click through Chrome's dialog or menu.
+   Keep background frames passive while preserving frames inside the dialog. */
+body:has(dialog[open], details.toolbar-menu[open]) iframe:not(dialog iframe) {
+  pointer-events: none !important;
+}
