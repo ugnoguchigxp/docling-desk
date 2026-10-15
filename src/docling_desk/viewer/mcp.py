@@ -1,8 +1,10 @@
 """Streamable HTTP tools sharing the gateway's actor and version checks."""
 
+import json
 import os
 import secrets
 from pathlib import Path
+from typing import Annotated
 from urllib.parse import urlsplit
 
 from fastapi import HTTPException
@@ -11,7 +13,7 @@ from mcp.server.auth.provider import AccessToken
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
-from pydantic import AnyHttpUrl
+from pydantic import AnyHttpUrl, Field
 
 from docling_desk.viewer.gateway import DocumentReference, Gateway
 
@@ -26,7 +28,11 @@ def create_mcp(gateway: Gateway):
                     configured.encode(), token.encode()
                 ):
                     gateway.actor(user)
-                    return AccessToken(token=token, client_id=user, scopes=["documents:read"])
+                    return AccessToken(
+                        token=token,
+                        client_id=user,
+                        scopes=["documents:" + action for action in entry.get("actions", ["read"])],
+                    )
             return None
 
     server = FastMCP(
@@ -67,7 +73,17 @@ def create_mcp(gateway: Gateway):
                 raise ValueError("unauthenticated")
             return result
         except HTTPException as exc:
-            raise ValueError(str(exc.detail)) from None
+            raise ValueError(
+                json.dumps(
+                    {
+                        "error": {
+                            "code": str(exc.detail),
+                            "status": exc.status_code,
+                            "retryable": exc.status_code in {429, 503},
+                        }
+                    }
+                )
+            ) from None
 
     @server.tool()
     async def list_document_scopes() -> dict:
@@ -110,6 +126,34 @@ def create_mcp(gateway: Gateway):
     async def connect_document_view(code: str) -> dict:
         """Approve the user-provided 8-character code shown in their viewer."""
         return await invoke("connect_document_view", {"code": code})
+
+    from docling_desk.viewer.document_tools import DOCUMENT_TOOLS
+    from docling_desk.viewer.tool_contract import document_arguments
+
+    def register(name):
+        async def operation(arguments: dict) -> dict:
+            return await invoke(name, arguments)
+
+        operation.__annotations__["arguments"] = Annotated[
+            dict, Field(json_schema_extra=document_arguments(name))
+        ]
+        operation.__doc__ = (
+            "Use the public document API operation. Identity and grants come from this connection. "
+            "Writes require idempotency_key; updates require etag. Markdown bodies are raw text. "
+            "Partial edits require base_sha256 and exact expected text or UTF-8 byte ranges. "
+            "Commit requires source_etag (null for a new document). Existing-source draft creation requires source_id, source_revision and source_etag. "
+            "Use the get operation to obtain exact IDs, etags, hashes and raw body. Never guess an edit target or identity. "
+            "A failed indexing job does not undo a committed save. Retain idempotency_key for retries and result lookup."
+        )
+        server.tool(name=name)(operation)
+
+    for name in DOCUMENT_TOOLS:
+        register(name)
+
+    @server.tool()
+    async def connect_document_editor(code: str) -> dict:
+        """Approve the user-provided editor pairing code for this authenticated writer."""
+        return await invoke("connect_document_editor", {"code": code})
 
     return server
 

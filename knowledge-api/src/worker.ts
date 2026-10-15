@@ -1,4 +1,4 @@
-import { rm } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { Clients } from "./auth";
 import { refresh, requireAction } from "./auth";
@@ -36,7 +36,14 @@ export class Worker {
     readonly answer?: AnswerProvider,
   ) {}
   async tick(): Promise<boolean> {
-    if (this.busy || this.stopping) return false;
+    if (
+      this.busy ||
+      this.stopping ||
+      !this.store.db
+        .query<{ enabled: number }, []>("SELECT enabled FROM processing_control WHERE id=1")
+        .get()?.enabled
+    )
+      return false;
     const job = this.store.claim();
     if (!job) return false;
     this.busy = true;
@@ -128,11 +135,45 @@ export class Worker {
         payload.ocr_profile?.provider === "azure_read"
           ? (payload.ocr_profile.document_timeout + 120) * 1000
           : 330000;
-      const result = await this.extractor.extract(
-        job,
-        revision,
-        AbortSignal.any([signal, AbortSignal.timeout(timeout)]),
-      );
+      const original = [".md", ".markdown"].includes(revision.suffix)
+        ? await readFile(
+            join(
+              this.artifactRoot,
+              "sources",
+              revision.source_id,
+              revision.id,
+              `original${revision.suffix}`,
+            ),
+          )
+        : null;
+      if (original && Bun.CryptoHasher.hash("sha256", original, "hex") !== revision.sha256)
+        throw new ApiError(500, "source_integrity_failed");
+      const result =
+        original?.length === 0
+          ? {
+              source_id: revision.source_id,
+              source_revision: revision.id,
+              job_id: job.id,
+              run: job.run,
+              source_sha256: revision.sha256,
+              profile: payload.profile ?? "local-v1",
+              contexts: [],
+              chunks: [],
+              warnings: [],
+            }
+          : await this.extractor.extract(
+              job,
+              revision,
+              AbortSignal.any([signal, AbortSignal.timeout(timeout)]),
+            );
+      if (original) {
+        for (const record of [...result.contexts, ...result.chunks]) {
+          const needle = Buffer.from(record.text);
+          const start = needle.length ? original.indexOf(needle) : -1;
+          if (start >= 0 && original.indexOf(needle, start + 1) < 0)
+            record.source_range = { start, end: start + needle.length, sha256: revision.sha256 };
+        }
+      }
       signal.throwIfAborted();
       if (!this.store.publish(job, result)) return;
     }

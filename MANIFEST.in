@@ -1,0 +1,2 @@
+include contracts/knowledge-api.openapi.json
+include contracts/viewer-embedding.schema.json

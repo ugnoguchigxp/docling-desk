@@ -76,3 +76,6 @@ packages/docling-azure-ocr/src/*.egg-info/
 
 # Local assistant tooling
 .serena/
+
+# Synthetic external document platform verification summaries
+!/qa/external-document-platform/*-results.json

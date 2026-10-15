@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { id, recordSchema, referenceSchema, viewerResultSchema } from "./contracts";
+import { EDITING_ENDPOINTS } from "./editing";
 import { generatedSchema } from "./providers";
 
 const envelope = { request_id: id };
@@ -133,6 +134,7 @@ export const errorResponse = z
   })
   .strict();
 export const responseSchemas: Record<string, z.ZodType> = {
+  ...Object.fromEntries(EDITING_ENDPOINTS.map((e) => [`${e.method} ${e.path}`, e.response])),
   "get /api/v1/openapi.json": z.record(z.string(), z.unknown()),
   "post /api/v1/viewer": viewerResultSchema,
   "post /api/v1/search": searchResponse,
@@ -157,6 +159,9 @@ export const responseSchemas: Record<string, z.ZodType> = {
         semantic: z.boolean(),
         answers: z.boolean(),
         source_management: z.boolean(),
+        processing_enabled: z.boolean(),
+        markdown_editing: z.boolean(),
+        extraction: z.boolean(),
         history: z.boolean(),
       }),
     })

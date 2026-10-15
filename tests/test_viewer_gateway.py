@@ -34,6 +34,10 @@ def gateway(tmp_path):
     state = {"deleted": False, "updated": False}
 
     def api(request):
+        if request.method == "GET" and request.url.path == "/api/v1/scopes":
+            return httpx.Response(
+                200, json={"scopes": [{"collection_id": "docs"}], "actions": ["read"]}
+            )
         body = json.loads(request.content)
         calls.append(body)
         claims = json.loads(

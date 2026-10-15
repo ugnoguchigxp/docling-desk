@@ -1,0 +1,20 @@
+[
+  {
+    "id": "knowledge-reader",
+    "mode": "actor",
+    "issuer": "knowledge-reader",
+    "token": "REPLACE_WITH_PRIVATE_READER_CLIENT_TOKEN_43_CHARS",
+    "keys": {"v1": "REPLACE_WITH_PRIVATE_READER_SIGNING_KEY_43_CHARS"},
+    "actions": ["read"],
+    "scopes": [{"collection_id": "documents"}]
+  },
+  {
+    "id": "knowledge-editor",
+    "mode": "actor",
+    "issuer": "knowledge-editor",
+    "token": "REPLACE_WITH_PRIVATE_EDITOR_CLIENT_TOKEN_43_CHARS",
+    "keys": {"v1": "REPLACE_WITH_PRIVATE_EDITOR_SIGNING_KEY_43_CHARS"},
+    "actions": ["read", "write"],
+    "scopes": [{"collection_id": "documents"}]
+  }
+]

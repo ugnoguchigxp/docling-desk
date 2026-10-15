@@ -1,0 +1,7 @@
+{
+  "sdist": true,
+  "wheel_editor_assets": true,
+  "mcp_contract": true,
+  "installed_gateway": true,
+  "editor_licenses": true
+}

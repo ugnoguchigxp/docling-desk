@@ -19,6 +19,7 @@ import {
   viewerRequestSchema,
   viewerResultSchema,
 } from "./contracts";
+import { EDITING_ENDPOINTS, installEditing } from "./editing";
 import { ocrProvider, ocrRequest } from "./ocr";
 import type { AnswerProvider, EmbeddingProvider, Extractor } from "./providers";
 import { checkpoint } from "./quality";
@@ -35,12 +36,14 @@ export type ApiOptions = {
   embedding?: EmbeddingProvider;
   answer?: AnswerProvider;
   workerToken?: string;
+  controlToken?: string;
   ocrMonthlySubmissions?: number;
   searchGate?: () => Promise<void>;
 };
-type Env = { Variables: { principal: Principal; requestId: string } };
+export type Env = { Variables: { principal: Principal; requestId: string } };
 const suffixes = new Set([".pdf", ".pptx", ".xlsx", ".docx", ".md", ".markdown", ".txt", ".text"]);
 export const ROUTES = [
+  ...EDITING_ENDPOINTS.map((e) => [e.method, e.path] as const),
   ["post", "/api/v1/search"],
   ["post", "/api/v1/viewer"],
   ["post", "/api/v1/context"],
@@ -85,7 +88,10 @@ async function json(request: Request) {
   if (!request.headers.get("content-type")?.startsWith("application/json"))
     throw new ApiError(415, "json_required");
   try {
-    return JSON.parse((await boundedBody(request, MAX_JSON)).toString());
+    const bytes = await boundedBody(request, MAX_JSON),
+      decoded = bytes.toString("utf8");
+    if (!Buffer.from(decoded).equals(bytes)) throw new ApiError(422, "invalid_utf8");
+    return JSON.parse(decoded);
   } catch (e) {
     if (e instanceof ApiError) throw e;
     throw new ApiError(422, "invalid_json");
@@ -174,13 +180,43 @@ export function createApi(options: ApiOptions) {
       c.req.method === "POST" && c.req.path === "/api/v1/answers"
         ? "answer"
         : c.req.method === "GET" ||
-            ["/api/v1/search", "/api/v1/context", "/api/v1/viewer"].includes(c.req.path)
+            [
+              "/api/v1/search",
+              "/api/v1/context",
+              "/api/v1/viewer",
+              "/api/v1/operations/lookup",
+            ].includes(c.req.path)
           ? "read"
           : "write";
     row[category]++;
     if (row[category] > { read: 600, write: 60, answer: 12 }[category])
       throw new ApiError(429, "rate_limited", "Rate limit exceeded", true);
     await next();
+  });
+  app.on(["GET", "PUT"], "/internal/v1/processing", async (c) => {
+    const supplied = c.req.header("authorization")?.replace(/^Bearer /, "") ?? "";
+    const wanted = options.controlToken;
+    if (
+      !wanted ||
+      Buffer.byteLength(supplied) !== Buffer.byteLength(wanted) ||
+      !timingSafeEqual(Buffer.from(supplied), Buffer.from(wanted))
+    )
+      throw new ApiError(401, "unauthenticated");
+    if (c.req.method === "PUT") {
+      const input = parse(z.object({ enabled: z.boolean() }).strict(), await json(c.req.raw));
+      store.tx(() =>
+        store.db.run("UPDATE processing_control SET enabled=? WHERE id=1", [input.enabled ? 1 : 0]),
+      );
+    }
+    return c.json({
+      enabled: !!store.db
+        .query<{ enabled: number }, []>("SELECT enabled FROM processing_control WHERE id=1")
+        .get()?.enabled,
+      running:
+        store.db
+          .query<{ count: number }, []>("SELECT count(*) AS count FROM jobs WHERE state='running'")
+          .get()?.count ?? 0,
+    });
   });
   app.post("/internal/v1/jobs/:job_id/ocr", async (c) => {
     const wanted = options.workerToken;
@@ -247,6 +283,11 @@ export function createApi(options: ApiOptions) {
           text: true,
           semantic: !!options.embedding,
           answers: !!options.answer,
+          processing_enabled: !!store.db
+            .query<{ enabled: number }, []>("SELECT enabled FROM processing_control WHERE id=1")
+            .get()?.enabled,
+          markdown_editing: true,
+          extraction: extractor.ready ? await extractor.ready() : true,
           source_management: extractor.ready ? await extractor.ready() : true,
           history: true,
         },
@@ -259,6 +300,7 @@ export function createApi(options: ApiOptions) {
     requireAction(c.get("principal"), "read");
     return c.json({ ...openapi(), request_id: c.get("requestId") });
   });
+  const editing = installEditing(app, options, json, boundedBody);
   app.post("/api/v1/search", async (c) => {
     const p = c.get("principal");
     requireAction(p, "read");
@@ -301,7 +343,7 @@ export function createApi(options: ApiOptions) {
       evidence_revision: r?.evidence_revision ?? null,
       state: r?.state ?? "queued",
       fts_ready: !!r?.fts_ready,
-      semantic_ready: !!r?.semantic_ready,
+      semantic_ready: editing.state(s).semantic_ready,
       filename: r?.filename,
       warnings: r ? JSON.parse(r.warnings) : [],
       created_at: s.created_at,
@@ -343,12 +385,22 @@ export function createApi(options: ApiOptions) {
       const revision = store.revision(input.source_revision);
       if (!revision || revision.evidence_revision !== input.evidence_revision)
         throw new ApiError(409, "evidence_changed");
+      const markdown = [".md", ".markdown"].includes(revision.suffix);
       const artifact = store.viewerArtifact(revision.id);
-      if (!artifact || artifact.evidence_revision !== input.evidence_revision || !extractor.viewer)
+      if (
+        !markdown &&
+        (!artifact || artifact.evidence_revision !== input.evidence_revision || !extractor.viewer)
+      )
         throw new ApiError(409, "preview_unavailable");
       return { revision, artifact };
     };
     const { revision, artifact } = check();
+    if ([".md", ".markdown"].includes(revision.suffix)) {
+      const result = await editing.markdownView(p, input);
+      check();
+      return c.json(result);
+    }
+    if (!artifact) throw new ApiError(409, "preview_unavailable");
     const result = parse(
       viewerResultSchema,
       await extractor.viewer?.({
@@ -658,6 +710,12 @@ export function createApi(options: ApiOptions) {
 export function openapi() {
   const paths: Record<string, Record<string, unknown>> = {};
   const inputs: Record<string, z.ZodType> = {
+    ...Object.fromEntries(
+      EDITING_ENDPOINTS.filter((e) => "input" in e).map((e) => [
+        e.path,
+        "input" in e ? e.input : z.unknown(),
+      ]),
+    ),
     "/api/v1/search": searchSchema,
     "/api/v1/viewer": viewerRequestSchema,
     "/api/v1/context": contextSchema,
@@ -668,6 +726,7 @@ export function openapi() {
       .strict(),
   };
   for (const [method, path] of ROUTES) {
+    const editorEndpoint = EDITING_ENDPOINTS.find((e) => e.method === method && e.path === path);
     const parameters: Record<string, unknown>[] = [...path.matchAll(/\{(\w+)\}/g)].map((m) => ({
       name: m[1],
       in: "path",
@@ -675,6 +734,7 @@ export function openapi() {
       schema: { type: "string", format: "uuid" },
     }));
     if (
+      (editorEndpoint && "conditional" in editorEndpoint && editorEndpoint.conditional) ||
       method === "delete" ||
       path.endsWith("/revisions") ||
       path.endsWith("/reindex") ||
@@ -686,7 +746,11 @@ export function openapi() {
         required: true,
         schema: { type: "string" },
       });
-    if ((path === "/api/v1/sources" && method === "post") || path.endsWith("/revisions"))
+    if (
+      (editorEndpoint && "write" in editorEndpoint && editorEndpoint.write) ||
+      (path === "/api/v1/sources" && method === "post") ||
+      path.endsWith("/revisions")
+    )
       parameters.push({
         name: "Idempotency-Key",
         in: "header",
@@ -702,12 +766,14 @@ export function openapi() {
           schema: { type: "boolean", default: false },
         },
       );
-    const requestBody = inputs[path]
+    const inputSchema =
+      editorEndpoint && "input" in editorEndpoint ? editorEndpoint.input : inputs[path];
+    const requestBody = inputSchema
       ? {
           required: !path.endsWith("/retry"),
           content: {
             "application/json": {
-              schema: z.toJSONSchema(inputs[path], { unrepresentable: "any" }),
+              schema: z.toJSONSchema(inputSchema, { unrepresentable: "any" }),
             },
           },
         }
@@ -742,11 +808,13 @@ export function openapi() {
         ? "Health check"
         : "Actor clients require both credentials. Service-token-only access is restricted to registered batch clients and their exact configured scopes.",
       responses: {
-        [(method === "post" &&
-          !["/api/v1/search", "/api/v1/context", "/api/v1/viewer"].includes(path)) ||
-        method === "delete"
-          ? "202"
-          : "200"]: {
+        [editorEndpoint
+          ? "200"
+          : (method === "post" &&
+                !["/api/v1/search", "/api/v1/context", "/api/v1/viewer"].includes(path)) ||
+              method === "delete"
+            ? "202"
+            : "200"]: {
           description: "Success",
           headers: { "X-Request-Id": { schema: { type: "string", format: "uuid" } } },
           content: path.endsWith("/content")

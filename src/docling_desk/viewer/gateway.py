@@ -39,7 +39,9 @@ class RedactViewerCredentials(logging.Filter):
     def filter(self, record):
         if isinstance(record.args, tuple):
             record.args = tuple(
-                re.sub(r"(/viewer/(?:session|challenges)/)[^/?\s]+", r"\1[redacted]", value)
+                re.sub(
+                    r"(/(?:viewer|editor)/(?:session|challenges)/)[^/?\s]+", r"\1[redacted]", value
+                )
                 if isinstance(value, str)
                 else value
                 for value in record.args
@@ -52,7 +54,7 @@ class ViewerBodyLimit:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or scope["method"] != "POST":
+        if scope["type"] != "http" or scope["method"] not in {"POST", "PUT", "PATCH"}:
             await self.app(scope, receive, send)
             return
         parts = []
@@ -63,7 +65,12 @@ class ViewerBodyLimit:
                 return
             part = message.get("body", b"")
             size += len(part)
-            if size > 32768:
+            limit = (
+                2 * 1024 * 1024
+                if scope["path"].startswith(("/editor/", "/mcp/", "/host/tools/"))
+                else 32768
+            )
+            if size > limit:
                 await JSONResponse({"detail": "request_too_large"}, status_code=413)(
                     scope, receive, send
                 )
@@ -83,10 +90,18 @@ class ViewerBodyLimit:
         await self.app(scope, replay, send)
 
 
+class OriginalRange(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    start: int = Field(ge=0)
+    end: int = Field(ge=0)
+    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
 class Location(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     kind: Literal["page", "slide", "sheet", "document"]
     number: int = Field(default=1, ge=1, le=100000)
+    original_range: OriginalRange | None = None
 
 
 class DocumentReference(BaseModel):
@@ -115,6 +130,17 @@ class UserPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid")
     scopes: list[Grant] = Field(min_length=1, max_length=100)
     mcp_token: str | None = Field(default=None, min_length=32, max_length=256)
+    actions: list[Literal["read", "write"]] = Field(default_factory=lambda: ["read"], min_length=1)
+    api_client: str | None = None
+
+
+class ApiCredential(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    client_id: str
+    issuer: str
+    kid: str
+    api_token: str = Field(pattern=r"^[A-Za-z0-9._~-]{32,256}$")
+    signing_key: str = Field(min_length=32, max_length=256)
 
 
 class GatewayConfig(BaseModel):
@@ -128,6 +154,7 @@ class GatewayConfig(BaseModel):
     signing_key: str = Field(min_length=32, max_length=256)
     connector_token: str = Field(min_length=32, max_length=256)
     users: dict[str, UserPolicy]
+    api_clients: dict[str, ApiCredential] = Field(default_factory=dict)
     mcp_hosts: list[str] = Field(default_factory=list, max_length=10)
     trusted_proxies: list[str] = Field(default_factory=list, max_length=20)
 
@@ -183,6 +210,11 @@ class Gateway:
         entry = config["users"].get(user)
         if not entry or not entry.get("scopes"):
             raise HTTPException(403, "viewer_user_forbidden")
+        if entry.get("api_client"):
+            credential = config["api_clients"].get(entry["api_client"])
+            if not credential:
+                raise HTTPException(503, "viewer_configuration_invalid")
+            config = {**config, **credential}
         fingerprint = hashlib.sha256(
             json.dumps(
                 [
@@ -199,8 +231,12 @@ class Gateway:
         ).hexdigest()
         return config, fingerprint
 
-    async def api(self, user: str, path: str, body: dict) -> dict:
+    async def api(
+        self, user: str, path: str, body: dict | None, *, method="POST", headers=None, grants=None
+    ) -> dict:
         config, fingerprint = self.actor(user)
+        if grants is not None and any(g not in config["users"][user]["scopes"] for g in grants):
+            raise HTTPException(403, "scope_forbidden")
         now = int(time.time())
         head = encoded({"alg": "HS256", "typ": "JWT", "kid": config["kid"]})
         claims = encoded(
@@ -211,7 +247,7 @@ class Gateway:
                 "client_id": config["client_id"],
                 "iat": now,
                 "exp": now + 60,
-                "scopes": config["users"][user]["scopes"],
+                "scopes": grants if grants is not None else config["users"][user]["scopes"],
             }
         )
         signature = (
@@ -226,12 +262,13 @@ class Gateway:
                 transport=self.transport, timeout=35, follow_redirects=False
             ) as client:
                 async with client.stream(
-                    "POST",
+                    method,
                     config["api_url"].rstrip("/") + path,
                     json=body,
                     headers={
                         "authorization": f"Bearer {config['api_token']}",
                         "x-knowledge-actor": f"{head}.{claims}.{signature}",
+                        **(headers or {}),
                     },
                 ) as response:
                     response_body = bytearray()
@@ -263,7 +300,16 @@ class Gateway:
         result = await self.api(
             user,
             "/api/v1/viewer",
-            {**ref, "resource": "manifest", "prefix": f"/viewer/session/{token}/"},
+            {
+                **ref,
+                **(
+                    {"original_range": reference.location.original_range.model_dump()}
+                    if reference.location and reference.location.original_range
+                    else {}
+                ),
+                "resource": "manifest",
+                "prefix": f"/viewer/session/{token}/",
+            },
         )
         if (
             not isinstance(result.get("kind"), str)
@@ -350,6 +396,7 @@ class Gateway:
                     for key, value in self.pending.items()
                     if secrets.compare_digest(value["code"], code.upper())
                     and value["status"] == "pending"
+                    and value.get("purpose") != "editor"
                 ),
                 None,
             )
@@ -408,9 +455,28 @@ class Gateway:
         )
 
     async def tool(self, name: str, user: str, args: dict) -> dict:
+        from docling_desk.viewer.document_tools import DOCUMENT_TOOLS, document_tool
+        from docling_desk.viewer.editor import approve_editor
+
         self.actor(user)
+        if name in DOCUMENT_TOOLS:
+            return await document_tool(self, name, user, args)
+        if name == "connect_document_editor":
+            if (
+                set(args) != {"code"}
+                or not isinstance(args["code"], str)
+                or not re.fullmatch(r"[A-Fa-f0-9]{8}", args["code"])
+            ):
+                raise HTTPException(422, "invalid_editor_code")
+            return await approve_editor(self, user, args["code"])
+
         if name == "list_document_scopes":
-            return {"scopes": self.actor(user)[0]["users"][user]["scopes"]}
+            capabilities = await self.api(user, "/api/v1/scopes", None, method="GET")
+            policy = self.actor(user)[0]["users"][user]["actions"]
+            return {
+                **capabilities,
+                "actions": [action for action in capabilities["actions"] if action in policy],
+            }
         if name == "search_documents":
             return await self.api(user, "/api/v1/search", args)
         if name == "get_document_context":
@@ -431,6 +497,11 @@ class Gateway:
                 )
                 if manifest["kind"] == "sheet":
                     number = locator.get("sheet_number")
+                if manifest["kind"] == "document" and locator.get("original_range"):
+                    reference.location = Location(
+                        kind="document", number=1, original_range=locator["original_range"]
+                    )
+                    await self.manifest(user, reference, secrets.token_urlsafe(32))
                 if number is not None:
                     reference.location = Location(kind=manifest["kind"], number=number)
                     await self.manifest(user, reference, secrets.token_urlsafe(32))
@@ -490,6 +561,9 @@ def create_gateway(
         allow_headers=["content-type"],
     )
 
+    from docling_desk.viewer.editor import install_editor
+
+    install_editor(app, gateway)
     app.add_middleware(ViewerBodyLimit)
 
     @app.middleware("http")
@@ -507,7 +581,7 @@ def create_gateway(
         response.headers["Content-Security-Policy"] = (
             f"default-src 'none'; script-src {origin}; style-src {origin} 'unsafe-inline'; img-src {origin} data:; font-src {origin} data:; frame-src {origin}; connect-src {origin}; base-uri 'none'; object-src 'none'; form-action 'none'"
         )
-        if request.url.path == "/viewer" or (
+        if request.url.path in {"/viewer", "/editor"} or (
             request.url.path.startswith("/viewer/session/")
             and ("/view/" in request.url.path or request.url.path.endswith(".html"))
         ):
@@ -517,6 +591,14 @@ def create_gateway(
     @app.get("/health/live")
     def live():
         return {"status": "alive"}
+
+    @app.get("/health/ready")
+    async def ready():
+        config = gateway.config()
+        user = next(iter(config["users"]))
+        result = await gateway.api(user, "/health/ready", None, method="GET")
+        await gateway.api(user, "/api/v1/scopes", None, method="GET")
+        return {"status": "ready", "api": result["status"], "editor": True, "mcp": mcp_enabled}
 
     @app.get("/viewer", response_class=HTMLResponse)
     def entry():
@@ -546,7 +628,7 @@ def create_gateway(
         with gateway.lock:
             gateway.clean()
             pending = gateway.pending.get(nonce)
-            if not pending:
+            if not pending or pending.get("purpose", "viewer") != "viewer":
                 raise HTTPException(410, "viewer_code_expired")
             if pending["status"] == "approved":
                 gateway.pending.pop(nonce)
@@ -566,6 +648,11 @@ def create_gateway(
             "/api/v1/viewer",
             {
                 **ref.model_dump(mode="json", exclude={"location", "version"}),
+                **(
+                    {"original_range": ref.location.original_range.model_dump()}
+                    if ref.location and ref.location.original_range
+                    else {}
+                ),
                 "resource": resource,
                 "prefix": f"/viewer/session/{token}/",
             },
@@ -585,7 +672,13 @@ def create_gateway(
             body = base64.b64decode(data["body_base64"], validate=True)
         except ValueError:
             raise HTTPException(502, "invalid_viewer_response") from None
-        return Response(body, media_type=media_type)
+        return Response(
+            body,
+            media_type=media_type,
+            headers={"Content-Disposition": "attachment"}
+            if resource.startswith("attachment/")
+            else None,
+        )
 
     @app.post("/host/tools/{name}")
     async def host(name: str, call: HostCall, authorization: str = Header(default="")):

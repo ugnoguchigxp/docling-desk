@@ -1,6 +1,7 @@
-import { mkdir, readdir, rm, stat } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { createApi } from "./app";
+import { cleanOrphanUploads } from "./artifact-maintenance";
 import { loadConfig } from "./config";
 import { MAX_FILE } from "./contracts";
 import { Store } from "./store";
@@ -28,17 +29,7 @@ store.db.run(
 // Files are written before DB registration. Clean only old, unregistered revisions, never in-flight uploads.
 const sourceRoot = join(config.artifactRoot, "sources");
 await mkdir(sourceRoot, { recursive: true });
-for (const source of await readdir(sourceRoot)) {
-  if (!/^[a-f0-9-]{36}$/.test(source)) continue;
-  const sourceDir = join(sourceRoot, source);
-  if (!(await stat(sourceDir)).isDirectory()) continue;
-  for (const revision of await readdir(sourceDir)) {
-    if (!/^[a-f0-9-]{36}$/.test(revision)) continue;
-    const folder = join(sourceDir, revision);
-    if (!store.revision(revision) && (await stat(folder)).mtimeMs < Date.now() - 3600000)
-      await rm(folder, { recursive: true, force: true });
-  }
-}
+await cleanOrphanUploads(store, sourceRoot);
 const server = Bun.serve({
   hostname: config.hostname,
   port: config.port,

@@ -14,7 +14,7 @@ def active_assets(bundle: Path) -> set[str]:
     assets = bundle / "assets"
     candidates = {p.name: p for p in assets.iterdir() if p.is_file()} if assets.is_dir() else {}
     seen: set[str] = set()
-    queue = [bundle / name for name in ("index.html", "embed.html", "print.html")]
+    queue = [bundle / name for name in ("index.html", "embed.html", "print.html", "editor.html")]
     while queue:
         path = queue.pop()
         if not path.is_file():
@@ -30,6 +30,12 @@ def active_assets(bundle: Path) -> set[str]:
 class BuildPy(build_py):
     def run(self) -> None:
         super().run()
+        import shutil
+
+        target = Path(self.build_lib) / "docling_desk/resources/contracts"
+        target.mkdir(parents=True, exist_ok=True)
+        for name in ("knowledge-api.openapi.json", "viewer-embedding.schema.json"):
+            shutil.copyfile(Path("contracts") / name, target / name)
         bundle = Path(self.build_lib) / "docling_desk/resources/static/frontend"
         keep = active_assets(bundle)
         if (bundle / "assets").is_dir():

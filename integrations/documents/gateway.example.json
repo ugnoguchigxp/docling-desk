@@ -1,0 +1,33 @@
+{
+  "api_url": "http://127.0.0.1:18766",
+  "public_url": "http://127.0.0.1:18768",
+  "client_id": "knowledge-reader",
+  "issuer": "knowledge-reader",
+  "kid": "v1",
+  "api_token": "REPLACE_WITH_PRIVATE_READER_CLIENT_TOKEN_43_CHARS",
+  "signing_key": "REPLACE_WITH_PRIVATE_READER_SIGNING_KEY_43_CHARS",
+  "connector_token": "REPLACE_WITH_PRIVATE_HOST_CONNECTOR_TOKEN_43_CHARS",
+  "api_clients": {
+    "editor": {
+      "client_id": "knowledge-editor",
+      "issuer": "knowledge-editor",
+      "kid": "v1",
+      "api_token": "REPLACE_WITH_PRIVATE_EDITOR_CLIENT_TOKEN_43_CHARS",
+      "signing_key": "REPLACE_WITH_PRIVATE_EDITOR_SIGNING_KEY_43_CHARS"
+    }
+  },
+  "users": {
+    "read-user": {
+      "actions": ["read"],
+      "scopes": [{"collection_id": "documents"}],
+      "mcp_token": "REPLACE_WITH_PRIVATE_READ_USER_MCP_TOKEN_43_CHARS"
+    },
+    "local-user": {
+      "actions": ["read", "write"],
+      "api_client": "editor",
+      "scopes": [{"collection_id": "documents"}],
+      "mcp_token": "REPLACE_WITH_PRIVATE_EDITOR_USER_MCP_TOKEN_43_CHARS"
+    }
+  },
+  "mcp_hosts": ["host.docker.internal:18768"]
+}

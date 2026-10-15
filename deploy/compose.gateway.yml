@@ -1,0 +1,18 @@
+# Overlay: docker compose -f deploy/compose.knowledge.yml -f deploy/compose.gateway.yml --profile gateway up -d --build
+services:
+  gateway:
+    profiles: [gateway]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.gateway
+    user: "${KNOWLEDGE_GATEWAY_UID:-10001}:${KNOWLEDGE_GATEWAY_GID:-10001}"
+    environment:
+      VIEWER_CONFIG_FILE: /run/secrets/gateway.json
+    volumes:
+      - ${KNOWLEDGE_GATEWAY_CONFIG:-../.knowledge-api/gateway.json}:/run/secrets/gateway.json:ro
+    ports:
+      - "127.0.0.1:${KNOWLEDGE_GATEWAY_PORT:-18768}:18768"
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    # Gateway has no original volume, SQLite database or model credentials.

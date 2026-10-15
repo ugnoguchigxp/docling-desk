@@ -20,7 +20,13 @@ export default defineConfig(({ command }) => ({
   build: {
     outDir: "dist",
     emptyOutDir: true,
-    rolldownOptions: { input: { index: "index.html", embed: "embed.html" } },
+    rolldownOptions: {
+      input: {
+        index: "index.html",
+        embed: "embed.html",
+        editor: "editor.html",
+      },
+    },
   },
   test: {
     environment: "jsdom",

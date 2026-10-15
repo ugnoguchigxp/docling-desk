@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-15",
+  "real_llm": false,
+  "real_larm": false,
+  "results": {
+    "real_docling_formats": [
+      "pdf",
+      "docx",
+      "markdown"
+    ],
+    "http_mcp_same_draft": true,
+    "out_of_scope_mcp_denied": true,
+    "forged_mcp_identity_denied": true,
+    "wysiwyg_edit": true,
+    "protected_blocks": true,
+    "commit": true,
+    "lost_autosave_response": true,
+    "lost_commit_response": true,
+    "lost_creation_response": true,
+    "newer_input_preserved_on_replay": true,
+    "page_errors": [],
+    "human_ai_conflict": true,
+    "attachment_round_trip": true,
+    "viewer_attachment_round_trip": true,
+    "search_and_authenticated_viewer": true,
+    "original_range_available": true,
+    "restart_replay_and_processing_resume": true,
+    "old_citation_revoked": true,
+    "read_only_mcp_denied": true
+  }
+}

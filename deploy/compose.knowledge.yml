@@ -15,6 +15,7 @@ services:
       KNOWLEDGE_EMBEDDING_DIMENSIONS: ${KNOWLEDGE_EMBEDDING_DIMENSIONS:-}
       KNOWLEDGE_ANSWER_URL: ${KNOWLEDGE_ANSWER_URL:-}
       KNOWLEDGE_PROVIDER_TOKEN: ${KNOWLEDGE_PROVIDER_TOKEN:-}
+      KNOWLEDGE_CONTROL_TOKEN: ${KNOWLEDGE_CONTROL_TOKEN:-}
     ports:
       - "127.0.0.1:${KNOWLEDGE_PORT:-18766}:18766"
     volumes:
@@ -23,9 +24,6 @@ services:
     restart: unless-stopped
     init: true
     stop_grace_period: 30s
-    depends_on:
-      processor:
-        condition: service_healthy
   processor:
     build:
       context: ..

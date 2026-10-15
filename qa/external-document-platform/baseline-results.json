@@ -1,0 +1,23 @@
+{
+  "baseline_commit": "1b27e5ac2d2f66970286a02515a99d49d5688f76",
+  "api": {
+    "baseline_passed": 60,
+    "final_passed": 78
+  },
+  "frontend": {
+    "baseline_passed": 170,
+    "baseline_timed_out": 1,
+    "isolated_library_passed": 9,
+    "final_passed": 175
+  },
+  "python": {
+    "baseline_passed": 663,
+    "baseline_failed": 1,
+    "baseline_skipped": 4,
+    "related_final_passed": 47
+  },
+  "real_llm": false,
+  "real_larm": false,
+  "docker_daemon": false,
+  "compose_config": true
+}

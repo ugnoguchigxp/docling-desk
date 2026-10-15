@@ -134,6 +134,7 @@ http://127.0.0.1:8765 で開けます。仮想環境を有効にしなくても�
 - [Wikiバッチと移行](docs/wiki-batch.md)
 - [Azure OCR](docs/azure-ocr-setup.md)
 - [外部ナレッジAPI](docs/knowledge-api.md)
+- [HTTPとMCPによるMarkdown編集と接続手順](docs/external-document-platform.md)
 - [文書ビューアーの組み込み](docs/viewer-embedding.md)
 
 ## 開発

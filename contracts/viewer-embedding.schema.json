@@ -22,6 +22,17 @@
           "minimum": 1,
           "title": "Number",
           "type": "integer"
+        },
+        "original_range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OriginalRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -151,6 +162,29 @@
         "units"
       ],
       "additionalProperties": false
+    },
+    "OriginalRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "sha256"
+      ]
     }
   },
   "$ref": "#/$defs/DocumentReference"

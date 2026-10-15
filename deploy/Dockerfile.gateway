@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1
+FROM node:24-bookworm-slim AS frontend
+WORKDIR /build/frontend
+RUN npm install --global pnpm@10.24.0
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY frontend/ ./
+RUN pnpm build && pnpm export:static
+
+FROM python:3.12-slim-bookworm
+ENV PYTHONPATH=/app/src PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 DOCLING_ENV_FILE=/dev/null
+WORKDIR /app
+COPY integrations/mcp/requirements.txt /tmp/mcp-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/mcp-requirements.txt fastapi==0.142.2 uvicorn==0.54.0 httpx==0.28.1 pydantic==2.13.5 python-dotenv==1.2.4
+COPY src/docling_desk/ /app/src/docling_desk/
+COPY contracts/ /app/src/docling_desk/resources/contracts/
+COPY --from=frontend /build/src/docling_desk/resources/static/frontend/ /app/src/docling_desk/resources/static/frontend/
+RUN groupadd --gid 10001 gateway && useradd --uid 10001 --gid 10001 --create-home gateway
+USER 10001:10001
+EXPOSE 18768
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18768/health/ready', timeout=4)"
+CMD ["python", "-m", "uvicorn", "docling_desk.viewer.gateway:app_factory", "--factory", "--host", "0.0.0.0", "--port", "18768", "--workers", "1", "--no-access-log"]

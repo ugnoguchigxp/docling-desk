@@ -104,3 +104,7 @@ CORSはCookieを伴わないsandboxの `Origin: null` に対応します。Origi
 ## 検証記録と契約
 
 実行結果、対象版、画面、再現用スクリプトは `qa/viewer-embedding/` にあります。ナレッジAPIの公開契約は `contracts/knowledge-api.openapi.json`、閲覧とホスト通信の契約は `contracts/viewer-embedding.schema.json` です。合成資料を使用し、モデルはローカルの固定応答にして外部LLMを呼んでいません。実環境のアカウント、資料、設定には変更を加えていません。
+
+## Markdownの編集
+
+既存MCPを拡張し、独立APIのMarkdown・共有下書きを編集できる。[外部文書編集の接続手順](external-document-platform.md)を参照。書き込み用APIクライアントと利用者のwrite権限が必要で、既存の閲覧セッションを編集へ昇格させない。Markdown引用には原文SHA-256とUTF-8範囲を持つ任意のlocation.original_rangeを追加した。

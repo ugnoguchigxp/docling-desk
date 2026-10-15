@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Clients } from "./auth";
-import { refresh, requireAction } from "./auth";
+import { narrow, refresh, requireAction } from "./auth";
 import {
   ApiError,
   type Principal,
@@ -14,6 +14,8 @@ import { normalizedVectors } from "./providers";
 import { type ChunkRow, principalKey, type RetrievalRow, type Store } from "./store";
 
 export function locator(record: RagRecord) {
+  if (record.source_range)
+    return { kind: "document", number: 1, original_range: record.source_range };
   const position = record.provenance;
   const ocr = record.ocr_evidence ?? [];
   if (record.kind === "slide")
@@ -111,7 +113,7 @@ export class Retrieval {
       .map((v) => v.c);
     let semantic: ChunkRow[] = [];
     let effective: "text" | "semantic" | "hybrid" = input.mode;
-    const index = this.store.indexState(p, input);
+    let index = this.store.indexState(p, input);
     if (index.pending_sources) reasons.push("index_pending");
     if (index.failed_sources) reasons.push("index_failed");
     if (input.mode !== "text") {
@@ -187,12 +189,26 @@ export class Retrieval {
     }
     const current = refresh(p, this.clients());
     requireAction(current, "read");
+    const scoped = { ...current, grants: narrow(current, input.scope) };
     const seen = new Set<string>();
     const valid = [...fused.values()]
       .sort((a, b) => b.score - a.score || a.c.chunk_id.localeCompare(b.c.chunk_id))
       .filter((h) => {
         try {
-          this.store.validReference(asReference(h.c), current, input.filter.include_past_revisions);
+          const source = this.store.validReference(
+            asReference(h.c),
+            scoped,
+            input.filter.include_past_revisions,
+          );
+          if (
+            (input.filter.source_kinds?.length &&
+              !input.filter.source_kinds.includes(source.source_kind)) ||
+            (input.filter.languages?.length && !input.filter.languages.includes(source.language))
+          )
+            throw new ApiError(409, "source_changed");
+          h.c.title = source.title;
+          h.c.source_kind = source.source_kind;
+          h.c.language = source.language;
         } catch {
           reasons.push("source_changed");
           return false;
@@ -204,6 +220,7 @@ export class Retrieval {
         return true;
       })
       .slice(0, input.limit);
+    index = this.store.indexState(scoped, input);
     if (!valid.length && reasons.includes("search_timeout"))
       throw new ApiError(504, "search_timeout", "Search timed out", true);
     if (!valid.length && index.pending_sources && !index.indexed_at)
@@ -254,7 +271,8 @@ export class Retrieval {
     if (refs.some((r) => !allowed.has(referenceKey(r))))
       throw new ApiError(404, "context_not_found");
     const unique = [...new Map(refs.map((r) => [referenceKey(r), r])).values()];
-    const contexts = unique.map((r) => this.store.context(r, p, !!snapshot.past));
+    const scoped = { ...p, grants: narrow(p, JSON.parse(snapshot.scope)) };
+    const contexts = unique.map((r) => this.store.context(r, scoped, !!snapshot.past));
     const chars = contexts.reduce((sum, c) => sum + (c.text as string).length, 0);
     if (chars > maxChars || Buffer.byteLength(JSON.stringify(contexts)) > 2 * 1024 * 1024) {
       throw new ApiError(

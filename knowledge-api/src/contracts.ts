@@ -110,6 +110,13 @@ export const recordSchema = z
     row_range: z.array(z.number()).default([]),
     tables: z.array(z.record(z.string(), z.unknown())).default([]),
     ocr_evidence: z.array(z.record(z.string(), z.unknown())).optional(),
+    source_range: z
+      .object({
+        start: z.number().int().nonnegative(),
+        end: z.number().int().nonnegative(),
+        sha256: z.string().regex(/^[a-f0-9]{64}$/),
+      })
+      .optional(),
   })
   .strip();
 export type RagRecord = z.infer<typeof recordSchema>;
@@ -173,6 +180,13 @@ export const viewerRequestSchema = z
     source_revision: id,
     evidence_revision: id,
     resource: z.string().min(1).max(512).default("manifest"),
+    original_range: z
+      .object({
+        start: z.number().int().nonnegative(),
+        end: z.number().int().nonnegative(),
+        sha256: z.string().regex(/^[a-f0-9]{64}$/),
+      })
+      .optional(),
     prefix: z.string().regex(/^\/viewer\/session\/[A-Za-z0-9_-]{43}\/$/),
   })
   .strict();

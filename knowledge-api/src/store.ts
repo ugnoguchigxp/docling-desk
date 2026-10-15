@@ -101,7 +101,7 @@ export class Store {
     try {
       const version =
         this.db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version ?? 0;
-      if (version > 1) {
+      if (version > 2) {
         this.db.close();
         throw new Error("Unsupported knowledge database version");
       }
@@ -155,7 +155,27 @@ export class Store {
       CREATE TABLE IF NOT EXISTS viewer_artifacts (
         source_revision TEXT PRIMARY KEY REFERENCES revisions(id) ON DELETE CASCADE,
         evidence_revision TEXT NOT NULL,job_id TEXT NOT NULL,run INTEGER NOT NULL);
-      PRAGMA user_version=1;`);
+      CREATE TABLE IF NOT EXISTS drafts (
+        id TEXT PRIMARY KEY, source_id TEXT NOT NULL, base_revision TEXT, base_etag TEXT,
+        body BLOB NOT NULL, metadata TEXT NOT NULL, attachments TEXT NOT NULL,
+        version INTEGER NOT NULL, sha256 TEXT NOT NULL, state TEXT NOT NULL,
+        committed_revision TEXT, created_by TEXT NOT NULL, updated_by TEXT NOT NULL,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS drafts_source ON drafts(source_id);
+      CREATE TABLE IF NOT EXISTS document_edits (
+        id TEXT PRIMARY KEY, client_id TEXT NOT NULL, subject TEXT NOT NULL,
+        kind TEXT NOT NULL, target_id TEXT, base TEXT NOT NULL, result TEXT NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS attachments (
+        id TEXT PRIMARY KEY, source_id TEXT NOT NULL, draft_id TEXT NOT NULL,
+        filename TEXT NOT NULL, media_type TEXT NOT NULL, size INTEGER NOT NULL, sha256 TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS revision_metadata (revision_id TEXT PRIMARY KEY REFERENCES revisions(id) ON DELETE CASCADE, metadata TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS revision_attachments (revision_id TEXT REFERENCES revisions(id) ON DELETE CASCADE, attachment_id TEXT NOT NULL REFERENCES attachments(id), PRIMARY KEY(revision_id,attachment_id));
+      CREATE TABLE IF NOT EXISTS processing_control (id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL);
+      INSERT OR IGNORE INTO processing_control VALUES(1,1);
+      PRAGMA user_version=2;`);
     } catch (error) {
       this.db.close();
       throw error;
@@ -286,6 +306,7 @@ export class Store {
     existing?: SourceRow,
     etag?: string | null,
     extraction: ProfileSelection | { profile: "local-v1" } = { profile: "local-v1" },
+    admit = true,
   ) {
     return this.tx(() => {
       if (existing) {
@@ -321,7 +342,7 @@ export class Store {
           m.external_key ?? null,
         ]);
       }
-      if (this.outstanding("extract") >= 3)
+      if (admit && this.outstanding("extract") >= 3)
         throw new ApiError(429, "queue_full", "Document queue is full", true);
       this.db.run(
         "INSERT INTO revisions(id,source_id,filename,suffix,sha256,created_at) VALUES(?,?,?,?,?,?)",
@@ -600,6 +621,8 @@ export class Store {
       this.db.run("DELETE FROM chunks WHERE source_id=?", [id]);
       this.db.run("DELETE FROM contexts WHERE source_id=?", [id]);
       this.db.run("DELETE FROM revisions WHERE source_id=?", [id]);
+      this.db.run("DELETE FROM attachments WHERE source_id=?", [id]);
+      this.db.run("DELETE FROM drafts WHERE source_id=?", [id]);
       this.db.run("DELETE FROM ocr_operations WHERE source_id=?", [id]);
       this.db.run('DELETE FROM retrievals WHERE instr("references",?)>0', [id]);
       this.db.run(

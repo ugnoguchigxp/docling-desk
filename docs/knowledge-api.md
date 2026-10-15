@@ -4,7 +4,7 @@
 
 APIのDBには一つのAPIプロセスだけが書き込める。別プロセスはスキーマ初期化前に拒否され、期限付きリースが失効しても稼働中のWriterから所有権を奪えない。[SQLiteの書き込みプロセス](sqlite-writer.md) に詳細を記載した。
 
-登録、差し替え、削除、検索、親文脈取得、ジョブ確認、任意の回答生成を実装した。検索はFTS・semantic・hybridを選べる。Embeddingと回答生成は管理者が設定するHTTP gateway経由で有効にする。未設定でも登録とFTS検索は利用できる。WikiのMarkdownは登録できるが、Wiki編集画面、利用先アプリ/従来システムとの接続、既存資料の移行、Azure OCRの新APIへの接続はこの実装の対象外。
+登録、差し替え、削除、検索、親文脈取得、ジョブ確認、任意の回答生成を実装した。検索はFTS・semantic・hybridを選べる。Embeddingと回答生成は管理者が設定するHTTP gateway経由で有効にする。未設定でも登録とFTS検索は利用できる。Markdownの編集とHTTP/MCP接続は[外部文書編集の手順](external-document-platform.md)を参照。既存Wiki画面の保存先統合、既存資料の移行、利用先アプリ本体の変更は対象外。
 
 正式な入出力は [OpenAPI契約](../contracts/knowledge-api.openapi.json) に保存してある。稼働中の `GET /api/v1/openapi.json` でも同じ契約を取得できる。設計方針は [API作成計画書](../knowledge-api-implementation-plan.md) を参照。
 
@@ -159,7 +159,7 @@ HTTPでの登録は `multipart/form-data`、フィールドは `file` とJSON文
 | 状態確認 | `GET /api/v1/jobs/{id}` | 資料の読み取り権限 |
 | 失敗した処理を再開 | `POST /api/v1/jobs/{id}/retry` | 書き込み権限、現在版の抽出／削除ジョブ |
 
-付属クライアントは資料取得時にETagを標準エラーへ表示する。差し替え・削除・再索引では `--etag '取得したETag'` を指定する。ETagなしは428、古いETagは412。差し替えのmetadataは登録時と同じ内容を渡す。今回のAPIは本文ファイルの差し替えであり、タイトル変更・移動・権限変更用の編集APIは未追加。
+付属クライアントは資料取得時にETagを標準エラーへ表示する。差し替え・削除・再索引では `--etag '取得したETag'` を指定する。ETagなしは428、古いETagは412。差し替えのmetadataは登録時と同じ内容を渡す。本文ファイルの差し替えに加え、[外部文書編集](external-document-platform.md)でMarkdown下書き・メタデータ変更・明示的なscope変更を提供する。
 
 差し替え時に現在版を切り替え、旧版を通常検索と古い参照から直ちに外す。新しい原本は不変の別版として保存し、処理キューが抽出→FTS→Embeddingを進める。FTSが先に使えるようになり、Embedding失敗でもFTSは残す。再索引は保存した抽出本文を使い、同じ本文・権限範囲・接続先・モデル・次元数・処理仕様のEmbeddingを再利用する。OCRやOffice変換を繰り返さない。
 

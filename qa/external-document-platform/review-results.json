@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-15",
+  "baseline_commit": "1b27e5ac2d2f66970286a02515a99d49d5688f76",
+  "uncommitted": true,
+  "fixed_review_items": 9,
+  "tests": {
+    "knowledge_api": {
+      "passed": 90,
+      "failed": 0
+    },
+    "frontend": {
+      "passed": 178,
+      "failed": 0,
+      "files": 33
+    },
+    "python_related_rerun": {
+      "passed": 42,
+      "failed": 0
+    }
+  },
+  "checks": {
+    "types": true,
+    "lint": true,
+    "openapi": true,
+    "diff": true,
+    "distribution": true,
+    "synthetic_real_http_mcp_browser_docling": true
+  },
+  "unverified": [
+    "real_llm",
+    "real_embedding_connection",
+    "larm",
+    "docker_runtime",
+    "production"
+  ],
+  "out_of_scope_baseline_failures_preserved": true
+}

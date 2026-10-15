@@ -69,6 +69,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
       token,
     ),
     workerToken: token,
+    controlToken: env.KNOWLEDGE_CONTROL_TOKEN || undefined,
     ocrMonthlySubmissions: z.coerce
       .number()
       .int()
