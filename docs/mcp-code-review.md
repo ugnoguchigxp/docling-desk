@@ -29,8 +29,24 @@
 | gatewayコンテナ | ビルドと実行が成功。ネットワークなし・UID 10001・readonly rootで42ガイドを取得し、別コンテナから専用volumeの転送記録を復元。試験volumeは削除済み |
 | 差分確認 | 担当Pythonのruff・formatと全差分の空白検査が成功。担当外の既存変更を保持。利用者の個別発話や再現例だけに依存する製品分岐の追加なし |
 
-全体入口で残った担当外の検証失敗は、以前からあるknowledge/api.pyのimport整形とfrontend/src/lib/formats.test.tsの期待値。画面側は201件成功・1件失敗で、型検査とlintは成功した。テスト期待値を緩めたり担当外を修正したりしていない。この2件により全体verifyの判定は失敗である。
+初回レビュー時に全体入口で残った担当外の検証失敗は、以前からあるknowledge/api.pyのimport整形とfrontend/src/lib/formats.test.tsの期待値。画面側は201件成功・1件失敗で、型検査とlintは成功した。この時点の全体verifyは失敗だった。以下の追加依頼で2件を解消した。
 
 再現入口はoperations.verify、scripts/verify_package.py、scripts/verify_gateway_image.py。ログは/tmp/docling-review-verify.log・verify.json、/tmp/docling-review-package.log、/tmp/docling-review-docker-build.log、/tmp/docling-review-docker-runtime.log。
 
 再レビューでは、対象内に追加の修正を要する問題は見つかっていない。実Eumenes固有の利用者対応・添付UI・画像受信・Artifact配置、本番配備は計画P6の対象であり、このレビューの検証結果には含めない。
+
+## 既存エラー2件の解消（追加依頼、2026-10-16）
+
+ユーザーの追加依頼により、前回対象外だった2件を修正した。両方の失敗を変更前に再現し、knowledge/api.pyはimport順序だけを修正した。画像の公開仕様・アップロード処理・既存試験がPNG・JPEG・GIF・WebP対応で一致するため、古い「PNGは非対応」という期待値を現行仕様へ更新した。全対応画像の大文字拡張子、画像フィルター、JPEG別名、非対応形式・偽装拡張子の拒否も検証する。製品の形式判定処理やLLMへの指示は変更していない。
+
+関連試験は画面13件・Python33件が成功。その後は製品コード・テストを固定し、全体verifyを再実行した。
+
+| 最新の全体検証 | 結果 |
+| --- | --- |
+| Python | 782件成功・4件スキップ（116.03秒） |
+| 業務API | 100件成功・485 assertions |
+| frontend | 204件成功・40ファイル成功 |
+| その他 | 全体ruff、両側の型検査・lint、公開契約、42ガイド・36ツール・36例、モデル検証がすべて成功 |
+| 全体判定 | operations.verify --with-jsが終了コード0、ok=true |
+
+ログは/tmp/docling-existing-errors-verify.log、機械判定は/tmp/docling-existing-errors-verify.json。配布パッケージとコンテナは前回の成功結果を維持し、今回はimport順序と試験だけの変更のため再ビルドは省略した。最終差分には個別発話への専用分岐、権限緩和、テスト条件の緩和を追加していない。

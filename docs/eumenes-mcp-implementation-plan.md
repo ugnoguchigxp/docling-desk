@@ -430,6 +430,14 @@ P5の完了条件は満たした。実Eumenesの利用者対応・添付UI・画
 
 既存の権限・契約・抽出・配布の共通機構を確認し、再現試験→修正→再レビューを実施した。権限確認2件、巨大表の全体展開、入力契約とmetadata説明、一覧引数の不一致、エラー本文の容量制限、空のMarkdownの取得という7項目を修正した。再レビューで対象内に追加の修正を要する問題は見つかっていない。
 
-最終検証はPython782件成功・4件スキップ、業務API100件成功。公開ツール36件・ガイド42件・入力例36件の契約一致、sdist/wheelでの実MCP・転送・既存操作、非root・readonlyのgatewayコンテナとvolume復旧も成功した。既存の担当外エラー2件（knowledge/api.pyのimport整形、frontend/src/lib/formats.test.ts）は未修正のため、全体verifyは失敗のままである。画面側は201件成功・1件失敗、型検査・lintは成功。
+初回レビューの最終検証はPython782件成功・4件スキップ、業務API100件成功。公開ツール36件・ガイド42件・入力例36件の契約一致、sdist/wheelでの実MCP・転送・既存操作、非root・readonlyのgatewayコンテナとvolume復旧も成功した。この時点では既存の担当外エラー2件（knowledge/api.pyのimport整形、frontend/src/lib/formats.test.ts）により全体verifyは失敗だった。画面側は201件成功・1件失敗、型検査・lintは成功。追加依頼での解消結果は次節に記載する。
 
 発見事項・根拠・回帰確認・検証範囲は[コードレビュー記録](mcp-code-review.md)を参照。意味判断を再現例専用の分岐へ移す処理は追加していない。P6の実Eumenes受入と本番配備はこのレビューに含まない。
+
+## 17. 既存エラーの解消と全体検証の成功（2026-10-16）
+
+ユーザーの追加依頼により、import順序を修正し、画像対応の仕様・実装・既存試験と一致していなかった形式判定テストを更新した。PNG・JPEG・GIF・WebPの受付と、非対応形式・偽装拡張子の拒否を検証する。製品の形式判定やLLMの意味判断は変更していない。
+
+関連試験の画面13件・Python33件が成功した後、コードとテストを固定して全体verify --with-jsを実行した。Python782件成功・4件スキップ、業務API100件成功、frontend204件成功。全体ruff、型検査、lint、公開契約・ガイド・モデル検証を含む全11項目が終了コード0となり、全体判定ok=trueを確認した。
+
+結果は/tmp/docling-existing-errors-verify.json、詳細ログは/tmp/docling-existing-errors-verify.log。2件の既存エラーは解消済み。P6の実Eumenes受入と本番配備は後続のままとする。

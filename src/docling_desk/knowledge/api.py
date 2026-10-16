@@ -21,9 +21,9 @@ from starlette.concurrency import run_in_threadpool
 from docling_desk.documents.library import LOCK
 from docling_desk.knowledge.article_info import ArticleInfo
 from docling_desk.knowledge.authoring import create_router as authoring_router
-from docling_desk.knowledge.editor_ai import create_router as editor_ai_router
 from docling_desk.knowledge.catalog import evidence_body, manifest_metadata
 from docling_desk.knowledge.content import normalize_path, parse, render
+from docling_desk.knowledge.editor_ai import create_router as editor_ai_router
 from docling_desk.knowledge.embedding_azure import AzureEmbedding, EmbeddingError
 from docling_desk.knowledge.originals import Originals
 from docling_desk.knowledge.service import Knowledge
