@@ -19,6 +19,7 @@ from docling_desk.documents.images import ImageMetadata
 from docling_desk.explanation.store import LOCK as EXPLANATION_LOCK
 from docling_desk.explanation.store import active as explanation_active
 from docling_desk.explanation.store import copy_saved
+from docling_desk.operations.backup import exclusive_write
 from docling_desk.operations.faults import checkpoint
 from docling_desk.storage import (
     document_folder,
@@ -197,7 +198,7 @@ def unique_name(name: str, occupied: set[str], copy: bool = False, file: bool = 
 
 
 def create_folder(data: Path, request: FolderCreate) -> Folder:
-    with LOCK:
+    with exclusive_write(data, "library"), LOCK:
         library = load(data)
         destination_exists(library, request.parent_id)
         name = valid_name(request.name)
@@ -225,7 +226,7 @@ def register_upload(data: Path, job: Job, parent: str | None) -> None:
 
 
 def operate(data: Path, request: Operation) -> dict:
-    with LOCK, TRANSLATION_LOCK, EXPLANATION_LOCK:
+    with exclusive_write(data, "library"), LOCK, TRANSLATION_LOCK, EXPLANATION_LOCK:
         library = load(data)
         jobs = {j.id: j for j in read_jobs(data)}
         refs = {(r.kind, r.id) for r in request.items}

@@ -30,6 +30,7 @@ from docling_desk.storage import document_folders, job_file, migrate_layout
 from docling_desk.translation.service import TranslationManager
 from docling_desk.translation.store import interrupt_pending
 from docling_desk.web.auth import authenticate
+from docling_desk.web.body import BodyLimit
 from docling_desk.web.frontend import router as frontend_router
 from docling_desk.web.rootpath import prefix_urls
 from docling_desk.web.security import local_only
@@ -97,6 +98,7 @@ def create_app() -> FastAPI:
     application.include_router(frontend_router)
     application.include_router(knowledge_router(lambda: config.DATA))
     application.add_middleware(TrustedHostMiddleware, allowed_hosts=config.ALLOWED_HOSTS)
+    application.add_middleware(BodyLimit, limit=config.MAX_BYTES + 1024 * 1024)
     application.middleware("http")(prefix_urls)
     application.middleware("http")(local_only)
     # Registered last so it runs first: nothing is served before the login check.

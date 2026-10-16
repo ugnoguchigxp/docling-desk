@@ -30,6 +30,7 @@ from docling_desk.documents.library import (
     save,
     valid_name,
 )
+from docling_desk.operations.backup import exclusive_write
 from docling_desk.storage import original_file, safe_path
 
 router = APIRouter()
@@ -170,7 +171,7 @@ def get_media(asset_id: str):
 
 @router.patch("/api/v1/media/{asset_id}")
 def update_media(asset_id: str, value: MediaUpdate, if_match: str | None = Header(default=None)):
-    with LOCK:
+    with exclusive_write(config.DATA, "library"), LOCK:
         job = job_detail(identifier(asset_id))
         library = load(config.DATA)
         current = descriptor(library, job)

@@ -4,6 +4,7 @@ import { basename, extname, join } from "node:path";
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { z } from "zod";
+import { UploadAdmission } from "./admission";
 import { authenticate, authorized, type Clients, narrow, refresh, requireAction } from "./auth";
 import {
   ApiError,
@@ -160,7 +161,7 @@ export function createApi(options: ApiOptions) {
   const app = new Hono<Env>();
   const rate = new Map<string, { since: number; read: number; write: number; answer: number }>();
   let searching = 0;
-  let uploading = 0;
+  const admission = new UploadAdmission(artifactRoot);
   app.use("*", async (c, next) => {
     c.set("requestId", randomUUID());
     c.header("X-Request-Id", c.get("requestId"));
@@ -303,7 +304,7 @@ export function createApi(options: ApiOptions) {
     requireAction(c.get("principal"), "read");
     return c.json({ ...openapi(), request_id: c.get("requestId") });
   });
-  const editing = installEditing(app, options, json, boundedBody);
+  const editing = installEditing(app, options, json, boundedBody, admission);
   app.post("/api/v1/search", async (c) => {
     const p = c.get("principal");
     requireAction(p, "read");
@@ -486,17 +487,15 @@ export function createApi(options: ApiOptions) {
         .get(existing.id)
         ? 1
         : 0;
-    if (uploading + store.outstanding("extract") - replacing > 3)
+    if (admission.active + store.outstanding("extract") - replacing > 3)
       throw new ApiError(429, "queue_full", "Document queue is full", true);
-    const disk = await statfs(artifactRoot);
-    if (disk.bavail * disk.bsize < 2 * 1024 ** 3 + file.size * 4)
-      throw new ApiError(507, "insufficient_storage");
+    const releaseSpace = await admission.reserve(file.size);
     const sourceId = existing?.id ?? randomUUID();
     const revisionId = randomUUID();
     const folder = join(artifactRoot, "sources", sourceId, revisionId);
-    await mkdir(folder, { recursive: true });
     let registered = false;
     try {
+      await mkdir(folder, { recursive: true });
       await Bun.write(join(folder, `original${suffix}`), bytes);
       checkpoint("original_written");
       await extractor.validate({
@@ -528,6 +527,7 @@ export function createApi(options: ApiOptions) {
         return result;
       });
     } finally {
+      releaseSpace();
       if (!registered) await rm(folder, { recursive: true, force: true });
     }
   }
@@ -540,12 +540,11 @@ export function createApi(options: ApiOptions) {
     requireAction(p, "write");
     // Reserve bounded multipart memory. Persistent queue admission comes after
     // the replay lookup, so retries remain possible when the queue is full.
-    if (uploading >= 3) throw new ApiError(429, "queue_full", "Upload concurrency limit", true);
-    uploading++;
+    const release = admission.acquire();
     try {
       return await upload(request, p, route, existing);
     } finally {
-      uploading--;
+      release();
     }
   }
   app.post("/api/v1/sources", async (c) =>

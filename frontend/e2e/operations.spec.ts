@@ -2,6 +2,33 @@ import { test, expect, type Page } from "@playwright/test";
 import { PNG } from "pngjs";
 import { mkdir } from "node:fs/promises";
 import { waitForViewerSurface } from "./viewer-ready";
+import type { Folder, ItemRef, Library } from "../src/lib/types";
+
+async function expectListing(page: Page, keys: string[]) {
+  await expect(page.locator("#jobs tr")).toHaveCount(keys.length);
+  await expect
+    .poll(() =>
+      page
+        .locator("#jobs tr")
+        .evaluateAll((rows) =>
+          rows.map((row) => row.getAttribute("data-key")).sort(),
+        ),
+    )
+    .toEqual([...keys].sort());
+  await expect(page.locator("#fileCount")).toHaveText(`${keys.length}件`);
+}
+
+function rootKeys(saved: Library): string[] {
+  // Folder view contains immediate children, including folders themselves.
+  return [
+    ...saved.folders
+      .filter((folder) => folder.parent_id === null)
+      .map((folder) => `folder:${folder.id}`),
+    ...saved.jobs
+      .filter((job) => job.folder_id === null)
+      .map((job) => `file:${job.id}`),
+  ];
+}
 const diagnostics = new WeakMap<Page, string[]>();
 test.beforeEach(({ page }) => {
   const issues: string[] = [];
@@ -422,14 +449,68 @@ test("XLSX preview text copy selects cells, preserves drags and clears on sheet 
   await workbook.locator("#sheet-tab-1").click();
   await expect(page.locator("#previewCopy")).toBeDisabled();
 });
+test("library counts and rows follow the current folder across nested navigation", async ({
+  page,
+  request,
+}) => {
+  const saved: Library = await (await request.get("/api/library")).json();
+  const created = await request.post("/api/folders", {
+    data: { name: "Listing hierarchy QA" },
+  });
+  expect(created.status()).toBe(201);
+  const parent: Folder = await created.json();
+  try {
+    const response = await request.post("/api/folders", {
+      data: { name: "Nested listing QA", parent_id: parent.id },
+    });
+    expect(response.status()).toBe(201);
+    const child: Folder = await response.json();
+    const copies: ItemRef[] = [];
+    for (const [id, destination] of [
+      [slide, parent.id],
+      [sheet, child.id],
+    ]) {
+      const copy = await request.post("/api/library/operations", {
+        data: { action: "copy", items: [{ kind: "file", id }], destination },
+      });
+      expect(copy.ok()).toBe(true);
+      const result: { items: ItemRef[] } = await copy.json();
+      expect(result.items).toHaveLength(1);
+      copies.push(result.items[0]);
+    }
+
+    const root = [...rootKeys(saved), `folder:${parent.id}`];
+    await page.goto("/?mode=library");
+    await expectListing(page, root);
+    await page.getByLabel(`${parent.name}を開く`, { exact: true }).click();
+    await expectListing(page, [`folder:${child.id}`, `file:${copies[0].id}`]);
+    await page.getByLabel(`${child.name}を開く`, { exact: true }).click();
+    await expectListing(page, [`file:${copies[1].id}`]);
+    await page
+      .locator("#breadcrumbs")
+      .getByRole("button", {
+        name: parent.name,
+        exact: true,
+      })
+      .click();
+    await expectListing(page, [`folder:${child.id}`, `file:${copies[0].id}`]);
+    await page.locator("#breadcrumbs button").first().click();
+    await expectListing(page, root);
+  } finally {
+    const cleanup = await request.post("/api/library/operations", {
+      data: { action: "delete", items: [{ kind: "folder", id: parent.id }] },
+    });
+    expect(cleanup.ok()).toBe(true);
+  }
+});
 test("bundle delivery, CSS order, Origin restrictions and legacy fallback", async ({
   page,
   request,
   baseURL,
 }) => {
-  const saved = await (await request.get("/api/library")).json();
+  const saved: Library = await (await request.get("/api/library")).json();
   await page.goto("/?mode=library");
-  await expect(page.locator("#jobs tr")).toHaveCount(saved.jobs.length);
+  await expectListing(page, rootKeys(saved));
   const links = await page
     .locator("link[rel=stylesheet]")
     .evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href")));

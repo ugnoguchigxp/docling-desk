@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import threading
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from uuid import uuid4
 
 from docling_azure_ocr.config import api_key
@@ -29,6 +30,7 @@ from docling_desk.documents.library import (
 )
 from docling_desk.documents.ocr_profiles import load_profile
 from docling_desk.documents.text import SUPPORTED_LABEL, SUPPORTED_SUFFIXES
+from docling_desk.operations.backup import exclusive_write
 from docling_desk.storage import document_folder, original_file, record_original, remove_document
 
 router = APIRouter()
@@ -39,6 +41,31 @@ def run_job(folder: Path, job: Job, slots: threading.BoundedSemaphore) -> None:
         convert_job(folder, job)
     finally:
         slots.release()
+
+
+def publish_upload(source: Path, job: Job, folder_id: str | None, worker, slots) -> Job:
+    # Receive/validate outside the data tree. Publish and roll back under the
+    # same lock as backup, before acquiring the library's in-process lock.
+    with exclusive_write(config.DATA, "upload"), LOCK:
+        folder = document_folder(config.DATA, job.id)
+        target = original_file(folder, source.suffix)
+        try:
+            folder.mkdir(parents=True)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(source, target)
+            if job.image:
+                image_thumbnail(folder, target, job.image)
+                publish_image(config.DATA, target, job.image)
+            record_original(folder, job.filename, job.created)
+            register_upload(config.DATA, job, folder_id)
+            save_job(folder, job)
+            if not job.image:
+                worker.submit(run_job, folder, job, slots)
+            return decorate(load_library(config.DATA), job)
+        except Exception:
+            if folder.is_dir():
+                remove_document(folder)
+            raise
 
 
 @router.post("/api/upload", response_model=Job, status_code=202)
@@ -77,38 +104,26 @@ async def upload(
         synthetic=filename.startswith("synthetic-"),
         ocr_profile=profile.model_dump(mode="json"),
     )
-    folder = document_folder(config.DATA, job.id)
-    source = original_file(folder, Path(filename).suffix.lower())
     try:
-        folder.mkdir(parents=True)
-        total = 0
-        source.parent.mkdir(parents=True, exist_ok=True)
-        with source.open("wb") as stream:
-            while chunk := await file.read(1024 * 1024):
-                total += len(chunk)
-                if total > MAX_BYTES:
-                    raise HTTPException(413, "上限50 MiBを超えています。")
-                stream.write(chunk)
-        if is_image:
-            job.image = await run_in_threadpool(inspect_image, source)
-            await run_in_threadpool(image_thumbnail, folder, source, job.image)
-            await run_in_threadpool(publish_image, config.DATA, source, job.image)
-            job.state = "success"
-            job.pictures = 1
-        else:
-            validate_input(source)
-        record_original(folder, filename, job.created)
-        with LOCK:
-            register_upload(config.DATA, job, folder_id)
-            save_job(folder, job)
-            if not is_image:
-                worker.submit(run_job, folder, job, slots)
-            return decorate(load_library(config.DATA), job)
+        with TemporaryDirectory(prefix="docling-upload-") as staging:
+            source = Path(staging) / ("original" + Path(filename).suffix.lower())
+            total = 0
+            with source.open("wb") as stream:
+                while chunk := await file.read(1024 * 1024):
+                    total += len(chunk)
+                    if total > MAX_BYTES:
+                        raise HTTPException(413, "上限50 MiBを超えています。")
+                    stream.write(chunk)
+            if is_image:
+                job.image = await run_in_threadpool(inspect_image, source)
+                job.state = "success"
+                job.pictures = 1
+            else:
+                await run_in_threadpool(validate_input, source)
+            return await run_in_threadpool(publish_upload, source, job, folder_id, worker, slots)
     except (OSError, RuntimeError) as exc:
         if not is_image:
             slots.release()
-        if folder.is_dir():
-            remove_document(folder)
         raise HTTPException(
             500,
             "ローカル保存または処理キューの開始に失敗しました。空き容量とログを確認してください。",
@@ -116,7 +131,6 @@ async def upload(
     except (ValueError, HTTPException) as exc:
         if not is_image:
             slots.release()
-        remove_document(folder)  # Only this request's newly created incomplete upload.
         if isinstance(exc, HTTPException):
             raise
         raise HTTPException(422, str(exc)) from exc

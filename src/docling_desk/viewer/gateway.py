@@ -30,6 +30,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from docling_desk.config import RESOURCES
+from docling_desk.web.body import BodyLimit
 
 ROOT = RESOURCES
 MAX_API_RESPONSE = 46 * 1024 * 1024
@@ -60,17 +61,9 @@ class ViewerBodyLimit:
         if scope["path"] == "/api/v1/document-transfers":
             # Multipart files spool to disk; bound the stream without buffering
             # another 50 MiB copy before authentication or form parsing.
-            size = 0
-
-            async def bounded_receive():
-                nonlocal size
-                message = await receive()
-                size += len(message.get("body", b""))
-                if size > 51 * 1024 * 1024:
-                    raise HTTPException(413, "document_transfer_too_large")
-                return message
-
-            await self.app(scope, bounded_receive, send)
+            await BodyLimit(self.app, 51 * 1024 * 1024, "document_transfer_too_large")(
+                scope, receive, send
+            )
             return
         parts = []
         size = 0

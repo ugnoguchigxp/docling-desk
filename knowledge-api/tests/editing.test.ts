@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { randomUUID } from "node:crypto";
+import * as fs from "node:fs/promises";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -831,4 +832,133 @@ test("the Markdown viewer resolves only current bound attachments through its se
     ).status,
   ).toBe(404);
   f.store.db.close();
+});
+
+test("attachments reject insufficient storage without mutation and replay without new space", async () => {
+  const f = await fixture();
+  try {
+    const d = await f.newDraft();
+    const path = `/api/v1/drafts/${d.draft_id}/attachments`;
+    const input = {
+      filename: "image.bin",
+      media_type: "application/octet-stream",
+      body_base64: Buffer.from("synthetic").toString("base64"),
+    };
+    const headers = { "if-match": d.etag, "idempotency-key": "attachment" };
+    const disk = spyOn(fs, "statfs");
+    try {
+      disk.mockResolvedValue({ bavail: 0, bsize: 4096 } as Awaited<ReturnType<typeof fs.statfs>>);
+      expect((await f.request(path, "POST", input, headers)).status).toBe(507);
+      expect((await f.json(`/api/v1/drafts/${d.draft_id}`)).attachments).toEqual([]);
+      expect(f.store.db.query("SELECT * FROM attachments").all()).toEqual([]);
+      expect(await fs.readdir(f.root)).not.toContain("sources");
+      disk.mockRestore();
+      const saved = await f.json(path, "POST", input, headers);
+      const low = spyOn(fs, "statfs").mockResolvedValue({ bavail: 0, bsize: 4096 } as Awaited<
+        ReturnType<typeof fs.statfs>
+      >);
+      try {
+        expect((await f.json(path, "POST", input, headers)).attachment_id).toBe(
+          saved.attachment_id,
+        );
+        expect(low).not.toHaveBeenCalled();
+      } finally {
+        low.mockRestore();
+      }
+    } finally {
+      disk.mockRestore();
+    }
+  } finally {
+    f.store.db.close();
+  }
+});
+
+test("source and attachment requests share admission before buffering and release on failure", async () => {
+  const f = await fixture();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let entered = 0;
+  let started!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const pending: Promise<Response>[] = [];
+  const send = async (path: string, bytes: Uint8Array, contentType: string, etag?: string) => {
+    const body = new ReadableStream<Uint8Array>(
+      {
+        async pull(controller) {
+          entered++;
+          if (entered === 3) started();
+          await gate;
+          controller.enqueue(bytes);
+          controller.close();
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    return f.api.app.request(path, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${f.clients()[0]?.token}`,
+        "content-type": contentType,
+        "idempotency-key": randomUUID(),
+        ...(etag ? { "if-match": etag } : {}),
+      },
+      body,
+    });
+  };
+  try {
+    const drafts = await Promise.all([f.newDraft("a"), f.newDraft("b"), f.newDraft("c")]);
+    for (const d of drafts.slice(0, 2)) {
+      pending.push(
+        send(
+          `/api/v1/drafts/${d.draft_id}/attachments`,
+          Buffer.from("{invalid json"),
+          "application/json",
+          d.etag,
+        ),
+      );
+    }
+    const contentType = "multipart/form-data; boundary=review-boundary";
+    const bytes = Buffer.from(
+      '--review-boundary\r\nContent-Disposition: form-data; name="file"; filename="review.txt"\r\n\r\nsynthetic source\r\n' +
+        '--review-boundary\r\nContent-Disposition: form-data; name="metadata"\r\n\r\n' +
+        JSON.stringify({ title: "Review", collection_id: "test", language: "ja" }) +
+        "\r\n--review-boundary--\r\n",
+    );
+    pending.push(send("/api/v1/sources", bytes, contentType));
+    await ready;
+    const d = drafts[2];
+    const refused = await send(
+      `/api/v1/drafts/${d.draft_id}/attachments`,
+      Buffer.from("{}"),
+      "application/json",
+      d.etag,
+    );
+    expect(refused.status).toBe(429);
+    expect((await send("/api/v1/sources", bytes, contentType)).status).toBe(429);
+    expect(entered).toBe(3);
+    release();
+    expect((await Promise.all(pending)).map((r) => r.status)).toEqual([422, 422, 202]);
+    // Invalid input and successful source registration both return their shared slots.
+    const input = {
+      filename: "x.bin",
+      media_type: "application/octet-stream",
+      body_base64: Buffer.from("safe").toString("base64"),
+    };
+    expect(
+      (
+        await f.request(`/api/v1/drafts/${d.draft_id}/attachments`, "POST", input, {
+          "if-match": d.etag,
+          "idempotency-key": randomUUID(),
+        })
+      ).status,
+    ).toBe(200);
+  } finally {
+    release();
+    await Promise.allSettled(pending);
+    f.store.db.close();
+  }
 });

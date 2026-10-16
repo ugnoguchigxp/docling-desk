@@ -49,7 +49,7 @@ corepack pnpm --dir frontend export:static
 .venv/bin/python -m docling_desk.operations.backup restore --archive /secure/backup --destination /empty/restore
 ```
 
-`status` が `idle` を返すことを確認してから `backup` します。`active convert` または `active index` のときは、その処理が終わるまで待って再度 `status` を見ます。止まったプロセスのロックは残りません。
+`status` が `idle` を返すことを確認してから `backup` します。`active convert` または `active index` のときは、その処理が終わるまで待って再度 `status` を見ます。止まったプロセスのロックは残りません。 アップロードの公開と、資料・フォルダー・画像情報の変更も同じロックを使用します。バックアップ中に受信した原本は一時領域で待機し、復元に必要な原本・ジョブ・一覧情報をまとめて公開します。
 
 ローカルバックアップは `content/`・`derived/`・`runtime/` を含め、原本と処理状態を一組で保存します。SQLiteはbackup APIでコピーし、WALの確定済み内容を取り込みます。将来のBlob同期対象であるコンテンツ一式だけの保存とは異なります。バッチの編集用ワークスペースを `DOCLING_DATA_DIR` の外に置いた場合は、そちらも別途保存してください。
 

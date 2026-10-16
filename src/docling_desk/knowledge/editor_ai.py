@@ -7,7 +7,6 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
-from starlette.concurrency import run_in_threadpool
 
 from docling_desk.explanation.codex import CodexExplanationProvider
 from docling_desk.explanation.provider import ExplanationError, configured_profile
@@ -51,30 +50,51 @@ def create_router():
     async def command(request: Request, payload: dict[str, JsonValue]):
         if len(json.dumps(payload, ensure_ascii=False).encode()) > 2 * 1024 * 1024:
             raise HTTPException(413, "AIへ渡す記事の内容が大きすぎます。")
+        manager = getattr(request.app.state, "explanation_manager", None)
+        if manager is None or manager.stop.is_set():
+            raise HTTPException(503, "AI処理を受け付ける準備ができていません。")
+        if not manager.slots.acquire(blocking=False):
+            raise HTTPException(429, "AIの処理キューが満杯です。完了後に再試行してください。")
         factory = getattr(request.app.state, "wiki_editor_ai_provider", None)
-        provider = factory() if factory else CodexExplanationProvider(configured_profile())
         try:
+            provider = factory() if factory else CodexExplanationProvider(configured_profile())
             provider.preflight()
-        except ExplanationError as exc:
-            raise HTTPException(503, str(exc)) from exc
 
-        def event(value):
-            return "data: " + json.dumps(value, ensure_ascii=False) + "\n\n"
-
-        async def stream():
-            task = None
-            try:
-                yield event({"type": "start", "messageId": uuid4().hex})
-                task = asyncio.create_task(
-                    run_in_threadpool(
-                        provider.complete_structured,
+            def complete():
+                with manager.guard:
+                    if manager.stop.is_set():
+                        raise ExplanationError("interrupted", "AI処理を中断しました。")
+                    manager.current = provider
+                try:
+                    return provider.complete_structured(
                         payload,
                         180,
                         INSTRUCTIONS,
                         "Resolve the requested editing operation and return its result.",
                         Result.model_json_schema(),
                     )
-                )
+                finally:
+                    with manager.guard:
+                        manager.current = None
+
+            future = manager.executor.submit(complete)
+        except ExplanationError as exc:
+            manager.slots.release()
+            raise HTTPException(503, str(exc)) from exc
+        except Exception:
+            manager.slots.release()
+            raise
+        # Release only when the real operation ends (or queued work is cancelled),
+        # never while a disconnected browser's provider is still stopping.
+        future.add_done_callback(lambda _: manager.slots.release())
+
+        def event(value):
+            return "data: " + json.dumps(value, ensure_ascii=False) + "\n\n"
+
+        async def stream():
+            task = asyncio.wrap_future(future)
+            try:
+                yield event({"type": "start", "messageId": uuid4().hex})
                 while not task.done():
                     if await request.is_disconnected():
                         provider.cancel()
@@ -132,8 +152,9 @@ def create_router():
                     }
                 )
             finally:
-                if task is not None and not task.done():
+                if not task.done():
                     provider.cancel()
+                    future.cancel()
                     # Consume a late provider error after a browser cancellation.
                     task.add_done_callback(
                         lambda completed: (

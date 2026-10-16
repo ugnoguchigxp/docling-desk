@@ -1,9 +1,10 @@
 /** Editor-neutral operations; the HTTP API remains the authorization boundary. */
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, statfs } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { Hono } from "hono";
 import { z } from "zod";
+import type { UploadAdmission } from "./admission";
 import type { ApiOptions, Env } from "./app";
 import { authorized, refresh, requireAction } from "./auth";
 import {
@@ -343,7 +344,10 @@ export function applyEdits(body: string, input: z.infer<typeof patchDraftSchema>
   return result.toString("utf8");
 }
 export class DocumentEditing {
-  constructor(readonly options: ApiOptions) {}
+  constructor(
+    readonly options: ApiOptions,
+    readonly admission: UploadAdmission,
+  ) {}
   get store(): Store {
     return this.options.store;
   }
@@ -854,12 +858,10 @@ export class DocumentEditing {
     if (Buffer.byteLength(JSON.stringify(bodyResponse)) > MAX_JSON - 256)
       throw new ApiError(413, "body_too_large");
     const folder = join(this.options.artifactRoot, "sources", sourceId, revisionId);
-    const disk = await statfs(this.options.artifactRoot);
-    if (disk.bavail * disk.bsize < 2 * 1024 ** 3 + Buffer.byteLength(body) * 4)
-      throw new ApiError(507, "insufficient_storage");
-    await mkdir(folder, { recursive: true });
+    const releaseSpace = await this.admission.reserve(Buffer.byteLength(body));
     let registered = false;
     try {
+      await mkdir(folder, { recursive: true });
       const file = Bun.file(join(folder, "original.md"));
       await Bun.write(file, body);
       const fd = await import("node:fs/promises").then((fs) =>
@@ -938,6 +940,7 @@ export class DocumentEditing {
       checkpoint("editing_saved");
       return result;
     } finally {
+      releaseSpace();
       if (!registered) await rm(folder, { recursive: true, force: true });
     }
   }
@@ -963,11 +966,12 @@ export class DocumentEditing {
     if (replay) return replay;
     this.match(d, supplied);
     if (d.attachments.length >= 100) throw new ApiError(422, "attachment_limit_reached");
+    const releaseSpace = await this.admission.reserve(bytes.length);
     const aid = randomUUID(),
       folder = join(this.options.artifactRoot, "sources", d.source_id, "attachments", aid);
-    await mkdir(folder, { recursive: true });
     let registered = false;
     try {
+      await mkdir(folder, { recursive: true });
       await Bun.write(join(folder, "original"), bytes);
       const fd = await import("node:fs/promises").then((fs) =>
         fs.open(join(folder, "original"), "r"),
@@ -1010,6 +1014,7 @@ export class DocumentEditing {
       checkpoint("attachment_saved");
       return result;
     } finally {
+      releaseSpace();
       if (!registered) await rm(folder, { recursive: true, force: true });
     }
   }
@@ -1019,11 +1024,23 @@ export function installEditing(
   options: ApiOptions,
   json: (request: Request) => Promise<unknown>,
   boundedBody: (request: Request, max: number) => Promise<Buffer>,
+  admission: UploadAdmission,
 ) {
-  const service = new DocumentEditing(options),
+  const service = new DocumentEditing(options, admission),
     store = options.store;
   for (const endpoint of EDITING_ENDPOINTS) {
     const path = endpoint.path.replace(/\{(\w+)\}/g, ":$1");
+    if (endpoint.method === "post" && endpoint.path.endsWith("/attachments")) {
+      app.post(path, async (c, next) => {
+        requireAction(c.get("principal"), "write");
+        const release = admission.acquire();
+        try {
+          await next();
+        } finally {
+          release();
+        }
+      });
+    }
     app.on(endpoint.method.toUpperCase(), path, async (c) => {
       const action = "write" in endpoint && endpoint.write ? "write" : "read";
       let p = service.principal(c.get("principal"), action);

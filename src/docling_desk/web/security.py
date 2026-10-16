@@ -7,16 +7,12 @@ from fastapi import Request
 from fastapi.responses import JSONResponse, Response
 
 from docling_desk import config
-from docling_desk.config import MAX_BYTES
 
 
 async def local_only(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
     if request.method in {"POST", "PATCH", "PUT", "DELETE"}:
-        size = request.headers.get("content-length", "0")
-        if size.isdigit() and int(size) > MAX_BYTES + 1024 * 1024:
-            return JSONResponse({"detail": "上限50 MiBを超えています。"}, status_code=413)
         origin = request.headers.get("origin")
         if origin:
             parsed = urlparse(origin)
