@@ -11,6 +11,8 @@ from pathlib import Path
 
 import yaml
 
+from docling_desk.knowledge.article_info import ArticleInfo
+
 STATES = {"untranslated", "translated", "reviewed", "needs_review"}
 
 
@@ -64,6 +66,8 @@ def article_metadata(meta: dict) -> dict:
                 raise ValueError("関連資料の位置が不正です。")
         elif not isinstance(value, str) or len(value) > 512 or any(ord(c) < 32 for c in value):
             raise ValueError("記事の管理情報が不正です。")
+    if "article_info" in meta:
+        result["article_info"] = ArticleInfo.model_validate(meta["article_info"]).model_dump()
     return result
 
 

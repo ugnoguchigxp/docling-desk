@@ -14,8 +14,11 @@ COPY integrations/mcp/requirements.txt /tmp/mcp-requirements.txt
 RUN pip install --no-cache-dir -r /tmp/mcp-requirements.txt fastapi==0.142.2 uvicorn==0.54.0 httpx==0.28.1 pydantic==2.13.5 python-dotenv==1.2.4
 COPY src/docling_desk/ /app/src/docling_desk/
 COPY contracts/ /app/src/docling_desk/resources/contracts/
+COPY integrations/eumenes/ /app/src/docling_desk/resources/integrations/eumenes/
+COPY integrations/documents/ /app/src/docling_desk/resources/integrations/documents/
 COPY --from=frontend /build/src/docling_desk/resources/static/frontend/ /app/src/docling_desk/resources/static/frontend/
 RUN groupadd --gid 10001 gateway && useradd --uid 10001 --gid 10001 --create-home gateway
+RUN install -d -m 0700 -o 10001 -g 10001 /var/lib/docling-gateway
 USER 10001:10001
 EXPOSE 18768
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18768/health/ready', timeout=4)"

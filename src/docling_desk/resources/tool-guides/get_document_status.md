@@ -1,0 +1,9 @@
+# 文書の現在版と処理状態
+
+一覧・登録・差し替えの応答からsource_idを取得する。read権限が必要。返るsource_revision・evidence_revision、state、fts_ready、semantic_ready、warningsを確認する。source_etagはHTTPのETagヘッダーから取得した競合検査用の値で、差し替え・再抽出・再索引のetagへ渡す。
+
+この操作は原本を変更しない。原本登録完了と検索準備完了は別である。意味索引が未設定・失敗でもFTSは利用できる場合がある。再抽出中に公開済み根拠が残る場合もあるため、開始操作が返したjob_idをget_document_jobで確認する。状態だけから処理の実行有無を推測しない。
+
+## 呼び出しと返却値
+
+MCPは業務引数をargumentsの中へ入れる。HTTPの対応操作と完全な入出力スキーマはschemasで取得する。利用者はホストの認証結果で決まり、モデル引数で権限を作らない。

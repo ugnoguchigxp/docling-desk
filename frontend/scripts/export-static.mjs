@@ -72,6 +72,13 @@ try {
     if (error.code !== "ENOENT") throw error;
   });
 }
+await publishAssets(
+  new URL(
+    "../node_modules/@excalidraw/excalidraw/dist/prod/fonts/",
+    import.meta.url,
+  ),
+  new URL("excalidraw/fonts/", destination),
+);
 const editorEntry = await readFile(
   new URL("../dist/editor.html", import.meta.url),
 );
@@ -146,19 +153,10 @@ async function editorLicenses(name, from = dependencyRoot) {
   for (const dependency of Object.keys(metadata.dependencies || {}))
     await editorLicenses(dependency, modules);
 }
-for (const name of [
-  "platejs",
-  "@platejs/markdown",
-  "@platejs/basic-nodes",
-  "@platejs/list",
-  "@platejs/link",
-  "unified",
-  "remark-parse",
-  "remark-frontmatter",
-  "remark-math",
-  "remark-gfm",
-  "remark-directive",
-])
+const frontendPackage = JSON.parse(
+  await readFile(new URL("../package.json", import.meta.url), "utf8"),
+);
+for (const name of Object.keys(frontendPackage.dependencies))
   await editorLicenses(name);
 await writeFile(new URL("licenses.txt", destination), licenses.join("\n\n"));
 const next = new URL(`.index-${randomUUID()}.html`, destination);

@@ -1,0 +1,66 @@
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css";
+@import "katex/dist/katex.min.css";
+@source '../plate';
+@plugin 'tailwind-scrollbar-hide';
+@theme inline {
+  --color-background: var(--plate-background);
+  --color-foreground: var(--plate-foreground);
+  --color-primary: var(--plate-primary);
+  --color-primary-foreground: #fff;
+  --color-secondary: #f1f5f9;
+  --color-secondary-foreground: #334155;
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #64748b;
+  --color-accent: #e8f3f5;
+  --color-accent-foreground: #175b6b;
+  --color-popover: #fff;
+  --color-popover-foreground: #243744;
+  --color-card: #fff;
+  --color-card-foreground: #243744;
+  --color-border: #d7dde5;
+  --color-input: #d7dde5;
+  --color-ring: #3797aa;
+  --color-destructive: #be3434;
+  --color-brand: #176779;
+  --radius: 0.5rem;
+}
+:root {
+  --plate-background: #fff;
+  --plate-foreground: #243744;
+  --plate-primary: #176779;
+}
+.plate-scope {
+  isolation: isolate;
+  min-width: 0;
+  font-size: 16px;
+  line-height: 1.7;
+}
+.plate-scope *,
+[data-slot]:not(.wiki-editor *) {
+  border-color: #d7dde5;
+}
+.plate-scope [aria-label="Plate toolbar"] {
+  flex-wrap: wrap;
+  position: sticky;
+  height: auto;
+}
+.plate-scope [aria-label="Plate toolbar"] > div {
+  flex-wrap: wrap;
+}
+.plate-scope [aria-label="本文ブロック"] {
+  overflow: visible;
+}
+.plate-scope .slate-raw_markdown pre {
+  margin: 8px 0;
+}
+.plate-scope svg {
+  flex-shrink: 0;
+}
+.plate-scope button svg {
+  width: 16px;
+  height: 16px;
+}
+.plate-scope [aria-label="本文ブロック"] {
+  min-height: 280px;
+}

@@ -1,0 +1,9 @@
+# 検索から根拠と原本閲覧
+
+1. list_document_scopesのscopesから検索範囲を選ぶ。
+2. search_documentsへquery・scope・modeを渡す。effective_modeとdegraded_reasonsを確認。
+3. 関係する結果をLLMが選び、retrieval_idとsource_id・source_revision・evidence_revision・context_idをget_document_contextへ渡す。参照は同じ利用者の検索のものを使う。
+4. contextsの本文・表・locatorを根拠として回答する。短い検索抜粋だけを根拠にしない。
+5. 原本確認が必要なら版を保ったままrequest_document_viewへ渡す。embed_urlを開き、利用者が示したコードをconnect_document_viewで承認する。認証情報や短期セッションはチャットへ載せない。
+
+改版・削除・失効・検索参照期限切れでは停止して最新の範囲と検索を取り直す。範囲外資料の探索や旧参照の版だけの差し替えをしない。

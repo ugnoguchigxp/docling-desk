@@ -59,8 +59,10 @@
 .wiki-screen[hidden] {
   display: none;
 }
-.wiki-bar .wiki-import {
+.wiki-bar .wiki-actions {
   margin-left: auto;
+  display: flex;
+  gap: 8px;
 }
 .wiki-message:empty {
   display: none;

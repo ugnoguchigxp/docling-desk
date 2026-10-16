@@ -22,6 +22,12 @@ export default ts.config(
     },
   },
   {
+    // Plate's vendored standard components retain its open plugin generic types.
+    // Application adapters and API contracts outside this directory stay strict.
+    files: ["src/plate/**/*.ts", "src/plate/**/*.tsx"],
+    rules: { "@typescript-eslint/no-explicit-any": "off" },
+  },
+  {
     files: ["scripts/*.mjs"],
     languageOptions: { globals: { process: "readonly", URL: "readonly" } },
   },

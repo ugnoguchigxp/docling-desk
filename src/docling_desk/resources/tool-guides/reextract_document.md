@@ -1,0 +1,9 @@
+# 保存済み原本の再抽出
+
+write権限が必要。get_document_statusでsource_etagと現在版を取得しetagへ渡す。ocr_providerはlocal・azure_read・disabledから明示する。azure_readは外部送信・費用が発生する既存設定を使い、ホストが許可している場合に選ぶ。プロバイダーURLや認証情報をモデルから指定しない。
+
+保存済み原本を抽出し直す。原本版を増やす差し替えや、保存済み抽出本文を使う再索引とは異なる。成功応答は受付であり、source_id・job_idが返る。get_document_jobで実行結果を確認する。APIがocr_not_configuredなら設定を確認し、勝手な別Providerへ切り替えない。
+
+## 呼び出しと返却値
+
+MCPは業務引数をargumentsの中へ入れる。HTTPの対応操作と完全な入出力スキーマはschemasで取得する。利用者はホストの認証結果で決まり、モデル引数で権限を作らない。

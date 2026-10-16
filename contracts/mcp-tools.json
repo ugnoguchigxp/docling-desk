@@ -1,0 +1,2463 @@
+{
+  "list_tool_guides": {
+    "inputSchema": {
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "overview",
+                "tool",
+                "workflow"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
+        "tool_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Name"
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cursor"
+        },
+        "limit": {
+          "default": 20,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "title": "list_tool_guidesArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "GuideSummary": {
+          "properties": {
+            "guide_id": {
+              "title": "Guide Id",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "summary": {
+              "title": "Summary",
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "overview",
+                "tool",
+                "workflow"
+              ],
+              "title": "Kind",
+              "type": "string"
+            },
+            "tool_names": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Tool Names",
+              "type": "array"
+            },
+            "required_actions": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Required Actions",
+              "type": "array"
+            },
+            "guide_revision": {
+              "title": "Guide Revision",
+              "type": "string"
+            }
+          },
+          "required": [
+            "guide_id",
+            "title",
+            "summary",
+            "kind",
+            "tool_names",
+            "required_actions",
+            "guide_revision"
+          ],
+          "title": "GuideSummary",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "catalog_revision": {
+          "title": "Catalog Revision",
+          "type": "string"
+        },
+        "guides": {
+          "items": {
+            "$ref": "#/$defs/GuideSummary"
+          },
+          "title": "Guides",
+          "type": "array"
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Next Cursor"
+        }
+      },
+      "required": [
+        "schema_version",
+        "catalog_revision",
+        "guides",
+        "next_cursor"
+      ],
+      "title": "GuideListResult",
+      "type": "object"
+    }
+  },
+  "get_tool_guide": {
+    "inputSchema": {
+      "properties": {
+        "guide_id": {
+          "title": "Guide Id",
+          "type": "string"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section"
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cursor"
+        },
+        "max_chars": {
+          "default": 12000,
+          "maximum": 48000,
+          "minimum": 256,
+          "title": "Max Chars",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "guide_id"
+      ],
+      "title": "get_tool_guideArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "GuideSection": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "body": {
+              "title": "Body",
+              "type": "string"
+            },
+            "start": {
+              "title": "Start",
+              "type": "integer"
+            },
+            "end": {
+              "title": "End",
+              "type": "integer"
+            },
+            "total_chars": {
+              "title": "Total Chars",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "body",
+            "start",
+            "end",
+            "total_chars"
+          ],
+          "title": "GuideSection",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "catalog_revision": {
+          "title": "Catalog Revision",
+          "type": "string"
+        },
+        "guide_revision": {
+          "title": "Guide Revision",
+          "type": "string"
+        },
+        "guide_id": {
+          "title": "Guide Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "overview",
+            "tool",
+            "workflow"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "tool_names": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tool Names",
+          "type": "array"
+        },
+        "required_actions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Actions",
+          "type": "array"
+        },
+        "related_guides": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Related Guides",
+          "type": "array"
+        },
+        "section_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Section Ids",
+          "type": "array"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/GuideSection"
+          },
+          "title": "Sections",
+          "type": "array"
+        },
+        "schemas": {
+          "additionalProperties": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Schemas",
+          "type": "object"
+        },
+        "schema_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Schema Refs",
+          "type": "array"
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Next Cursor"
+        }
+      },
+      "required": [
+        "schema_version",
+        "catalog_revision",
+        "guide_revision",
+        "guide_id",
+        "title",
+        "kind",
+        "tool_names",
+        "required_actions",
+        "related_guides",
+        "section_ids",
+        "sections",
+        "schemas",
+        "schema_refs",
+        "next_cursor"
+      ],
+      "title": "GuideGetResult",
+      "type": "object"
+    }
+  },
+  "list_document_scopes": {
+    "inputSchema": {
+      "properties": {},
+      "title": "list_document_scopesArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "search_documents": {
+    "inputSchema": {
+      "properties": {
+        "query": {
+          "title": "Query",
+          "type": "string"
+        },
+        "scope": {
+          "additionalProperties": true,
+          "title": "Scope",
+          "type": "object"
+        },
+        "mode": {
+          "default": "text",
+          "title": "Mode",
+          "type": "string"
+        },
+        "limit": {
+          "default": 10,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "query",
+        "scope"
+      ],
+      "title": "search_documentsArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "get_document_context": {
+    "inputSchema": {
+      "properties": {
+        "retrieval_id": {
+          "title": "Retrieval Id",
+          "type": "string"
+        },
+        "references": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "References",
+          "type": "array"
+        },
+        "max_chars": {
+          "default": 80000,
+          "title": "Max Chars",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "retrieval_id",
+        "references"
+      ],
+      "title": "get_document_contextArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "request_document_view": {
+    "inputSchema": {
+      "properties": {
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_revision": {
+          "title": "Source Revision",
+          "type": "string"
+        },
+        "evidence_revision": {
+          "title": "Evidence Revision",
+          "type": "string"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_revision",
+        "evidence_revision"
+      ],
+      "title": "request_document_viewArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "connect_document_view": {
+    "inputSchema": {
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "connect_document_viewArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "get_document_outline": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "source_id": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "source_revision": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "evidence_revision": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "offset": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "limit": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "source_id",
+            "source_revision",
+            "evidence_revision"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uuid",
+          "title": "Source Revision",
+          "type": "string"
+        },
+        "evidence_revision": {
+          "format": "uuid",
+          "title": "Evidence Revision",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "page",
+            "slide",
+            "sheet",
+            "document"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "units": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Units",
+          "type": "array"
+        },
+        "entries": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Entries",
+          "type": "array"
+        },
+        "total": {
+          "title": "Total",
+          "type": "integer"
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Next Offset"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_revision",
+        "evidence_revision",
+        "kind",
+        "units",
+        "entries",
+        "total",
+        "next_offset"
+      ],
+      "title": "OutlineResult",
+      "type": "object"
+    }
+  },
+  "get_document_section": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "source_id": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "source_revision": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "evidence_revision": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "selector": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "section",
+                      "type": "string"
+                    },
+                    "ref": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "ref"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "elements",
+                      "type": "string"
+                    },
+                    "start_ref": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "end_ref": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "start_ref",
+                    "end_ref"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "units",
+                      "type": "string"
+                    },
+                    "start": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "end": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "start",
+                    "end"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "max_chars": {
+              "default": 40000,
+              "maximum": 80000,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "source_id",
+            "source_revision",
+            "evidence_revision",
+            "selector"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uuid",
+          "title": "Source Revision",
+          "type": "string"
+        },
+        "evidence_revision": {
+          "format": "uuid",
+          "title": "Evidence Revision",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "page",
+            "slide",
+            "sheet",
+            "document"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "selector": {
+          "additionalProperties": true,
+          "title": "Selector",
+          "type": "object"
+        },
+        "elements": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Elements",
+          "type": "array"
+        },
+        "chars": {
+          "title": "Chars",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_revision",
+        "evidence_revision",
+        "kind",
+        "selector",
+        "elements",
+        "chars"
+      ],
+      "title": "SectionResult",
+      "type": "object"
+    }
+  },
+  "list_document_tables": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "source_id": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "source_revision": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "evidence_revision": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "offset": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "limit": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "source_id",
+            "source_revision",
+            "evidence_revision"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "TableInfo": {
+          "properties": {
+            "table_ref": {
+              "title": "Table Ref",
+              "type": "string"
+            },
+            "caption": {
+              "title": "Caption",
+              "type": "string"
+            },
+            "pages": {
+              "items": {
+                "type": "integer"
+              },
+              "title": "Pages",
+              "type": "array"
+            },
+            "rows": {
+              "title": "Rows",
+              "type": "integer"
+            },
+            "columns": {
+              "title": "Columns",
+              "type": "integer"
+            },
+            "header_rows": {
+              "title": "Header Rows",
+              "type": "integer"
+            },
+            "merged": {
+              "title": "Merged",
+              "type": "boolean"
+            },
+            "provenance": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "title": "Provenance",
+              "type": "array"
+            }
+          },
+          "required": [
+            "table_ref",
+            "caption",
+            "pages",
+            "rows",
+            "columns",
+            "header_rows",
+            "merged",
+            "provenance"
+          ],
+          "title": "TableInfo",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uuid",
+          "title": "Source Revision",
+          "type": "string"
+        },
+        "evidence_revision": {
+          "format": "uuid",
+          "title": "Evidence Revision",
+          "type": "string"
+        },
+        "tables": {
+          "items": {
+            "$ref": "#/$defs/TableInfo"
+          },
+          "title": "Tables",
+          "type": "array"
+        },
+        "total": {
+          "title": "Total",
+          "type": "integer"
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Next Offset"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_revision",
+        "evidence_revision",
+        "tables",
+        "total",
+        "next_offset"
+      ],
+      "title": "TablesResult",
+      "type": "object"
+    }
+  },
+  "get_document_table": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "source_id": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "source_revision": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "evidence_revision": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "table_ref": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "row_offset": {
+              "default": 0,
+              "maximum": 1000000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "row_limit": {
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "column_offset": {
+              "default": 0,
+              "maximum": 1000000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "column_limit": {
+              "default": 50,
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "format": {
+              "default": "json",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "source_id",
+            "source_revision",
+            "evidence_revision",
+            "table_ref"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "table_ref": {
+          "title": "Table Ref",
+          "type": "string"
+        },
+        "caption": {
+          "title": "Caption",
+          "type": "string"
+        },
+        "pages": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Pages",
+          "type": "array"
+        },
+        "rows": {
+          "title": "Rows",
+          "type": "integer"
+        },
+        "columns": {
+          "title": "Columns",
+          "type": "integer"
+        },
+        "header_rows": {
+          "title": "Header Rows",
+          "type": "integer"
+        },
+        "merged": {
+          "title": "Merged",
+          "type": "boolean"
+        },
+        "provenance": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Provenance",
+          "type": "array"
+        },
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uuid",
+          "title": "Source Revision",
+          "type": "string"
+        },
+        "evidence_revision": {
+          "format": "uuid",
+          "title": "Evidence Revision",
+          "type": "string"
+        },
+        "row_offset": {
+          "title": "Row Offset",
+          "type": "integer"
+        },
+        "column_offset": {
+          "title": "Column Offset",
+          "type": "integer"
+        },
+        "next_row_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Next Row Offset"
+        },
+        "next_column_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Next Column Offset"
+        },
+        "format": {
+          "enum": [
+            "json",
+            "csv"
+          ],
+          "title": "Format",
+          "type": "string"
+        },
+        "cells": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Cells",
+          "type": "array"
+        },
+        "data": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Data",
+          "type": "array"
+        },
+        "csv": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Csv"
+        }
+      },
+      "required": [
+        "table_ref",
+        "caption",
+        "pages",
+        "rows",
+        "columns",
+        "header_rows",
+        "merged",
+        "provenance",
+        "source_id",
+        "source_revision",
+        "evidence_revision",
+        "row_offset",
+        "column_offset",
+        "next_row_offset",
+        "next_column_offset",
+        "format",
+        "cells",
+        "data"
+      ],
+      "title": "TableResult",
+      "type": "object"
+    }
+  },
+  "get_document_page_image": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "source_id": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "source_revision": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "evidence_revision": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "unit": {
+              "maximum": 100000,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "source_id",
+            "source_revision",
+            "evidence_revision",
+            "unit"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uuid",
+          "title": "Source Revision",
+          "type": "string"
+        },
+        "evidence_revision": {
+          "format": "uuid",
+          "title": "Evidence Revision",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "page",
+            "slide"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "integer"
+        },
+        "media_type": {
+          "const": "image/webp",
+          "title": "Media Type",
+          "type": "string"
+        },
+        "width": {
+          "title": "Width",
+          "type": "integer"
+        },
+        "height": {
+          "title": "Height",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_revision",
+        "evidence_revision",
+        "kind",
+        "unit",
+        "media_type",
+        "width",
+        "height"
+      ],
+      "title": "PageImageResult",
+      "type": "object"
+    }
+  },
+  "get_document_status": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "source_id": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "required": [
+            "source_id"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": true,
+      "properties": {
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uuid",
+          "title": "Source Revision",
+          "type": "string"
+        },
+        "source_etag": {
+          "title": "Source Etag",
+          "type": "string"
+        },
+        "state": {
+          "title": "State",
+          "type": "string"
+        },
+        "fts_ready": {
+          "title": "Fts Ready",
+          "type": "boolean"
+        },
+        "semantic_ready": {
+          "title": "Semantic Ready",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_revision",
+        "source_etag",
+        "state",
+        "fts_ready",
+        "semantic_ready"
+      ],
+      "title": "DocumentStatusResult",
+      "type": "object"
+    }
+  },
+  "reextract_document": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "ocr_provider": {
+              "enum": [
+                "local",
+                "azure_read",
+                "disabled"
+              ],
+              "type": "string"
+            },
+            "source_id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "etag": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ocr_provider",
+            "source_id",
+            "etag"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": true,
+      "properties": {
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "job_id": {
+          "format": "uuid",
+          "title": "Job Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "job_id"
+      ],
+      "title": "DocumentJobAccepted",
+      "type": "object"
+    }
+  },
+  "reindex_document": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "source_id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "etag": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "source_id",
+            "etag"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": true,
+      "properties": {
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "job_id": {
+          "format": "uuid",
+          "title": "Job Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "job_id"
+      ],
+      "title": "DocumentJobAccepted",
+      "type": "object"
+    }
+  },
+  "list_documents": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "offset": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "default": 0,
+              "maximum": 1000000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "limit": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "get_document": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "source_id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "revision": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "source_id"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "create_markdown_document": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "body": {
+              "type": "string"
+            },
+            "metadata": {
+              "additionalProperties": false,
+              "properties": {
+                "title": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collection_id": {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "project_id": {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "region": {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "source_kind": {
+                  "default": "document",
+                  "enum": [
+                    "document",
+                    "wiki"
+                  ],
+                  "type": "string"
+                },
+                "language": {
+                  "default": "ja",
+                  "maxLength": 16,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                "external_key": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title",
+                "collection_id"
+              ],
+              "type": "object"
+            },
+            "idempotency_key": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "body",
+            "metadata",
+            "idempotency_key"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "update_document_metadata": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "collection_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "project_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "region": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "source_kind": {
+              "default": "document",
+              "enum": [
+                "document",
+                "wiki"
+              ],
+              "type": "string"
+            },
+            "language": {
+              "default": "ja",
+              "maxLength": 16,
+              "minLength": 2,
+              "type": "string"
+            },
+            "external_key": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "source_id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "etag": {
+              "type": "string"
+            },
+            "idempotency_key": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "collection_id",
+            "source_id",
+            "etag",
+            "idempotency_key"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "list_document_drafts": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "source_id": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "offset": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "default": 0,
+              "maximum": 1000000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "limit": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "create_document_draft": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "source_id": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "source_revision": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "source_etag": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            },
+            "metadata": {
+              "additionalProperties": false,
+              "properties": {
+                "title": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collection_id": {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "project_id": {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "region": {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "source_kind": {
+                  "default": "document",
+                  "enum": [
+                    "document",
+                    "wiki"
+                  ],
+                  "type": "string"
+                },
+                "language": {
+                  "default": "ja",
+                  "maxLength": 16,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                "external_key": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title",
+                "collection_id"
+              ],
+              "type": "object"
+            },
+            "idempotency_key": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "idempotency_key"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "get_document_draft": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "draft_id": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "required": [
+            "draft_id"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "update_document_draft": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "body": {
+              "type": "string"
+            },
+            "metadata": {
+              "additionalProperties": false,
+              "properties": {
+                "title": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collection_id": {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "project_id": {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "region": {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "source_kind": {
+                  "default": "document",
+                  "enum": [
+                    "document",
+                    "wiki"
+                  ],
+                  "type": "string"
+                },
+                "language": {
+                  "default": "ja",
+                  "maxLength": 16,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                "external_key": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title",
+                "collection_id"
+              ],
+              "type": "object"
+            },
+            "attachments": {
+              "items": {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            "draft_id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "etag": {
+              "type": "string"
+            },
+            "idempotency_key": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "body",
+            "draft_id",
+            "etag",
+            "idempotency_key"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "edit_document_draft": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "base_sha256": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            "edits": {
+              "items": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "start": {
+                        "maximum": 9007199254740991,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "end": {
+                        "maximum": 9007199254740991,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "expected": {
+                        "type": "string"
+                      },
+                      "replacement": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "start",
+                      "end",
+                      "expected",
+                      "replacement"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "expected": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "replacement": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "expected",
+                      "replacement"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "maxItems": 100,
+              "minItems": 1,
+              "type": "array"
+            },
+            "draft_id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "etag": {
+              "type": "string"
+            },
+            "idempotency_key": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "base_sha256",
+            "edits",
+            "draft_id",
+            "etag",
+            "idempotency_key"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "commit_document_draft": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "source_etag": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "draft_id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "etag": {
+              "type": "string"
+            },
+            "idempotency_key": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "source_etag",
+            "draft_id",
+            "etag",
+            "idempotency_key"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "get_document_operation": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "operation": {
+              "enum": [
+                "create",
+                "draft",
+                "update",
+                "edit",
+                "commit",
+                "metadata",
+                "attachment"
+              ],
+              "type": "string"
+            },
+            "target_id": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "key": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "operation",
+            "key"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "add_document_attachment": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "filename": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "media_type": {
+              "pattern": "^[a-zA-Z0-9.+-]+\\/[a-zA-Z0-9.+-]+$",
+              "type": "string"
+            },
+            "body_base64": {
+              "maxLength": 2097152,
+              "type": "string"
+            },
+            "draft_id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "etag": {
+              "type": "string"
+            },
+            "idempotency_key": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "filename",
+            "media_type",
+            "body_base64",
+            "draft_id",
+            "etag",
+            "idempotency_key"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "list_document_attachments": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "source_id": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "required": [
+            "source_id"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "list_draft_attachments": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "draft_id": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "required": [
+            "draft_id"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "get_document_attachment": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "source_id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "attachment_id": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "required": [
+            "source_id",
+            "attachment_id"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "get_draft_attachment": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "draft_id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "attachment_id": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "required": [
+            "draft_id",
+            "attachment_id"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "get_document_job": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "job_id": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "required": [
+            "job_id"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "retry_document_job": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "allow_ocr_resubmit": {
+              "default": false,
+              "type": "boolean"
+            },
+            "job_id": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "required": [
+            "job_id"
+          ],
+          "title": "Arguments",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  },
+  "import_document": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "transfer_id": {
+              "pattern": "^[a-f0-9]{32}$",
+              "title": "Transfer Id",
+              "type": "string"
+            },
+            "idempotency_key": {
+              "pattern": "^[\\x21-\\x7e]{1,128}$",
+              "title": "Idempotency Key",
+              "type": "string"
+            }
+          },
+          "required": [
+            "transfer_id",
+            "idempotency_key"
+          ],
+          "title": "ImportInput",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": true,
+      "properties": {
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uuid",
+          "title": "Source Revision",
+          "type": "string"
+        },
+        "job_id": {
+          "format": "uuid",
+          "title": "Job Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_revision",
+        "job_id"
+      ],
+      "title": "RegistrationResult",
+      "type": "object"
+    }
+  },
+  "replace_document_source": {
+    "inputSchema": {
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "transfer_id": {
+              "pattern": "^[a-f0-9]{32}$",
+              "title": "Transfer Id",
+              "type": "string"
+            },
+            "idempotency_key": {
+              "pattern": "^[\\x21-\\x7e]{1,128}$",
+              "title": "Idempotency Key",
+              "type": "string"
+            },
+            "source_id": {
+              "title": "Source Id",
+              "type": "string"
+            },
+            "etag": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\r\\n]+$",
+              "title": "Etag",
+              "type": "string"
+            }
+          },
+          "required": [
+            "transfer_id",
+            "idempotency_key",
+            "source_id",
+            "etag"
+          ],
+          "title": "ReplaceInput",
+          "type": "object"
+        }
+      },
+      "required": [
+        "arguments"
+      ],
+      "title": "operationArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": true,
+      "properties": {
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uuid",
+          "title": "Source Revision",
+          "type": "string"
+        },
+        "job_id": {
+          "format": "uuid",
+          "title": "Job Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_revision",
+        "job_id"
+      ],
+      "title": "RegistrationResult",
+      "type": "object"
+    }
+  },
+  "connect_document_editor": {
+    "inputSchema": {
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "connect_document_editorArguments",
+      "type": "object"
+    },
+    "outputSchema": null
+  }
+}

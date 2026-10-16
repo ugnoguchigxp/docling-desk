@@ -6,9 +6,62 @@ from urllib.parse import urlencode
 from uuid import UUID
 
 from fastapi import HTTPException
+from pydantic import BaseModel, ConfigDict
+
+from docling_desk.viewer.read_results import OutlineResult, SectionResult, TableResult, TablesResult
+
+
+class RegistrationResult(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    source_id: UUID
+    source_revision: UUID
+    job_id: UUID
+
+
+class DocumentStatusResult(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    source_id: UUID
+    source_revision: UUID
+    source_etag: str
+    state: str
+    fts_ready: bool
+    semantic_ready: bool
+
+
+class DocumentJobAccepted(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    source_id: UUID
+    job_id: UUID
+
+
+DOCUMENT_OUTPUTS = {
+    "get_document_outline": OutlineResult,
+    "get_document_section": SectionResult,
+    "list_document_tables": TablesResult,
+    "get_document_table": TableResult,
+    "import_document": RegistrationResult,
+    "replace_document_source": RegistrationResult,
+    "get_document_status": DocumentStatusResult,
+    "reextract_document": DocumentJobAccepted,
+    "reindex_document": DocumentJobAccepted,
+}
 
 # name: (method, relative route, identity parameters, query parameters)
+DOCUMENT_READS = {
+    "get_document_outline": "outline",
+    "get_document_section": "section",
+    "list_document_tables": "tables",
+    "get_document_table": "table",
+    "get_document_page_image": "page-image",
+}
 DOCUMENT_TOOLS = {
+    **{
+        name: ("POST", "/document-reads/" + operation, (), ())
+        for name, operation in DOCUMENT_READS.items()
+    },
+    "get_document_status": ("GET", "/sources/{source_id}", ("source_id",), ()),
+    "reextract_document": ("POST", "/sources/{source_id}/reextract", ("source_id",), ()),
+    "reindex_document": ("POST", "/sources/{source_id}/reindex", ("source_id",), ()),
     "list_documents": ("GET", "/sources", (), ("offset", "limit")),
     "get_document": ("GET", "/sources/{source_id}/body", ("source_id",), ("revision",)),
     "create_markdown_document": ("POST", "/markdown-sources", (), ()),
@@ -38,7 +91,7 @@ DOCUMENT_TOOLS = {
     "get_document_job": ("GET", "/jobs/{job_id}", ("job_id",), ()),
     "retry_document_job": ("POST", "/jobs/{job_id}/retry", ("job_id",), ()),
 }
-READ_POST = {"get_document_operation"}
+READ_POST = {"get_document_operation", *DOCUMENT_READS}
 
 
 async def document_tool(gateway, name: str, user: str, arguments: dict, *, grants=None) -> dict:
@@ -82,4 +135,5 @@ async def document_tool(gateway, name: str, user: str, arguments: dict, *, grant
         method=method,
         headers=headers,
         grants=grants,
+        include_etag=name == "get_document_status",
     )

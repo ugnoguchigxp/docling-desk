@@ -29,6 +29,7 @@ from docling_desk.config import MAX_PAGES, MIN_FREE, MODEL_MANIFEST, MODELS
 from docling_desk.documents.conversion import Job, convert_job, validate_input
 from docling_desk.documents.ocr_operations import FileOcrLedger, HttpOcrLedger
 from docling_desk.documents.ocr_profiles import make_runtime
+from docling_desk.knowledge.document_reads import ReadOptions
 from docling_desk.operations.models import problems as model_problems
 from docling_desk.storage import job_file
 
@@ -50,15 +51,22 @@ class ExtractInput(Input):
     filename: str = Field(min_length=1, max_length=256)
 
 
-class ViewerInput(BaseModel):
+class ArtifactInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_id: UUID
     source_revision: UUID
     job_id: UUID
     run: int = Field(ge=1, le=2**31 - 1)
     suffix: Literal[".pdf", ".pptx", ".xlsx", ".docx", ".md", ".markdown", ".txt", ".text"]
+
+
+class ViewerInput(ArtifactInput):
     resource: str = Field(min_length=1, max_length=512)
     prefix: str = Field(pattern=r"^/viewer/session/[A-Za-z0-9_-]{43}/$")
+
+
+class DocumentReadInput(ArtifactInput):
+    options: ReadOptions
 
 
 class ProfileRequest(BaseModel):
@@ -279,6 +287,7 @@ def create_worker(root: Path, token: str) -> FastAPI:
                 "chunks": chunks,
                 "warnings": job.warnings,
                 "viewer_ready": bool(job.preview),
+                "structure_ready": True,
             }
         except HTTPException:
             raise
@@ -294,22 +303,35 @@ def create_worker(root: Path, token: str) -> FastAPI:
                 shutil.rmtree(folder.parent.parent, ignore_errors=True)
             gate.release()
 
-    @app.post("/internal/v1/viewer", dependencies=[Depends(authenticate)])
-    def viewer(value: ViewerInput) -> dict:
-        from docling_desk.viewer.render import render_resource
-
+    def accepted_folder(value: ArtifactInput) -> Path:
         revision = root / "sources" / str(value.source_id) / str(value.source_revision)
         folder = revision / "attempts" / f"{value.job_id}-{value.run}"
         if (
             root not in folder.resolve().parents
+            or not folder.is_dir()
             or any(p.is_symlink() for p in (revision.parent, revision, folder.parent, folder))
             or not (revision / f"original{value.suffix}").is_file()
             or (revision / f"original{value.suffix}").is_symlink()
             or (job_file(folder)).is_symlink()
         ):
             raise HTTPException(404, "preview_unavailable")
+        return folder
+
+    @app.post("/internal/v1/document-read", dependencies=[Depends(authenticate)])
+    def document_read(value: DocumentReadInput) -> dict:
+        from docling_desk.knowledge.document_reads import read_document
+
         try:
-            return render_resource(folder, value.resource, value.prefix)
+            return read_document(accepted_folder(value), value.options)
+        except (OSError, ValueError, KeyError, RuntimeError, IndexError):
+            raise HTTPException(409, "document_read_not_ready") from None
+
+    @app.post("/internal/v1/viewer", dependencies=[Depends(authenticate)])
+    def viewer(value: ViewerInput) -> dict:
+        from docling_desk.viewer.render import render_resource
+
+        try:
+            return render_resource(accepted_folder(value), value.resource, value.prefix)
         except (OSError, ValueError, KeyError, RuntimeError, IndexError):
             raise HTTPException(404, "viewer_resource_not_found") from None
 

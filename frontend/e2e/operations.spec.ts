@@ -1,4 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
+import { PNG } from "pngjs";
+import { mkdir } from "node:fs/promises";
 import { waitForViewerSurface } from "./viewer-ready";
 const diagnostics = new WeakMap<Page, string[]>();
 test.beforeEach(({ page }) => {
@@ -22,6 +24,126 @@ test.afterEach(async ({ page }) => {
 const slide = "7".repeat(32),
   sheet = "8".repeat(32),
   pdf = "9".repeat(32);
+
+test("image library: upload, thumbnail, metadata, compact Markdown copy, and a second MD tab", async ({
+  page,
+  context,
+}) => {
+  await context.addInitScript(() => {
+    if (window !== window.top) return;
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (text: string) => {
+          document.documentElement.dataset.copiedImageMarkdown = text;
+        },
+      },
+    });
+  });
+  const png = new PNG({ width: 320, height: 180 });
+  for (let i = 0; i < png.data.length; i += 4) {
+    png.data[i] = 50;
+    png.data[i + 1] = 120;
+    png.data[i + 2] = 150;
+    png.data[i + 3] = 255;
+  }
+  await page.goto("/?mode=library");
+  await page.locator("#addFile").click();
+  await page
+    .locator('#upload input[type="file"]')
+    .setInputFiles({
+      name: "library-image.png",
+      mimeType: "image/png",
+      buffer: PNG.sync.write(png),
+    });
+  await page.locator('#upload button[type="submit"]').click();
+  await expect(page.locator("#uploadDialog")).toBeHidden();
+  await page.getByRole("button", { name: "画像を探す", exact: true }).click();
+  const open = page.getByRole("button", {
+    name: "library-image.pngを開く",
+    exact: true,
+  });
+  await expect(open.locator("img")).toBeVisible();
+  await expect
+    .poll(() =>
+      open.locator("img").evaluate((el: HTMLImageElement) => el.naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  await open.click();
+  const dialog = page.locator("#imageDetails");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator(".image-details-preview img")).toHaveAttribute(
+    "src",
+    /\/api\/wiki\/images\/[a-f0-9]{64}\.png$/,
+  );
+  await dialog.getByLabel("代替テキスト", { exact: true }).fill("図 [概要]");
+  await dialog
+    .getByLabel("説明", { exact: true })
+    .fill("画像の横断検索を確認する図");
+  await dialog.getByRole("button", { name: "属性を保存", exact: true }).click();
+  await expect(dialog.getByRole("status")).toHaveText("保存しました。");
+  const copy = dialog.getByRole("button", {
+    name: "Markdownをコピー",
+    exact: true,
+  });
+  await expect(copy).toHaveText("");
+  await copy.click();
+  await expect(dialog.getByRole("status")).toHaveText(
+    "Markdownをコピーしました。",
+  );
+  const copied = await page
+    .locator("html")
+    .getAttribute("data-copied-image-markdown");
+  expect(copied).toMatch(
+    /^!\[図 \\\[概要\\\]\]\(\/api\/wiki\/images\/[a-f0-9]{64}\.png\)$/,
+  );
+  const left = await dialog.locator(".image-details-preview").boundingBox();
+  const right = await dialog.locator(".image-details-fields").boundingBox();
+  expect(left!.x).toBeLessThan(right!.x);
+  const bounds = await dialog.boundingBox();
+  expect(bounds!.width).toBeGreaterThan(page.viewportSize()!.width * 0.95);
+  await mkdir("../qa/media-library", { recursive: true });
+  await page.screenshot({
+    path: "../qa/media-library/image-details.png",
+    fullPage: true,
+  });
+  await dialog.getByRole("button", { name: "閉じる", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(open).toBeFocused();
+  await page.getByLabel("画像を検索", { exact: true }).fill("横断検索");
+  await expect(open).toBeVisible();
+  await page.getByRole("button", { name: "リスト", exact: true }).click();
+  await expect(
+    page.getByRole("table", { name: "保存済みの資料" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "ギャラリー", exact: true }).click();
+  const second = await context.newPage();
+  try {
+    await second.goto("/?mode=wiki");
+    await second
+      .getByRole("button", { name: "新しい記事を作成", exact: true })
+      .click();
+    await second.getByRole("button", { name: "Markdown", exact: true }).click();
+    await second
+      .getByLabel("Markdownソース")
+      .fill(`# 画像参照の確認\n\n${copied}`);
+    await second.getByRole("button", { name: "見たまま", exact: true }).click();
+    const image = second.locator('.wiki-plate img[src*="/api/wiki/images/"]');
+    await expect(image).toBeVisible();
+    await expect
+      .poll(() => image.evaluate((el: HTMLImageElement) => el.naturalWidth))
+      .toBeGreaterThan(0);
+  } finally {
+    await second.close();
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open.click();
+  await expect(dialog).toBeVisible();
+  expect(
+    await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+  ).toBe(true);
+  await dialog.getByRole("button", { name: "閉じる", exact: true }).click();
+});
 
 for (const extension of ["md", "markdown", "txt", "text"]) {
   test(`text document upload and preview: ${extension}`, async ({ page }) => {

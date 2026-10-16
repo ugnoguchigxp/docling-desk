@@ -82,7 +82,7 @@ export function useUpload(
         await cache.invalidateQueries({ queryKey: ["library"] });
         const result = [
           added
-            ? `${added}件の資料を追加しました。抽出状況は資料一覧で確認できます。`
+            ? `${added}件の資料を追加しました。画像はそのまま閲覧でき、文書の抽出状況は資料一覧で確認できます。`
             : "資料を追加できませんでした。",
           ...failures,
         ].join("\n");
@@ -300,7 +300,7 @@ export function useUpload(
             {`保存先：${fixed.current.path}`}
           </p>
           <label className="picker">
-            PDF・PowerPoint・Excel・Word・Markdown・テキスト
+            PDF・PowerPoint・Excel・Word・Markdown・テキスト・画像
             <TextField
               type="file"
               name="file"
@@ -310,7 +310,8 @@ export function useUpload(
             />
           </label>
           <p className="upload-hint">
-            1ファイル50 MiBまで · PDFは最大100ページ · 待機込み3件まで
+            1ファイル50 MiBまで · 文書の抽出は待機込み3件まで ·
+            画像は4000万画素まで
           </p>
           <label className="upload-hint">
             画像から文字を読み取る方法
@@ -334,11 +335,14 @@ export function useUpload(
                 ? "画像内の文字をこの環境で読み取り、RAGへ含めます。"
                 : "画像内の文字はRAGへ含めません。"}
           </p>
+          <p className="upload-hint">
+            単独の画像ファイルは保存のみ行い、OCR・本文抽出は行いません。
+          </p>
           <StatusMessage id="uploadMessage" hidden={!dialogMessage}>
             {dialogMessage}
           </StatusMessage>
           <Button className="primary" type="submit" disabled={busy}>
-            抽出を開始
+            追加する
           </Button>
         </form>
       </Dialog>

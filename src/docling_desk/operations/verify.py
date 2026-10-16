@@ -46,6 +46,7 @@ def checks(include_js: bool) -> list[tuple[list[str], Path]]:
             ROOT,
         ),
         ([python, "-m", "pytest", "tests", "-q"], ROOT),
+        ([python, "-m", "docling_desk.operations.tool_guides"], ROOT),
         ([python, "-m", "docling_desk.operations.models"], ROOT),
     ]
     if include_js:

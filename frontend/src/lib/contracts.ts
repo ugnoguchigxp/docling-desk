@@ -78,6 +78,26 @@ export const library = decoder<Library>(
         preview: maybe(string),
         slide_layout: boolean,
         synthetic: maybe(boolean),
+        image: maybe(
+          fields({
+            reference: string,
+            sha256: string,
+            media_type: string,
+            byte_size: positive,
+            width: positive,
+            height: positive,
+            animated: boolean,
+          }),
+        ),
+        image_metadata: maybe(
+          fields({
+            description: string,
+            tags: list(string),
+            default_alt: string,
+            default_credit: string,
+            source_url: string,
+          }),
+        ),
         translations: maybe(
           (v) =>
             object(v) &&

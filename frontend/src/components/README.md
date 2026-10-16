@@ -31,6 +31,8 @@ API取得・保存版の選択・生成要求・フォルダーの操作判断�
 
 ## 独立した文書ビューアー
 
+Wikiのアップロードと新規作成にも `IconButton` を使用する。`features/WikiEditor.tsx` は共通入力・ボタン・DialogとPlate公式EditorKitを使う `editor/WikiPlate.tsx` を組み合わせ、記事情報の入力と保存を管理する。
+
 `../viewer/DocumentViewer.tsx`は、通常画面とiframe専用入口で共有する閲覧部品です。`ViewerSource`で取得先をインスタンスごとに指定し、翻訳・解説・印刷などの通常画面の操作は`extensions`として外側から渡します。資料一覧、アップロード、Wiki、チャットのDOMには依存しません。埋め込みでは生成・保存・印刷の操作を渡さず、文字選択の質問だけをホストの接続部品へ通知します。
 
 DOMのIDと形式別CSSを再利用するため、同一Reactルートへの複数配置は対象外です。iframeごとの複数配置を使ってください。6形式のsandbox表示、出典位置、表示タブ、狭い画面、再接続、通常画面の操作回帰の記録は`qa/viewer-embedding/`に保存します。

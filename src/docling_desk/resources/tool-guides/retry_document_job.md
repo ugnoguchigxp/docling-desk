@@ -1,0 +1,19 @@
+# 失敗ジョブの再試行
+
+現在版の失敗した抽出・削除ジョブを再開する。
+
+## 前提と引数の入手元
+
+必要なactionはwrite。利用者とscopeは認証済み接続から確定する。get_document_jobで対象・現在版・失敗理由を確認する。write権限が必要。任意の成功済み処理を再実行する操作ではない。返ったjob_idを追跡。原本の再抽出はreextract_document、保存済み本文の再索引はreindex_documentを使う。
+
+## 入出力と呼び出し経路
+
+MCPの完全な入出力スキーマと、対応する文書HTTP操作はこのガイドのschemasに含まれる。section=schemasでも取得できる。HTTPのIf-MatchはMCPではetag、Idempotency-Keyはidempotency_key。既存文書ツールは業務引数をargumentsの中へ入れる。
+
+ホストAPIはPOST /host/tools/retry_document_jobに、信頼するホストの認証とuser_id・argumentsを送る。user_idをLLMから受け取って権限を決めない。ガイドGET APIの利用者別BearerとホストAPIの資格情報を混同しない。
+
+## 副作用と結果の確認
+
+この操作は保存または実行状態を変更する。対象と基準版を取得してから実行する。保存成功と検索反映を分けて確認する。
+
+allow_ocr_resubmitは外部OCRへの再送許可。既定の例はfalse。実際の必要性と外部送信・課金の許可を確認せずtrueにしない。

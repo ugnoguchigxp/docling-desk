@@ -19,6 +19,9 @@ from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
 from docling_desk.documents.library import LOCK
+from docling_desk.knowledge.article_info import ArticleInfo
+from docling_desk.knowledge.authoring import create_router as authoring_router
+from docling_desk.knowledge.editor_ai import create_router as editor_ai_router
 from docling_desk.knowledge.catalog import evidence_body, manifest_metadata
 from docling_desk.knowledge.content import normalize_path, parse, render
 from docling_desk.knowledge.embedding_azure import AzureEmbedding, EmbeddingError
@@ -65,6 +68,7 @@ class WikiMetadata(BaseModel):
         None
     )
     category: str | None = Field(default=None, max_length=200)
+    article_info: ArticleInfo | None = None
 
 
 def service(request: Request, data: Path) -> Knowledge:
@@ -90,6 +94,9 @@ def create_router(data: Callable[[], Path]) -> APIRouter:
 
     def manager(request: Request):
         return service(request, data())
+
+    router.include_router(authoring_router(manager))
+    router.include_router(editor_ai_router())
 
     def displayed_source(knowledge, source):
         if (

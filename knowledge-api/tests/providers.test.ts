@@ -87,3 +87,21 @@ test("provider calls honor an already aborted signal without replaying requests"
   ).rejects.toThrow();
   expect(calls).toBe(0);
 });
+
+test("document-read error bodies obey the bounded provider response contract", async () => {
+  const { HttpExtractor } = await import("../src/providers");
+  const extractor = new HttpExtractor(
+    gateway(() => Response.json({ detail: "x".repeat(32768) }, { status: 422 })),
+    "synthetic",
+  );
+  await expect(
+    extractor.documentRead({
+      source_id: "source",
+      source_revision: "revision",
+      job_id: "job",
+      run: 1,
+      suffix: ".pdf",
+      options: { operation: "outline" },
+    }),
+  ).rejects.toMatchObject({ status: 502, code: "provider_response_too_large" });
+});

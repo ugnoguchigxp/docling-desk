@@ -1,0 +1,17 @@
+# 下書きへの添付登録
+
+原文の下書きに添付を登録する。
+
+## 前提と引数の入手元
+
+必要なactionはwrite。利用者とscopeは認証済み接続から確定する。現在の下書きetagと再送キーが必要。小さいバイナリをbody_base64へ渡す。gatewayのJSON受付上限は2 MiBであり、base64分の増加も含む。返るattachment_id・sha256と新しい下書きetagを保持。本文には添付参照を使い、一時URLや認証情報を埋め込まない。
+
+## 入出力と呼び出し経路
+
+MCPの完全な入出力スキーマと、対応する文書HTTP操作はこのガイドのschemasに含まれる。section=schemasでも取得できる。HTTPのIf-MatchはMCPではetag、Idempotency-Keyはidempotency_key。既存文書ツールは業務引数をargumentsの中へ入れる。
+
+ホストAPIはPOST /host/tools/add_document_attachmentに、信頼するホストの認証とuser_id・argumentsを送る。user_idをLLMから受け取って権限を決めない。ガイドGET APIの利用者別BearerとホストAPIの資格情報を混同しない。
+
+## 副作用と結果の確認
+
+この操作は保存または実行状態を変更する。対象と基準版を取得してから実行する。保存成功と検索反映を分けて確認する。

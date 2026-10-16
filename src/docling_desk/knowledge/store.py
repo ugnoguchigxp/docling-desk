@@ -14,6 +14,8 @@ from uuid import uuid4
 import tiktoken
 
 from docling_desk.documents.library import LOCK, snapshot
+from docling_desk.knowledge.article_images import with_body_image
+from docling_desk.knowledge.article_info import ArticleInfo
 from docling_desk.knowledge.catalog import (
     article_metadata,
     csv_rows,
@@ -21,7 +23,7 @@ from docling_desk.knowledge.catalog import (
     split_frontmatter,
 )
 from docling_desk.knowledge.content import parse
-from docling_desk.knowledge.files import WikiFiles
+from docling_desk.knowledge.files import WikiFiles, article_etag, sha256
 from docling_desk.operations.backup import exclusive_write
 from docling_desk.operations.faults import checkpoint
 from docling_desk.sqlite_writer import connect
@@ -34,6 +36,14 @@ def digest(value: str) -> str:
 
 def normalized(value: str) -> str:
     return unicodedata.normalize("NFKC", value).casefold()
+
+
+class WikiConflict(ValueError):
+    pass
+
+
+class WikiChanged(ValueError):
+    pass
 
 
 def split_text(text: str, maximum: int = 1000) -> list[str]:
@@ -284,6 +294,49 @@ class Store:
             self.sync_wiki()
             return self._import_many(namespace, articles, ids)
 
+    def save_wiki(
+        self,
+        source_id: str,
+        namespace: str,
+        path: str,
+        raw: str,
+        metadata: dict,
+        expected: str | None,
+    ):
+        with exclusive_write(self.data, "index"):
+            self.sync_wiki()
+            records = self.files.load()
+            current = records.get(source_id)
+            if current and current.get("deleted"):
+                raise WikiConflict("削除済みの記事には保存できません。")
+            if current and (current["namespace"], current["path"]) != (namespace, path):
+                raise WikiConflict("保存済み記事の分類とパスは変更できません。")
+            if any(
+                sid != source_id and r["namespace"] == namespace and r["path"] == path
+                for sid, r in records.items()
+            ):
+                raise WikiConflict(
+                    "同じ分類・パスの記事が既にあります。別のパスを指定してください。"
+                )
+            merged = {**(current["metadata"] if current else {}), **metadata}
+            # An identical retry after a lost response must not create a second article.
+            if (
+                current
+                and current["sha256"] == sha256(raw)
+                and current["metadata"] == merged
+                and current["title"] == metadata["title"]
+            ):
+                return self.source(source_id)
+            if current and article_etag(current) != expected:
+                raise WikiChanged(
+                    "記事が別の操作で更新されています。入力を保持したまま、最新の記事を確認してください。"
+                )
+            if not current and expected is not None:
+                raise WikiChanged("保存対象の記事が見つかりません。")
+            return self._import_many(
+                namespace, [{"id": source_id, "path": path, "body": raw, "metadata": merged}], []
+            )[0]
+
     def _import_many(self, namespace: str, articles: list[dict], ids: list[str]) -> list[dict]:
         records = self.files.load()
         with self.connection() as db:
@@ -301,13 +354,24 @@ class Store:
                     "SELECT id,metadata FROM sources WHERE kind='wiki' AND namespace=? AND path=?",
                     (namespace, path),
                 ).fetchone()
-                sid = previous[0] if previous else "wiki-" + uuid4().hex
+                sid = previous[0] if previous else article.get("id") or "wiki-" + uuid4().hex
                 explicit = article.get("metadata")
                 metadata = {
                     **(json.loads(previous[1]) if previous and explicit is None else {}),
                     **article_metadata(frontmatter),
                     **(explicit or {}),
                 }
+                if (
+                    explicit is None
+                    and records.get(sid, {}).get("sha256") != sha256(raw)
+                ):
+                    # Reimporting Markdown must not keep a stale rich document over the new body.
+                    metadata.pop("editor_document", None)
+                if metadata.get("article_info") is not None:
+                    metadata["article_info"] = with_body_image(
+                        ArticleInfo.model_validate(metadata["article_info"]), raw,
+                        metadata.get("editor_document"),
+                    ).model_dump()
                 parsed_title, _, sections = parse(evidence_body(body))
                 if metadata.get("entry_kind") in {"csv", "navigation"} or (
                     metadata.get("language") == "ja"

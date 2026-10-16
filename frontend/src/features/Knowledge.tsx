@@ -5,6 +5,7 @@ import {
   Dialog,
   DialogActions,
   DialogHeading,
+  IconButton,
   SelectField,
   StatusMessage,
   TextField,
@@ -16,6 +17,14 @@ import { withBase } from "../lib/base";
 import { useAsyncScope } from "../lib/async-scope";
 import type { Route } from "../lib/route";
 import { WikiTree } from "./WikiTree";
+import {
+  WikiEditor,
+  newWikiDraft,
+  type ArticleInfo,
+  type WikiDraft,
+} from "./WikiEditor";
+import { WikiPlate } from "../editor/WikiPlate";
+import type { EditorDocument } from "../editor/WikiPlateEditor";
 import "./knowledge.css";
 
 interface ArticleSummary {
@@ -33,6 +42,9 @@ interface ArticleSummary {
   entry_kind?: "csv";
 }
 interface Article extends ArticleSummary {
+  updated?: number;
+  article_info?: ArticleInfo;
+  editor_document?: EditorDocument | null;
   body: string;
   html: string;
   outline: { title: string; anchor: string; level: number }[];
@@ -168,6 +180,7 @@ export function Wiki({
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editor, setEditor] = useState<WikiDraft | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const action = useAsyncScope(`${hidden}:${route.source}`);
   const actionLock = useRef(false);
@@ -185,13 +198,24 @@ export function Wiki({
     if (hidden) return;
     document.title = `${articleTitle || "Wiki"} · Docling Desk`;
     if (route.section && articleRevision) {
-      const heading = [
-        ...(body.current?.querySelectorAll<HTMLElement>("[id]") || []),
-      ].find((node) => node.id === route.section);
-      heading?.scrollIntoView({ block: "start" });
-      if (heading) {
+      const target = body.current;
+      const reveal = () => {
+        const heading = [
+          ...(target?.querySelectorAll<HTMLElement>("[id]") || []),
+        ].find((node) => node.id === route.section);
+        if (!heading) return false;
+        heading.scrollIntoView({ block: "start" });
         heading.tabIndex = -1;
         heading.focus({ preventScroll: true });
+        return true;
+      };
+      if (!reveal() && target) {
+        // Rich article rendering is lazy; resolve a deep link after its nodes mount.
+        const observer = new MutationObserver(() => {
+          if (reveal()) observer.disconnect();
+        });
+        observer.observe(target, { childList: true, subtree: true });
+        return () => observer.disconnect();
       }
     } else body.current?.scrollTo({ top: 0 });
   }, [hidden, articleRevision, articleTitle, route.source, route.section]);
@@ -270,6 +294,26 @@ export function Wiki({
       }
     }
   }
+  async function editArticle() {
+    if (!route.source || actionLock.current) return;
+    actionLock.current = true;
+    const isCurrent = action.start();
+    setBusy(true);
+    setMessage("");
+    try {
+      const draft = await request<WikiDraft>(
+        `/api/wiki/sources/${encodeURIComponent(route.source)}/edit`,
+      );
+      if (isCurrent()) setEditor(draft);
+    } catch (error) {
+      if (isCurrent()) setMessage(errorText(error));
+    } finally {
+      if (isCurrent()) {
+        actionLock.current = false;
+        setBusy(false);
+      }
+    }
+  }
   const articles = (catalog.data?.articles || []).filter(
     (a) =>
       (!namespaceFilter || a.namespace === namespaceFilter) &&
@@ -286,9 +330,16 @@ export function Wiki({
         if (e.dataTransfer.types.includes("Files")) e.preventDefault();
       }}
       onDrop={(e) => {
+        // Plate's HTML5 backend receives the drop at window bubble phase.
+        // Let it own editor drops rather than treating them as article imports.
+        if (editor && e.target instanceof Element && e.target.closest(".wiki-plate")) return;
         if (!e.dataTransfer.types.includes("Files")) return;
         e.preventDefault();
         e.stopPropagation();
+        if (editor) {
+          setMessage("記事の編集を閉じてから、Markdownを取り込んでください。");
+          return;
+        }
         if (busy) {
           setMessage("取り込み中です。完了後に追加してください。");
           return;
@@ -320,15 +371,27 @@ export function Wiki({
           Wiki
         </h1>
         {navigation}
-        <Button
-          className="primary wiki-import"
-          onClick={() => {
-            setMessage("");
-            setImportOpen(true);
-          }}
-        >
-          Markdownを取り込む
-        </Button>
+        <div className="wiki-actions">
+          <IconButton
+            icon="upload"
+            label="Markdownを取り込む"
+            disabled={busy || !!editor}
+            onClick={() => {
+              setMessage("");
+              setImportOpen(true);
+            }}
+          />
+          <IconButton
+            icon="file-plus"
+            label="新しい記事を作成"
+            className="primary"
+            disabled={busy || !!editor}
+            onClick={() => {
+              setMessage("");
+              setEditor(newWikiDraft(namespaceFilter || "Wiki"));
+            }}
+          />
+        </div>
       </Toolbar>
       <StatusMessage className="wiki-message">
         {message || catalog.error?.message || ""}
@@ -354,176 +417,256 @@ export function Wiki({
           </SelectField>
           {catalog.isPending && !hidden && <p>記事一覧を読み込み中…</p>}
           {!catalog.isPending && !articles.length && (
-            <p>記事がありません。Markdownファイルを取り込んでください。</p>
+            <p>
+              記事がありません。新しく作成するか、Markdownファイルを取り込んでください。
+            </p>
           )}
           <WikiTree
             articles={articles}
             currentId={route.source || undefined}
             expandAll={!!filter || !!namespaceFilter}
-            onSelect={(id) => navigate({ ...route, source: id, section: null })}
+            onSelect={(id) => {
+              if (editor)
+                setMessage(
+                  "編集中の記事を保存するか、編集を閉じてから選択してください。",
+                );
+              else navigate({ ...route, source: id, section: null });
+            }}
           />
         </aside>
         <div className="wiki-reader">
-          {!route.source && (
-            <div className="wiki-empty">
-              <h2>Markdownで知識をまとめる</h2>
-              <p>
-                記事を選ぶと本文と目次を表示します。記事と資料は「本文を検索」からまとめて検索できます。
-              </p>
-              <p>同じ分類・パスのファイルを取り込むと本文を更新します。</p>
-            </div>
-          )}
-          {route.source && article.isPending && (
-            <StatusMessage>記事を読み込み中…</StatusMessage>
-          )}
-          {route.source && article.error && (
-            <StatusMessage>{article.error.message}</StatusMessage>
-          )}
-          {route.source && article.data && (
+          {editor ? (
+            <WikiEditor
+              key={editor.id}
+              initial={editor}
+              namespaces={catalog.data?.namespaces || []}
+              onClose={() => setEditor(null)}
+              onSaved={(saved) => {
+                setEditor(null);
+                setMessage("Wikiに保存しました。");
+                void cache.invalidateQueries({ queryKey: ["wiki-catalog"] });
+                void cache.invalidateQueries({ queryKey: ["wiki-article"] });
+                navigate({
+                  ...route,
+                  mode: "wiki",
+                  source: saved.id,
+                  section: null,
+                });
+              }}
+            />
+          ) : (
             <>
-              <div className="wiki-article-bar">
-                <span>
-                  {article.data.namespace} / {article.data.path}
-                </span>
-                {article.data.translation_group && (
-                  <SelectField
-                    aria-label="記事の言語"
-                    value={route.source || ""}
-                    onChange={(e) =>
-                      navigate({
-                        ...route,
-                        source: e.target.value,
-                        section: null,
-                      })
-                    }
-                  >
-                    {(catalog.data?.articles || [])
-                      .filter(
-                        (a) =>
-                          a.namespace === article.data?.namespace &&
-                          a.translation_group ===
-                            article.data?.translation_group,
-                      )
-                      .map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.language || a.path}
-                          {a.translation_status === "untranslated"
-                            ? "（未翻訳）"
-                            : a.translation_status === "needs_review"
-                              ? "（要確認）"
-                              : ""}
-                        </option>
-                      ))}
-                  </SelectField>
-                )}
-                {article.data.related_document && (
-                  <Button
-                    onClick={() =>
-                      navigate({
-                        ...route,
-                        mode: "library",
-                        job: article.data?.related_document?.job_id || null,
-                        view: "preview",
-                        unit: article.data?.source_unit || 1,
-                      })
-                    }
-                  >
-                    関連資料：{article.data.related_document.title}
-                  </Button>
-                )}
-                <a
-                  href={withBase(
-                    `/api/wiki/sources/${encodeURIComponent(route.source)}/markdown`,
-                  )}
-                >
-                  {article.data.entry_kind === "csv"
-                    ? "CSVを保存"
-                    : "Markdownを保存"}
-                </a>
-                <Button
-                  onClick={() => {
-                    deleteTarget.current = route.source;
-                    setDeleteOpen(true);
-                  }}
-                >
-                  記事を削除
-                </Button>
-              </div>
-              {article.data.fallback_original && (
-                <StatusMessage>
-                  日本語訳は未公開です。原文を表示しています。
-                </StatusMessage>
+              {!route.source && (
+                <div className="wiki-empty">
+                  <h2>Markdownで知識をまとめる</h2>
+                  <p>
+                    記事を選ぶと本文と目次を表示します。記事と資料は「本文を検索」からまとめて検索できます。
+                  </p>
+                  <p>同じ分類・パスのファイルを取り込むと本文を更新します。</p>
+                  <p>
+                    右上の新規作成ボタンから、記事を書いてWikiに保存できます。
+                  </p>
+                </div>
               )}
-              <div className="wiki-reading-layout">
-                <nav className="wiki-outline" aria-label="記事の目次">
-                  <strong>目次</strong>
-                  <ul>
-                    {article.data.outline.map((h) => (
-                      <li key={h.anchor} data-level={h.level}>
-                        <a
-                          href={`/?mode=wiki&source=${encodeURIComponent(route.source || "")}&section=${encodeURIComponent(h.anchor)}`}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            navigate({ ...route, section: h.anchor });
+              {route.source && article.isPending && (
+                <StatusMessage>記事を読み込み中…</StatusMessage>
+              )}
+              {route.source && article.error && (
+                <StatusMessage>{article.error.message}</StatusMessage>
+              )}
+              {route.source && article.data && (
+                <>
+                  <div className="wiki-article-bar">
+                    <span>
+                      {article.data.namespace} / {article.data.path}
+                    </span>
+                    {article.data.translation_group && (
+                      <SelectField
+                        aria-label="記事の言語"
+                        value={route.source || ""}
+                        onChange={(e) =>
+                          navigate({
+                            ...route,
+                            source: e.target.value,
+                            section: null,
+                          })
+                        }
+                      >
+                        {(catalog.data?.articles || [])
+                          .filter(
+                            (a) =>
+                              a.namespace === article.data?.namespace &&
+                              a.translation_group ===
+                                article.data?.translation_group,
+                          )
+                          .map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.language || a.path}
+                              {a.translation_status === "untranslated"
+                                ? "（未翻訳）"
+                                : a.translation_status === "needs_review"
+                                  ? "（要確認）"
+                                  : ""}
+                            </option>
+                          ))}
+                      </SelectField>
+                    )}
+                    {article.data.related_document && (
+                      <Button
+                        onClick={() =>
+                          navigate({
+                            ...route,
+                            mode: "library",
+                            job: article.data?.related_document?.job_id || null,
+                            view: "preview",
+                            unit: article.data?.source_unit || 1,
+                          })
+                        }
+                      >
+                        関連資料：{article.data.related_document.title}
+                      </Button>
+                    )}
+                    <a
+                      href={withBase(
+                        `/api/wiki/sources/${encodeURIComponent(route.source)}/markdown`,
+                      )}
+                    >
+                      {article.data.entry_kind === "csv"
+                        ? "CSVを保存"
+                        : "Markdownを保存"}
+                    </a>
+                    {article.data.entry_kind !== "csv" && (
+                      <Button
+                        disabled={busy}
+                        onClick={() => void editArticle()}
+                      >
+                        編集
+                      </Button>
+                    )}
+                    <Button
+                      onClick={() => {
+                        deleteTarget.current = route.source;
+                        setDeleteOpen(true);
+                      }}
+                    >
+                      記事を削除
+                    </Button>
+                  </div>
+                  {article.data.fallback_original && (
+                    <StatusMessage>
+                      日本語訳は未公開です。原文を表示しています。
+                    </StatusMessage>
+                  )}
+                  <div className="wiki-reading-layout">
+                    <nav className="wiki-outline" aria-label="記事の目次">
+                      <strong>目次</strong>
+                      <ul>
+                        {article.data.outline.map((h) => (
+                          <li key={h.anchor} data-level={h.level}>
+                            <a
+                              href={`/?mode=wiki&source=${encodeURIComponent(route.source || "")}&section=${encodeURIComponent(h.anchor)}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                navigate({ ...route, section: h.anchor });
+                              }}
+                            >
+                              {h.title}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </nav>
+                    <div
+                      ref={body}
+                      className="wiki-body"
+                      onClick={(e) => {
+                        const anchor = (
+                          e.target as HTMLElement
+                        ).closest<HTMLAnchorElement>("a");
+                        if (
+                          !anchor ||
+                          e.metaKey ||
+                          e.ctrlKey ||
+                          e.shiftKey ||
+                          e.altKey ||
+                          anchor.target === "_blank"
+                        )
+                          return;
+                        if (anchor.getAttribute("aria-disabled") === "true") {
+                          e.preventDefault();
+                          setMessage(
+                            anchor.title || "リンク先を参照できません。",
+                          );
+                          return;
+                        }
+                        const href = anchor.getAttribute("href");
+                        if (!href) return;
+                        if (href.startsWith("#")) {
+                          e.preventDefault();
+                          navigate({
+                            ...route,
+                            section: href.slice(1) || null,
+                          });
+                          return;
+                        }
+                        const url = new URL(href, location.href);
+                        if (
+                          url.origin !== location.origin ||
+                          !["/", withBase("/")].includes(url.pathname)
+                        )
+                          return;
+                        e.preventDefault();
+                        navigate({
+                          ...route,
+                          mode:
+                            url.searchParams.get("mode") === "wiki"
+                              ? "wiki"
+                              : "library",
+                          source: url.searchParams.get("source"),
+                          section: url.searchParams.get("section"),
+                          job: url.searchParams.get("job"),
+                          view: "preview",
+                          unit: Number(url.searchParams.get("unit")) || null,
+                        });
+                      }}
+                    >
+                      {article.data.article_info && (
+                        <>
+                          <h1 className="wiki-article-title">
+                            {article.data.title}
+                          </h1>
+                          {article.data.article_info.subtitle && (
+                            <p className="wiki-article-subtitle">
+                              {article.data.article_info.subtitle}
+                            </p>
+                          )}
+                        </>
+                      )}
+                      {article.data.editor_document ? (
+                        <WikiPlate
+                          key={
+                            article.data.id +
+                            article.data.revision +
+                            article.data.updated
+                          }
+                          initial={article.data.body}
+                          document={article.data.editor_document}
+                          outline={article.data.outline}
+                          renderedHtml={article.data.html}
+                          readOnly
+                          preview
+                        />
+                      ) : (
+                        <div
+                          dangerouslySetInnerHTML={{
+                            __html: article.data.html,
                           }}
-                        >
-                          {h.title}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </nav>
-                <div
-                  ref={body}
-                  className="wiki-body"
-                  onClick={(e) => {
-                    const anchor = (
-                      e.target as HTMLElement
-                    ).closest<HTMLAnchorElement>("a");
-                    if (
-                      !anchor ||
-                      e.metaKey ||
-                      e.ctrlKey ||
-                      e.shiftKey ||
-                      e.altKey ||
-                      anchor.target === "_blank"
-                    )
-                      return;
-                    if (anchor.getAttribute("aria-disabled") === "true") {
-                      e.preventDefault();
-                      setMessage(anchor.title || "リンク先を参照できません。");
-                      return;
-                    }
-                    const href = anchor.getAttribute("href");
-                    if (!href) return;
-                    if (href.startsWith("#")) {
-                      e.preventDefault();
-                      navigate({ ...route, section: href.slice(1) || null });
-                      return;
-                    }
-                    const url = new URL(href, location.href);
-                    if (
-                      url.origin !== location.origin ||
-                      !["/", withBase("/")].includes(url.pathname)
-                    )
-                      return;
-                    e.preventDefault();
-                    navigate({
-                      ...route,
-                      mode:
-                        url.searchParams.get("mode") === "wiki"
-                          ? "wiki"
-                          : "library",
-                      source: url.searchParams.get("source"),
-                      section: url.searchParams.get("section"),
-                      job: url.searchParams.get("job"),
-                      view: "preview",
-                      unit: Number(url.searchParams.get("unit")) || null,
-                    });
-                  }}
-                  dangerouslySetInnerHTML={{ __html: article.data.html }}
-                />
-              </div>
+                        />
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

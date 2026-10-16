@@ -1,0 +1,55 @@
+Use case: ui-mockup. Create a high-fidelity realistic Japanese desktop application UI design for Docling Desk. Landscape 16:10, very high resolution and crisp readable Japanese typography. This is a proposed interface, not a working deployed screenshot. Flat, precise 1px dividers, white canvas, very light blue-gray panels, deep muted teal primary accent #176779, dark slate text. Modern restrained Japanese professional writing software. No photographs, no device mockup, no perspective, no decorative gradients, no marketing slogans or surrounding annotations. Render exactly ONE coherent screen, fully within frame. Text should be legible and specified Japanese labels rendered accurately.
+Asset type: Detailed FUTURE publishing settings workbench for the SAME Docling Desk article. This design must show substantive, DIFFERENT platform metadata, not four interchangeable generic publish switches.
+A small quiet full-width top notice "将来の投稿機能の設計案" makes it clear that this is a proposed future screen. No live publish claims or invented connected accounts.
+Top app bar identical style to editor: "Docling Desk", selected "Wiki", on far right adjacent icon-only upload and new-document buttons.
+Header row: back link "← 本文に戻る", title "投稿設定", compact article name "Markdownを一度書いて、複数の媒体へ届ける". Right secondary "設定を保存", teal but DISABLED "送信前の確認". Beneath short helper "投稿先ごとに調整し、送信する版を固定します。".
+Compact shared information band: "対象原稿  Wiki保存版 v3" and "共通タイトル・キーワードを引き継ぐ"; editable common source URL field label "元記事の公開URL（任意）" with placeholder "公開済みの記事URL". All publishing destinations currently unconnected, nothing sent.
+Main area FOUR VERTICAL COLUMNS side by side, each approx 23% width, same card height, modest outlines with subtle top platform accent, readable Japanese fields. Use platform names as simple wordmarks only, not made-up detailed logos. Each card has top checkbox, name and clear connection/status line. Do not crowd too much text; use aligned labeled fields, compact input heights, short helper lines.
+COLUMN Zenn:
+Title "Zenn"; route badge "GitHub連携"; status "未接続".
+"接続先" dropdown placeholder "リポジトリを選択"
+"タイトル" input "共通タイトルを使用" with small chain/inherit icon
+One row split into "絵文字" field 📝 and "記事種別" dropdown "tech"
+"Topics" chips "markdown" "ai"
+"slug" input "markdown-multi-post"
+"Publication" dropdown "個人 / 任意で指定"
+"公開設定" dropdown "下書き"
+"公開日時" field "未指定" with explicit small "JST" label
+Bottom quiet note "GitHub反映とZenn側の結果を確認".
+COLUMN Blogger:
+Title "Blogger"; route badge "API連携"; status "未接続".
+"投稿先ブログ" dropdown "ブログを選択"
+"タイトル" input "共通タイトルを使用"
+"Labels" chips "Markdown" "AI"
+"公開設定" dropdown "下書き"
+"公開日時" field "未指定" and timezone "Asia/Tokyo"
+"本文形式" read-only status "Markdown → HTML"
+"画像・リンク" quiet status "外部からの参照を確認"
+Thin separator then small collapsed row "サイト側で仕上げる設定" with short helper "パーマリンク・検索向け説明".
+BOTTOM note "公開前にHTMLの見え方を確認".
+COLUMN Qiita:
+Title "Qiita"; route badge "API連携"; status "未接続".
+"投稿者" dropdown "アカウントを選択"
+"タイトル" input "共通タイトルを使用"
+"タグ" chips "Markdown" "AI", small counter "2 / 5"
+"Organization" dropdown "指定なし"
+"公開範囲" dropdown placeholder "全体公開 / 限定共有"
+Small restrained amber helper "限定共有は下書きではありません"
+"予約投稿" disabled field "この連携では未対応"
+Collapsed "詳細設定" with single short subline "タグのバージョン・スライド・X共有"
+Bottom note "下書きはWikiで保持し、送信時に公開範囲を選択".
+COLUMN Medium:
+Title "Medium"; route badge "取り込み・手動"; status "新規API連携不可" in subdued amber.
+"投稿先" dropdown "個人 / Publication"
+"タイトル・副題" field "共通情報を使用"
+"Topics" chips "Writing" "Technology", counter "2 / 5" clearly current WEB mode, not legacy API
+"一覧画像" dropdown "本文の画像から選択"
+"Canonical URL" input "元記事URLを使用"
+"ライセンス" dropdown "All rights reserved"
+Small notice "公開範囲・予約はMediumで設定"
+Secondary quiet action "取り込み用に準備", not "API接続".
+Bottom note "既存トークンの利用は別途確認".
+Below four cards, compact FULL-WIDTH BOTTOM PANEL split logically:
+left tabs "媒体別プレビュー" and selected "変換・画像の確認", small visible checklist status rows "画像の配置先  未確認" and "Wiki内リンク・独自記法  確認が必要". No claim a full rendering engine exists.
+right heading "投稿履歴", a light table header "投稿先 / 外部記事 / 送信した版 / 状態", single quiet explanatory placeholder "未送信。送信後は媒体ごとにURLと版を記録". No fake successful posts. Footer note "本文の更新は自動で再投稿しません".
+Important truthful constraints: DO NOT show universal global publish/schedule/canonical switches; DO NOT label Qiita limited sharing a draft; DO NOT show Medium API connection; do NOT assert the same cover image or synopsis is natively supported everywhere. No account tokens or implementation code in form. No screens nested inside cards. The four platform differences, retained source-version information and conversion checks must be clearly visible at normal zoom.

@@ -28,16 +28,21 @@ MAX_THUMBNAIL_BYTES = 2000
 THUMBNAIL_SIZE = (112, 160)
 
 
-def encode_thumbnail(image: Image.Image) -> bytes:
+def encode_thumbnail(
+    image: Image.Image,
+    *,
+    size: tuple[int, int] = THUMBNAIL_SIZE,
+    max_bytes: int = MAX_THUMBNAIL_BYTES,
+) -> bytes:
     """Preserve current quality where possible, with a strict per-image size cap."""
     candidate = image.convert("RGB")
-    candidate.thumbnail(THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
+    candidate.thumbnail(size, Image.Resampling.LANCZOS)
     while True:
         for quality in (WEBP_QUALITY, 35, 25):
             with BytesIO() as stream:
                 candidate.save(stream, format="WEBP", quality=quality, method=WEBP_METHOD)
                 encoded = stream.getvalue()
-            if len(encoded) <= MAX_THUMBNAIL_BYTES:
+            if len(encoded) <= max_bytes:
                 return encoded
         width, height = candidate.size
         if max(width, height) <= 1:

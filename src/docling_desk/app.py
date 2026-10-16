@@ -10,7 +10,16 @@ from fastapi import FastAPI
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from docling_desk import config
-from docling_desk.api import assets, explanation, health, library, preview, translation, uploads
+from docling_desk.api import (
+    assets,
+    explanation,
+    health,
+    library,
+    media,
+    preview,
+    translation,
+    uploads,
+)
 from docling_desk.blob_mirror import MirrorWorker, create_mirror
 from docling_desk.documents.conversion import Job, save_job
 from docling_desk.explanation.service import ExplanationManager
@@ -94,6 +103,7 @@ def create_app() -> FastAPI:
     application.middleware("http")(authenticate)
     application.include_router(health.router)
     application.include_router(library.router)
+    application.include_router(media.router)
     application.include_router(uploads.router)
     application.include_router(preview.router)
     application.include_router(explanation.router)

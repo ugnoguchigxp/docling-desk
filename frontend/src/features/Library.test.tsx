@@ -325,6 +325,7 @@ function setup(props?: {
 
 beforeEach(() => {
   requests.length = 0;
+  localStorage.removeItem("docling-library-views");
   installDialog();
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
@@ -958,4 +959,27 @@ it("disables destinations that contain a folder being moved", async () => {
       name: "自己",
     }),
   ).toBeEnabled();
+});
+
+it("switches to gallery without losing selection and remembers each folder's view", async () => {
+  const { user } = setup();
+  await user.click(screen.getByRole("checkbox", { name: "scan.pdfを選択" }));
+  await user.click(screen.getByRole("button", { name: "ギャラリー" }));
+  expect(
+    screen.getByRole("checkbox", { name: "scan.pdfを選択" }),
+  ).toBeChecked();
+  expect(
+    screen.getByRole("list", { name: "保存済みの資料" }),
+  ).toBeInTheDocument();
+  expect(
+    JSON.parse(localStorage.getItem("docling-library-views")!)["folder:root"],
+  ).toBe("gallery");
+  await user.click(screen.getByRole("button", { name: "アルファを開く" }));
+  expect(
+    screen.getByRole("table", { name: "保存済みの資料" }),
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "資料一覧" }));
+  expect(
+    screen.getByRole("list", { name: "保存済みの資料" }),
+  ).toBeInTheDocument();
 });

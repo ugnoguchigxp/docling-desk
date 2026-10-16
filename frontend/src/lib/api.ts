@@ -31,7 +31,15 @@ export async function request<T>(
     throw new Error(
       object(value) && typeof value.detail === "string"
         ? value.detail
-        : `HTTP ${response.status}`,
+        : object(value) && Array.isArray(value.detail)
+          ? value.detail
+              .map((issue) =>
+                object(issue) && typeof issue.msg === "string"
+                  ? issue.msg.replace(/^Value error, /, "")
+                  : "入力内容を確認してください。",
+              )
+              .join("\n")
+          : `HTTP ${response.status}`,
     );
   return decode ? decode(value) : (value as T);
 }

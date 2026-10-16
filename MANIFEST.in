@@ -1,2 +1,12 @@
 include contracts/knowledge-api.openapi.json
 include contracts/viewer-embedding.schema.json
+include contracts/mcp-tools.json
+include contracts/tool-guides.openapi.json
+include contracts/document-transfers.openapi.json
+
+include integrations/eumenes/README.md
+include integrations/eumenes/connection.example.json
+include integrations/eumenes/connection.schema.json
+include integrations/documents/clients.example.json
+include integrations/documents/gateway.example.json
+include integrations/documents/gateway.container.example.json

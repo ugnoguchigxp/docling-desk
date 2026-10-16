@@ -1,0 +1,11 @@
+# 資料原本の差し替え
+
+get_document_statusで現在のsource_etagを取得する。元のmetadata全量（external_keyがあればそれも含む）は登録時の記録またはget_documentのmetadataから取得し、変更しない。
+
+ホストがPOST /api/v1/document-transfersへfile・metadata・source_id・etag・任意のocr_providerをmultipartで送る。この転送時のsource_id・etagと同じ値をMCPへ渡す。write権限と同じ保存先へのアクセスが必要。APIのIf-Matchと再送キーを維持して差し替える。412なら原本版が古い。入力を保持し最新状態を確認して新しいtransferを用意する。
+
+確定直後は旧版が通常検索から外れる。原本のsource_idは同じでsource_revisionが新しくなり、抽出ジョブが作られる。返ったjob_idを追跡する。本文保存とFTS・意味索引の準備を区別する。
+
+## 呼び出しと返却値
+
+MCPは業務引数をargumentsの中へ入れる。HTTPの対応操作と完全な入出力スキーマはschemasで取得する。利用者はホストの認証結果で決まり、モデル引数で権限を作らない。

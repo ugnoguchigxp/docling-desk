@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { id, recordSchema, referenceSchema, viewerResultSchema } from "./contracts";
+import { readResponseSchemas } from "./document-reads";
 import { EDITING_ENDPOINTS } from "./editing";
 import { generatedSchema } from "./providers";
 
@@ -134,6 +135,7 @@ export const errorResponse = z
   })
   .strict();
 export const responseSchemas: Record<string, z.ZodType> = {
+  ...readResponseSchemas,
   ...Object.fromEntries(EDITING_ENDPOINTS.map((e) => [`${e.method} ${e.path}`, e.response])),
   "get /api/v1/openapi.json": z.record(z.string(), z.unknown()),
   "post /api/v1/viewer": viewerResultSchema,

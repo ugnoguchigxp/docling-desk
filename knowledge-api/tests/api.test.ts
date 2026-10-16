@@ -1482,3 +1482,151 @@ test("viewer evidence switches atomically and failed re-extraction preserves the
     ).status,
   ).toBe(200);
 });
+
+describe("bounded versioned document reads", () => {
+  async function setup() {
+    const f = await fixture();
+    f.extractor.viewerReady = true;
+    const saved = await f.ready();
+    const status = await (await f.req(`/api/v1/sources/${saved.source_id}`)).json();
+    const ref = {
+      source_id: saved.source_id,
+      source_revision: saved.source_revision,
+      evidence_revision: status.evidence_revision,
+    };
+    return { ...f, ref };
+  }
+  const outline = { kind: "document", units: [], entries: [], total: 0, next_offset: null };
+  test("all five routes preserve versions, defaults, output contracts and read-only permission", async () => {
+    const f = await setup();
+    const calls: unknown[] = [];
+    (f.extractor as Extractor).documentRead = async (input) => {
+      calls.push(input);
+      switch (input.options.operation) {
+        case "outline":
+          return outline;
+        case "section":
+          return { kind: "document", selector: input.options.selector, elements: [], chars: 0 };
+        case "tables":
+          return { tables: [], total: 0, next_offset: null };
+        case "table":
+          return {
+            table_ref: "#/tables/0",
+            caption: "",
+            pages: [],
+            rows: 1,
+            columns: 1,
+            header_rows: 0,
+            merged: false,
+            provenance: [],
+            row_offset: 0,
+            column_offset: 0,
+            next_row_offset: null,
+            next_column_offset: null,
+            format: "json",
+            cells: [],
+            data: [["x"]],
+          };
+        case "page-image":
+          return {
+            kind: "page",
+            unit: 1,
+            media_type: "image/webp",
+            width: 1,
+            height: 1,
+            body_base64: "UklGRldFQlA=",
+          };
+      }
+    };
+    f.setClients([{ ...client, actions: ["read"] }, other]);
+    for (const [operation, extra] of [
+      ["outline", {}],
+      ["section", { selector: { kind: "elements", start_ref: "#/texts/0", end_ref: "#/texts/0" } }],
+      ["tables", {}],
+      ["table", { table_ref: "#/tables/0" }],
+      ["page-image", { unit: 1 }],
+    ] as const) {
+      const response = await f.req(`/api/v1/document-reads/${operation}`, "POST", {
+        ...f.ref,
+        ...extra,
+      });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject(f.ref);
+    }
+    expect(calls).toHaveLength(5);
+    expect(calls[0]).toMatchObject({ options: { offset: 0, limit: 100 } });
+    expect(f.extractor.calls).toBe(1);
+  });
+  test("scope, stale source/evidence, unknown fields and invalid limits stop before processor", async () => {
+    const f = await setup();
+    let calls = 0;
+    (f.extractor as Extractor).documentRead = async () => {
+      calls++;
+      return outline;
+    };
+    const route = "/api/v1/document-reads/outline";
+    expect((await f.req(route, "POST", f.ref, other)).status).toBe(404);
+    for (const key of ["source_revision", "evidence_revision"]) {
+      expect((await f.req(route, "POST", { ...f.ref, [key]: randomUUID() })).status).toBe(409);
+    }
+    for (const extra of [{ limit: 201 }, { offset: -1 }, { user_id: "other" }, { limit: 1.5 }]) {
+      expect((await f.req(route, "POST", { ...f.ref, ...extra })).status).toBe(422);
+    }
+    expect(calls).toBe(0);
+    f.setClients([{ ...client, actions: ["write"] }, other]);
+    expect((await f.req(route, "POST", f.ref)).status).toBe(403);
+  });
+  for (const change of ["delete", "source", "evidence", "scope", "action", "credential"] as const) {
+    test(`${change} racing processor I/O cannot disclose a read`, async () => {
+      const f = await setup();
+      (f.extractor as Extractor).documentRead = async () => {
+        switch (change) {
+          case "delete":
+            f.store.db.run("UPDATE sources SET deleted=1 WHERE id=?", [f.ref.source_id]);
+            break;
+          case "source":
+            f.store.db.run("UPDATE sources SET current_revision=? WHERE id=?", [
+              randomUUID(),
+              f.ref.source_id,
+            ]);
+            break;
+          case "evidence":
+            f.store.db.run("UPDATE revisions SET evidence_revision=? WHERE id=?", [
+              randomUUID(),
+              f.ref.source_revision,
+            ]);
+            break;
+          case "scope":
+            f.setClients([{ ...client, scopes: [] }, other]);
+            break;
+          case "action":
+            f.setClients([{ ...client, actions: ["write"] }, other]);
+            break;
+          case "credential":
+            f.setClients([{ ...client, keys: { v1: "new".repeat(20) } }, other]);
+            break;
+        }
+        return { ...outline, units: [{ number: 1, name: "PRIVATE" }] };
+      };
+      const response = await f.req("/api/v1/document-reads/outline", "POST", f.ref);
+      expect(response.status).toBeGreaterThanOrEqual(400);
+      expect(await response.text()).not.toContain("PRIVATE");
+    });
+  }
+  test("unready artifacts and invalid provider data never become successful empty results", async () => {
+    const f = await setup();
+    const route = "/api/v1/document-reads/outline";
+    expect((await f.req(route, "POST", f.ref)).status).toBe(503);
+    (f.extractor as Extractor).documentRead = async () => ({
+      ...outline,
+      entries: [{ text: "PRIVATE" }],
+    });
+    const response = await f.req(route, "POST", f.ref);
+    expect(response.status).toBe(502);
+    expect(await response.text()).not.toContain("PRIVATE");
+    f.store.db.run("DELETE FROM viewer_artifacts WHERE source_revision=?", [f.ref.source_revision]);
+    const unavailable = await f.req(route, "POST", f.ref);
+    expect(unavailable.status).toBe(409);
+    expect((await unavailable.json()).error.code).toBe("document_read_not_ready");
+  });
+});

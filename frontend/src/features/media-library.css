@@ -1,0 +1,308 @@
+.library-location-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  min-width: 0;
+}
+.library-location-bar .breadcrumbs {
+  margin: 0;
+  min-width: 0;
+}
+.library-view-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.library-view-bar {
+  display: flex;
+  gap: 3px;
+}
+.library-view-controls button {
+  font-size: 12px;
+  padding: 4px 7px;
+  white-space: nowrap;
+}
+.library-view-bar button[aria-pressed="true"],
+.library-layout-toggle button[aria-pressed="true"] {
+  background: #e8f3f5;
+  color: var(--accent);
+  border-color: #b6d3da;
+}
+.library-layout-toggle {
+  display: flex;
+  gap: 3px;
+}
+.image-folder-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 12px;
+  color: #536d7b;
+}
+.image-folder-filter select {
+  flex: 1;
+  min-width: 0;
+  width: 210px;
+  max-width: 100%;
+  font-size: 12px;
+  padding: 4px 7px;
+}
+.library-gallery {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 18px;
+  padding: 0;
+  margin: 0;
+}
+.library-gallery > li {
+  min-width: 0;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  position: relative;
+}
+.library-gallery > li.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.gallery-item-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+}
+.gallery-item-tools .item-menu {
+  position: relative;
+}
+.gallery-open {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  text-align: left;
+  gap: 7px;
+  width: 100%;
+  padding: 0 12px 14px;
+}
+.gallery-open:hover {
+  background: transparent;
+}
+.gallery-thumbnail {
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafb;
+  margin-bottom: 6px;
+}
+.gallery-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.gallery-thumbnail > .icon {
+  width: 52px;
+  height: 52px;
+  color: #7196a5;
+}
+.gallery-file-kind {
+  font-size: 18px;
+  color: #668492;
+}
+.gallery-name {
+  overflow-wrap: anywhere;
+  color: #243744;
+}
+.gallery-meta {
+  font-size: 11px;
+  color: #6d818e;
+  overflow-wrap: anywhere;
+}
+dialog.image-details-dialog {
+  width: calc(100vw - 24px);
+  height: calc(100dvh - 24px);
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+dialog.image-details-dialog[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.image-details-dialog > .dialog-heading {
+  padding: 14px 20px;
+  margin: 0;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.image-details-dialog .dialog-heading h2 {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.image-details-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  min-height: 0;
+  overflow: hidden;
+}
+.image-details-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  background: #f4f7fa;
+  padding: 20px;
+  min-width: 0;
+  min-height: 0;
+}
+.image-details-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  min-height: 0;
+}
+.image-details-preview > span {
+  font-size: 12px;
+  color: #617c8c;
+  flex-shrink: 0;
+}
+.image-details-fields {
+  padding: 20px;
+  overflow: auto;
+  border-left: 1px solid var(--line);
+  min-width: 0;
+}
+.image-markdown-copy {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 22px;
+  min-width: 0;
+}
+.image-markdown-copy input {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  min-width: 0;
+  width: 100%;
+  flex: 1;
+}
+.image-markdown-copy > .icon-button {
+  flex-shrink: 0;
+}
+.image-details-fields form {
+  display: grid;
+  gap: 16px;
+}
+.image-details-fields label {
+  display: grid;
+  gap: 5px;
+  color: #496575;
+  font-size: 12px;
+}
+.image-details-fields input,
+.image-details-fields textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.image-details-fields textarea {
+  resize: vertical;
+  font: inherit;
+  color: inherit;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: white;
+}
+.image-details-fields details {
+  padding-block: 5px;
+}
+.image-details-fields details[open] > label {
+  margin-top: 12px;
+}
+.image-details-fields form > button {
+  justify-self: start;
+  border-color: var(--line);
+}
+.image-field-hint {
+  font-size: 11px;
+  color: #718693;
+}
+.image-details-fields dl {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr);
+  gap: 7px 10px;
+  font-size: 12px;
+  padding-top: 20px;
+  margin-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.image-details-fields dt {
+  color: #6b818e;
+}
+.image-details-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.image-details-fields > [role="status"] {
+  font-size: 12px;
+  white-space: pre-line;
+}
+@media (max-width: 800px) {
+  .image-details-body {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+  .library-tools,
+  .list-filters {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 600px) {
+  dialog.image-details-dialog {
+    width: calc(100vw - 12px);
+    height: calc(100dvh - 12px);
+  }
+  .image-details-body {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+  .image-details-preview {
+    height: 280px;
+    min-height: 280px;
+    padding: 14px;
+  }
+  .image-details-fields {
+    overflow: visible;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding: 14px;
+  }
+  .library-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .gallery-thumbnail {
+    height: 120px;
+  }
+  .list-filters {
+    gap: 3px;
+  }
+  .image-details-dialog > .dialog-heading {
+    padding: 12px 14px;
+  }
+}

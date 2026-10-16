@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 
 from docling_desk import config
 from docling_desk.api.dependencies import job_detail, job_folder
+from docling_desk.documents.images import IMAGE_SUFFIXES
 from docling_desk.documents.text import SUPPORTED_SUFFIXES
 from docling_desk.storage import original_file, safe_path
 from docling_desk.web.frontend import default_index
@@ -70,7 +71,7 @@ def artifact(
     thumbnail: bool = False,
 ) -> Response:
     folder = job_folder(job_id)
-    if relative in {"original" + suffix for suffix in SUPPORTED_SUFFIXES}:
+    if relative in {"original" + suffix for suffix in SUPPORTED_SUFFIXES | IMAGE_SUFFIXES}:
         target = original_file(folder, relative[len("original") :])
         if not safe_path(config.DATA, target) or not target.is_file():
             raise HTTPException(404)

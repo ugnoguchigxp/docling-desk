@@ -14,6 +14,23 @@ def sha256(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def article_etag(record: dict) -> str:
+    return (
+        '"'
+        + sha256(
+            json.dumps(
+                {
+                    k: record[k]
+                    for k in ("id", "namespace", "path", "title", "sha256", "metadata", "deleted")
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        + '"'
+    )
+
+
 class WikiFiles:
     def __init__(self, data: Path):
         self.root = data / "content"
@@ -39,10 +56,10 @@ class WikiFiles:
                 raise ValueError("Wikiの記事情報が重複または不正です。")
             paths.add(logical)
             metadata = article["metadata"]
-            if not isinstance(
-                metadata if isinstance(metadata, dict) else json.loads(metadata), dict
-            ):
+            metadata = metadata if isinstance(metadata, dict) else json.loads(metadata)
+            if not isinstance(metadata, dict):
                 raise ValueError("Wikiの記事情報が不正です。")
+            article["metadata"] = metadata
         return value["articles"]
 
     def stage(self, source: dict, raw: str, previous: dict | None = None) -> dict:
@@ -77,7 +94,11 @@ class WikiFiles:
         return record
 
     def target(self, key: str) -> Path:
-        if not isinstance(key, str) or not key.startswith("wiki/revisions/") or "\\" in key:
+        if (
+            not isinstance(key, str)
+            or not key.startswith(("wiki/revisions/", "wiki/images/", "wiki/media/"))
+            or "\\" in key
+        ):
             raise ValueError("Wikiの保存パスが不正です。")
         relative = Path(key)
         if relative.is_absolute() or any(p in {".", ".."} for p in relative.parts):

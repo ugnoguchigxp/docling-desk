@@ -1,0 +1,17 @@
+# 下書きの作成
+
+新規または既存Markdownから共有下書きを作る。
+
+## 前提と引数の入手元
+
+必要なactionはwrite。利用者とscopeは認証済み接続から確定する。新規はbody・metadata、既存はget_documentのsource_id・source_revisionと、文書etagをsource_etagへ渡す。既存のbody省略時は原文と添付参照を引き継ぐ。返ったdraft_id・etag・sha256を保持。PDF・Office原本の編集には使わない。
+
+## 入出力と呼び出し経路
+
+MCPの完全な入出力スキーマと、対応する文書HTTP操作はこのガイドのschemasに含まれる。section=schemasでも取得できる。HTTPのIf-MatchはMCPではetag、Idempotency-Keyはidempotency_key。既存文書ツールは業務引数をargumentsの中へ入れる。
+
+ホストAPIはPOST /host/tools/create_document_draftに、信頼するホストの認証とuser_id・argumentsを送る。user_idをLLMから受け取って権限を決めない。ガイドGET APIの利用者別BearerとホストAPIの資格情報を混同しない。
+
+## 副作用と結果の確認
+
+この操作は保存または実行状態を変更する。対象と基準版を取得してから実行する。保存成功と検索反映を分けて確認する。

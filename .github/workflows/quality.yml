@@ -59,6 +59,14 @@ jobs:
           pip install --no-cache-dir -r requirements-lock.txt
           pip install --no-cache-dir --no-deps ./docling ./packages/docling-azure-ocr
           pip install --no-cache-dir --no-deps --no-build-isolation -e .
+      - name: Install MCP integration for guide and transport checks
+        run: pip install -r integrations/mcp/requirements.txt
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Install knowledge API dependencies for MCP ingestion acceptance
+        working-directory: knowledge-api
+        run: bun install --frozen-lockfile
       - uses: pnpm/action-setup@v4
         with:
           version: 10.24.0
@@ -83,6 +91,7 @@ jobs:
         run: |
           python -m ruff check . --exclude docling --exclude qa
           DOCLING_ENV_FILE=/dev/null python -m pytest tests -q
+          python -m docling_desk.operations.tool_guides
           python -m docling_desk.operations.models
 
   distribution:
@@ -103,6 +112,8 @@ jobs:
           pip install --no-cache-dir -r requirements-lock.txt
           pip install --no-cache-dir --no-deps ./docling ./packages/docling-azure-ocr
           pip install --no-cache-dir --no-deps --no-build-isolation -e .
+      - name: Install MCP for installed-package connection acceptance
+        run: pip install -r integrations/mcp/requirements.txt
       - uses: pnpm/action-setup@v4
         with:
           version: 10.24.0

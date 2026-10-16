@@ -1,0 +1,11 @@
+# 資料の取り込みと処理確認
+
+1. list_document_scopesで許可された保存先とactionsを取得する。ホストがfile・metadataをPOST /api/v1/document-transfersへ送り、返ったtransfer_idを会話の参照として渡す。必要に応じocr_providerを明示する。
+2. idempotency_keyを初回に記録してimport_documentを呼ぶ。MCPへバイナリ・パス・URL・認証情報を渡さない。
+3. source_id・source_revision・job_idを保持し、get_document_jobでqueued・running・completed・failedを追跡する。長時間のMCP要求で完了まで待たない。
+4. get_document_statusで現在版とfts_ready・semantic_readyを確認する。FTSだけ使える場合は縮退を明示する。
+5. search_documentsとget_document_contextで関連箇所を読み、必要ならrequest_document_viewで原本を確認する。
+6. 差し替え時はget_document_statusのsource_etagと元のmetadataを取得する。ホストの転送にsource_id・etagを追加し、その値でreplace_document_sourceを呼ぶ。新しい版とjob_idを追跡する。
+7. 原本の抽出をやり直す場合はreextract_document、保存済み抽出の索引を更新する場合はreindex_documentを選ぶ。意味の判断はLLMが行い、サーバーは明示した操作だけを実行する。
+
+通信断後は転送結果と元のキーを保持する。再抽出・再索引の応答が不明なら自動再実行しない。外部OCRを使う選択では外部送信・課金の許可と既存設定を確認する。

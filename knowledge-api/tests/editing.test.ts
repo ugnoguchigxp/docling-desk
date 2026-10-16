@@ -457,6 +457,44 @@ test("an empty committed Markdown has no evidence candidates, not an extraction 
   expect(body.body).toBe("");
   expect(body.status.fts_ready).toBe(true);
   expect(f.calls()).toBe(0);
+  const reference = {
+    source_id: saved.source_id,
+    source_revision: saved.source_revision,
+    evidence_revision: body.evidence_revision,
+  };
+  const outline = await f.request("/api/v1/document-reads/outline", "POST", reference);
+  expect(outline.status).toBe(200);
+  expect(await outline.json()).toMatchObject({
+    ...reference,
+    kind: "document",
+    entries: [],
+    units: [],
+    total: 0,
+    next_offset: null,
+  });
+  const tables = await f.json("/api/v1/document-reads/tables", "POST", reference);
+  expect(tables.total).toBe(0);
+  expect(
+    (await f.request("/api/v1/document-reads/page-image", "POST", { ...reference, unit: 1 }))
+      .status,
+  ).toBe(422);
+  expect(
+    (
+      await f.request("/api/v1/document-reads/section", "POST", {
+        ...reference,
+        selector: { kind: "elements", start_ref: "#/texts/0", end_ref: "#/texts/0" },
+      })
+    ).status,
+  ).toBe(422);
+  expect(
+    (
+      await f.request("/api/v1/document-reads/table", "POST", {
+        ...reference,
+        table_ref: "#/tables/0",
+      })
+    ).status,
+  ).toBe(404);
+  expect(f.calls()).toBe(0);
   f.store.db.close();
 });
 test("attachment bindings survive a subsequent draft and revision", async () => {

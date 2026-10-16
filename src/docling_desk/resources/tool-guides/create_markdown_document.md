@@ -1,0 +1,17 @@
+# Markdownの直接保存
+
+Markdown原文を新しい文書として確定保存する。
+
+## 前提と引数の入手元
+
+必要なactionはwrite。利用者とscopeは認証済み接続から確定する。確認・修正を段階的に行う場合はcreate_document_draftを使う。metadataの保存先は許可範囲から選ぶ。本文は原文のまま渡す。確定応答のsource_id・source_revision・source_etag・job_idを保持。保存成功と検索準備完了を区別する。
+
+## 入出力と呼び出し経路
+
+MCPの完全な入出力スキーマと、対応する文書HTTP操作はこのガイドのschemasに含まれる。section=schemasでも取得できる。HTTPのIf-MatchはMCPではetag、Idempotency-Keyはidempotency_key。既存文書ツールは業務引数をargumentsの中へ入れる。
+
+ホストAPIはPOST /host/tools/create_markdown_documentに、信頼するホストの認証とuser_id・argumentsを送る。user_idをLLMから受け取って権限を決めない。ガイドGET APIの利用者別BearerとホストAPIの資格情報を混同しない。
+
+## 副作用と結果の確認
+
+この操作は保存または実行状態を変更する。対象と基準版を取得してから実行する。保存成功と検索反映を分けて確認する。

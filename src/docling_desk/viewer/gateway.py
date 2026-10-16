@@ -57,6 +57,21 @@ class ViewerBodyLimit:
         if scope["type"] != "http" or scope["method"] not in {"POST", "PUT", "PATCH"}:
             await self.app(scope, receive, send)
             return
+        if scope["path"] == "/api/v1/document-transfers":
+            # Multipart files spool to disk; bound the stream without buffering
+            # another 50 MiB copy before authentication or form parsing.
+            size = 0
+
+            async def bounded_receive():
+                nonlocal size
+                message = await receive()
+                size += len(message.get("body", b""))
+                if size > 51 * 1024 * 1024:
+                    raise HTTPException(413, "document_transfer_too_large")
+                return message
+
+            await self.app(scope, bounded_receive, send)
+            return
         parts = []
         size = 0
         while True:
@@ -157,6 +172,7 @@ class GatewayConfig(BaseModel):
     api_clients: dict[str, ApiCredential] = Field(default_factory=dict)
     mcp_hosts: list[str] = Field(default_factory=list, max_length=10)
     trusted_proxies: list[str] = Field(default_factory=list, max_length=20)
+    transfer_dir: str | None = None
 
 
 def encoded(value: dict) -> str:
@@ -231,10 +247,53 @@ class Gateway:
         ).hexdigest()
         return config, fingerprint
 
+    def token_actor(self, token: str) -> tuple[str, str]:
+        """Resolve the configured user without importing the optional MCP SDK."""
+        for user, entry in self.config()["users"].items():
+            configured = entry.get("mcp_token", "")
+            if configured and secrets.compare_digest(configured.encode(), token.encode()):
+                _, fingerprint = self.actor(user)
+                return user, fingerprint
+        raise HTTPException(401, "unauthenticated")
+
+    def guides(self):
+        from docling_desk.viewer.tool_guides import ToolGuides
+
+        try:
+            if not hasattr(self, "_guides"):
+                self._guides = ToolGuides()
+            if getattr(self, "guide_contract_error", False):
+                raise ValueError("MCP contract mismatch")
+            return self._guides
+        except (OSError, ValueError, KeyError, TypeError, RuntimeError):
+            raise HTTPException(503, "tool_guides_invalid") from None
+
     async def api(
-        self, user: str, path: str, body: dict | None, *, method="POST", headers=None, grants=None
+        self,
+        user: str,
+        path: str,
+        body: dict | None,
+        *,
+        method="POST",
+        headers=None,
+        grants=None,
+        files=None,
+        form=None,
+        include_etag=False,
     ) -> dict:
+        from docling_desk.viewer.document_tools import DOCUMENT_TOOLS, READ_POST
+
         config, fingerprint = self.actor(user)
+        read_posts = {"/api/v1/search", "/api/v1/context", "/api/v1/viewer"} | {
+            "/api/v1" + DOCUMENT_TOOLS[name][1] for name in READ_POST
+        }
+        action = (
+            "read"
+            if method == "GET" or (method == "POST" and path.split("?", 1)[0] in read_posts)
+            else "write"
+        )
+        if action not in config["users"][user]["actions"]:
+            raise HTTPException(403, "forbidden")
         if grants is not None and any(g not in config["users"][user]["scopes"] for g in grants):
             raise HTTPException(403, "scope_forbidden")
         now = int(time.time())
@@ -264,7 +323,7 @@ class Gateway:
                 async with client.stream(
                     method,
                     config["api_url"].rstrip("/") + path,
-                    json=body,
+                    **({"files": files, "data": form} if files is not None else {"json": body}),
                     headers={
                         "authorization": f"Bearer {config['api_token']}",
                         "x-knowledge-actor": f"{head}.{claims}.{signature}",
@@ -282,13 +341,18 @@ class Gateway:
                         raise HTTPException(502, "invalid_viewer_response") from None
                     if not isinstance(data, dict):
                         raise HTTPException(502, "invalid_viewer_response")
-                    if response.status_code != 200:
+                    if not response.is_success:
                         error = data.get("error")
                         code = error.get("code") if isinstance(error, dict) else None
                         raise HTTPException(
                             response.status_code,
                             code if isinstance(code, str) else "viewer_api_unavailable",
                         )
+                    if include_etag:
+                        etag = response.headers.get("etag")
+                        if not etag:
+                            raise HTTPException(502, "document_etag_missing")
+                        data = {**data, "source_etag": etag}
                 if self.actor(user)[1] != fingerprint:
                     raise HTTPException(401, "viewer_session_revoked")
                 return data
@@ -458,7 +522,32 @@ class Gateway:
         from docling_desk.viewer.document_tools import DOCUMENT_TOOLS, document_tool
         from docling_desk.viewer.editor import approve_editor
 
-        self.actor(user)
+        config, _ = self.actor(user)
+        if (
+            name
+            in {
+                "list_document_scopes",
+                "search_documents",
+                "get_document_context",
+                "request_document_view",
+                "connect_document_view",
+                "connect_document_editor",
+            }
+            and "read" not in config["users"][user]["actions"]
+        ):
+            raise HTTPException(403, "forbidden")
+        if name in {"import_document", "replace_document_source"}:
+            from docling_desk.viewer.transfers import transfer_tool
+
+            return await transfer_tool(self, name, user, args)
+        if name in {"list_tool_guides", "get_tool_guide"}:
+            config, fingerprint = self.actor(user)
+            if "read" not in config["users"][user]["actions"]:
+                raise HTTPException(403, "forbidden")
+            result = self.guides().invoke(name, args)
+            if self.actor(user)[1] != fingerprint:
+                raise HTTPException(401, "unauthenticated")
+            return result
         if name in DOCUMENT_TOOLS:
             return await document_tool(self, name, user, args)
         if name == "connect_document_editor":
@@ -540,6 +629,10 @@ def create_gateway(
     @asynccontextmanager
     async def lifespan(app):
         if mcp_app:
+            try:
+                gateway.guides().check_tools(await server.list_tools())
+            except (HTTPException, ValueError):
+                gateway.guide_contract_error = True
             async with server.session_manager.run():
                 yield
         else:
@@ -564,6 +657,12 @@ def create_gateway(
     from docling_desk.viewer.editor import install_editor
 
     install_editor(app, gateway)
+    from docling_desk.viewer.tool_guides import install_tool_guides
+
+    install_tool_guides(app, gateway)
+    from docling_desk.viewer.transfers import install_transfers
+
+    install_transfers(app, gateway)
     app.add_middleware(ViewerBodyLimit)
 
     @app.middleware("http")
@@ -594,6 +693,7 @@ def create_gateway(
 
     @app.get("/health/ready")
     async def ready():
+        gateway.guides()
         config = gateway.config()
         user = next(iter(config["users"]))
         result = await gateway.api(user, "/health/ready", None, method="GET")

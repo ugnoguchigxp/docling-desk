@@ -38,6 +38,8 @@ RUN pip install --no-cache-dir --no-deps /opt/docling-azure-ocr
 COPY pyproject.toml README.md LICENSE NOTICE.md ./
 COPY src/ src/
 COPY contracts/ contracts/
+COPY integrations/eumenes/ integrations/eumenes/
+COPY integrations/documents/ integrations/documents/
 COPY --from=frontend /build/src/docling_desk/resources/static/frontend/ src/docling_desk/resources/static/frontend/
 RUN pip install --no-cache-dir --no-deps --no-build-isolation .
 COPY --from=models /build/models/ /opt/docling/models/

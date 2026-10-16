@@ -798,8 +798,12 @@ def test_verify_commands(tmp_path, monkeypatch, capsys):
     other["exit_code"] = 1
     assert verify.accepted(other) is False
 
-    assert len(verify.checks(False)) == 3
-    assert len(verify.checks(True)) > 3
+    offline = verify.checks(False)
+    assert len(offline) == 4
+    assert any(
+        command[-2:] == ["-m", "docling_desk.operations.tool_guides"] for command, _ in offline
+    )
+    assert len(verify.checks(True)) > len(offline)
 
     output = tmp_path / "qa" / "verify.json"
 

@@ -500,7 +500,7 @@ export class Store {
         [evidence, nowISO(), JSON.stringify(result.warnings), revision.id],
       );
       this.db.run("DELETE FROM viewer_artifacts WHERE source_revision=?", [revision.id]);
-      if (result.viewer_ready)
+      if (result.viewer_ready || result.structure_ready)
         this.db.run("INSERT INTO viewer_artifacts VALUES(?,?,?,?)", [
           revision.id,
           evidence,

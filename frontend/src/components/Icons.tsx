@@ -37,6 +37,12 @@ export function IconDefinitions() {
           <rect x="8" y="8" width="13" height="13" rx="1" />
           <path d="M16 8V3H3v13h5" />
         </symbol>
+        <symbol id="i-upload" viewBox="0 0 24 24">
+          <path d="M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6" />
+        </symbol>
+        <symbol id="i-file-plus" viewBox="0 0 24 24">
+          <path d="M13 3H5v18h14V9l-6-6Zm0 0v6h6M12 12v6m-3-3h6" />
+        </symbol>
         <symbol id="i-more" viewBox="0 0 24 24">
           <circle cx="5" cy="12" r="1" />
           <circle cx="12" cy="12" r="1" />

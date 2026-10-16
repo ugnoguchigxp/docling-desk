@@ -19,7 +19,8 @@ import {
   viewerRequestSchema,
   viewerResultSchema,
 } from "./contracts";
-import { EDITING_ENDPOINTS, installEditing } from "./editing";
+import { documentRead, READ_ENDPOINTS, readPath } from "./document-reads";
+import { documentListParameters, EDITING_ENDPOINTS, installEditing } from "./editing";
 import { ocrProvider, ocrRequest } from "./ocr";
 import type { AnswerProvider, EmbeddingProvider, Extractor } from "./providers";
 import { checkpoint } from "./quality";
@@ -43,6 +44,7 @@ export type ApiOptions = {
 export type Env = { Variables: { principal: Principal; requestId: string } };
 const suffixes = new Set([".pdf", ".pptx", ".xlsx", ".docx", ".md", ".markdown", ".txt", ".text"]);
 export const ROUTES = [
+  ...READ_ENDPOINTS.map((e) => ["post", readPath(e.operation)] as const),
   ...EDITING_ENDPOINTS.map((e) => [e.method, e.path] as const),
   ["post", "/api/v1/search"],
   ["post", "/api/v1/viewer"],
@@ -185,7 +187,8 @@ export function createApi(options: ApiOptions) {
               "/api/v1/context",
               "/api/v1/viewer",
               "/api/v1/operations/lookup",
-            ].includes(c.req.path)
+            ].includes(c.req.path) ||
+            c.req.path.startsWith("/api/v1/document-reads/")
           ? "read"
           : "write";
     row[category]++;
@@ -374,6 +377,24 @@ export function createApi(options: ApiOptions) {
     );
     return c.body(new Uint8Array(bytes).buffer);
   });
+  for (const endpoint of READ_ENDPOINTS) {
+    app.post(readPath(endpoint.operation), async (c) => {
+      const input = parse(
+        endpoint.input as z.ZodType<Record<string, unknown>>,
+        await json(c.req.raw),
+      );
+      return c.json(
+        await documentRead(
+          store,
+          clients,
+          extractor,
+          c.get("principal"),
+          endpoint.operation,
+          input,
+        ),
+      );
+    });
+  }
   app.post("/api/v1/viewer", async (c) => {
     const p = c.get("principal");
     requireAction(p, "read");
@@ -710,6 +731,7 @@ export function createApi(options: ApiOptions) {
 export function openapi() {
   const paths: Record<string, Record<string, unknown>> = {};
   const inputs: Record<string, z.ZodType> = {
+    ...Object.fromEntries(READ_ENDPOINTS.map((e) => [readPath(e.operation), e.input])),
     ...Object.fromEntries(
       EDITING_ENDPOINTS.filter((e) => "input" in e).map((e) => [
         e.path,
@@ -757,6 +779,18 @@ export function openapi() {
         required: true,
         schema: { type: "string" },
       });
+    if (method === "get" && ["/api/v1/sources", "/api/v1/drafts"].includes(path)) {
+      for (const [name, schema] of Object.entries(documentListParameters)) {
+        if (name === "source_id" && path !== "/api/v1/drafts") continue;
+        parameters.push({
+          name,
+          in: "query",
+          schema: z.toJSONSchema(schema, { unrepresentable: "any" }),
+        });
+      }
+    }
+    if (path.endsWith("/body"))
+      parameters.push({ name: "revision", in: "query", schema: z.toJSONSchema(id) });
     if (path.endsWith("/content"))
       parameters.push(
         { name: "revision", in: "query", schema: { type: "string", format: "uuid" } },
@@ -773,7 +807,10 @@ export function openapi() {
           required: !path.endsWith("/retry"),
           content: {
             "application/json": {
-              schema: z.toJSONSchema(inputSchema, { unrepresentable: "any" }),
+              schema: z.toJSONSchema(inputSchema, {
+                unrepresentable: "any",
+                io: "input",
+              }),
             },
           },
         }
@@ -787,7 +824,15 @@ export function openapi() {
                   required: ["file", "metadata"],
                   properties: {
                     file: { type: "string", format: "binary" },
-                    metadata: { type: "string", description: "JSON encoded SourceMetadata" },
+                    metadata: {
+                      type: "string",
+                      description: "JSON encoded SourceMetadata",
+                      contentMediaType: "application/json",
+                      contentSchema: z.toJSONSchema(metadataSchema, {
+                        unrepresentable: "any",
+                        io: "input",
+                      }),
+                    },
                     ocr_provider: { type: "string", enum: ["local", "azure_read", "disabled"] },
                   },
                 },
@@ -811,7 +856,8 @@ export function openapi() {
         [editorEndpoint
           ? "200"
           : (method === "post" &&
-                !["/api/v1/search", "/api/v1/context", "/api/v1/viewer"].includes(path)) ||
+                !["/api/v1/search", "/api/v1/context", "/api/v1/viewer"].includes(path) &&
+                !path.startsWith("/api/v1/document-reads/")) ||
               method === "delete"
             ? "202"
             : "200"]: {
@@ -848,7 +894,7 @@ export function openapi() {
         actorAssertion: { type: "apiKey", in: "header", name: "X-Knowledge-Actor" },
       },
       schemas: {
-        SourceMetadata: z.toJSONSchema(metadataSchema, { unrepresentable: "any" }),
+        SourceMetadata: z.toJSONSchema(metadataSchema, { unrepresentable: "any", io: "input" }),
         Error: z.toJSONSchema(errorResponse),
       },
     },

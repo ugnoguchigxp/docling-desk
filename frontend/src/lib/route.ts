@@ -9,6 +9,8 @@ export interface Route {
   folder: string | null;
   job: string | null;
   view: View;
+  libraryScope?: "folder" | "images";
+  libraryView?: "list" | "gallery";
 }
 export function readRoute(): Route {
   const p = new URLSearchParams(location.search),
@@ -18,7 +20,14 @@ export function readRoute(): Route {
       p.get("mode") === "wiki"
         ? "wiki"
         : p.get("mode") === "library" ||
-            ["job", "folder", "view", "unit"].some((key) => p.has(key))
+            [
+              "job",
+              "folder",
+              "view",
+              "unit",
+              "library_scope",
+              "library_view",
+            ].some((key) => p.has(key))
           ? "library"
           : "wiki",
     source: p.get("source"),
@@ -30,6 +39,10 @@ export function readRoute(): Route {
     folder: p.get("folder"),
     job: p.get("job"),
     view: views.includes(v as View) ? (v as View) : "preview",
+    libraryScope: p.get("library_scope") === "images" ? "images" : "folder",
+    libraryView: ["list", "gallery"].includes(p.get("library_view") || "")
+      ? (p.get("library_view") as "list" | "gallery")
+      : undefined,
   };
 }
 export function useRoute() {
@@ -48,6 +61,10 @@ export function useRoute() {
     if (next.section) url.searchParams.set("section", next.section);
     if (next.unit) url.searchParams.set("unit", String(next.unit));
     if (next.folder) url.searchParams.set("folder", next.folder);
+    if (next.libraryScope === "images")
+      url.searchParams.set("library_scope", "images");
+    if (next.libraryView)
+      url.searchParams.set("library_view", next.libraryView);
     if (next.job) {
       url.searchParams.set("job", next.job);
       url.searchParams.set("view", next.view);

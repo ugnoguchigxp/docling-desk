@@ -7,10 +7,17 @@ from uuid import uuid4
 
 from docling_azure_ocr.config import api_key
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from docling_desk import config
 from docling_desk.config import MAX_BYTES, MIN_FREE
 from docling_desk.documents.conversion import Job, convert_job, save_job, validate_input
+from docling_desk.documents.images import (
+    IMAGE_SUFFIXES,
+    image_thumbnail,
+    inspect_image,
+    publish_image,
+)
 from docling_desk.documents.library import (
     LOCK,
     decorate,
@@ -45,11 +52,13 @@ async def upload(
     with LOCK:
         destination_exists(load_library(config.DATA), folder_id)
     filename = Path((file.filename or "").replace("\\", "/")).name
-    if Path(filename).suffix.lower() not in SUPPORTED_SUFFIXES:
+    is_image = Path(filename).suffix.lower() in IMAGE_SUFFIXES
+    if Path(filename).suffix.lower() not in SUPPORTED_SUFFIXES | IMAGE_SUFFIXES:
         raise HTTPException(415, f"{SUPPORTED_LABEL}を選んでください。")
     try:
-        profile = load_profile(ocr_provider)
-        profile.check_credentials(api_key())
+        profile = load_profile("disabled" if is_image else ocr_provider)
+        if not is_image:
+            profile.check_credentials(api_key())
     except (ValueError, RuntimeError):
         raise HTTPException(
             422, "OCR設定が無効です。Azureの送信許可と認証設定を確認してください。"
@@ -60,7 +69,7 @@ async def upload(
     slots = getattr(request.app.state, "slots", None)
     if worker is None or slots is None:
         raise HTTPException(503, "処理を受け付ける準備ができていません。")
-    if not slots.acquire(blocking=False):
+    if not is_image and not slots.acquire(blocking=False):
         raise HTTPException(429, "処理待ちは最大3件です。完了後に追加してください。")
     job = Job(
         id=uuid4().hex,
@@ -80,15 +89,24 @@ async def upload(
                 if total > MAX_BYTES:
                     raise HTTPException(413, "上限50 MiBを超えています。")
                 stream.write(chunk)
-        validate_input(source)
+        if is_image:
+            job.image = await run_in_threadpool(inspect_image, source)
+            await run_in_threadpool(image_thumbnail, folder, source, job.image)
+            await run_in_threadpool(publish_image, config.DATA, source, job.image)
+            job.state = "success"
+            job.pictures = 1
+        else:
+            validate_input(source)
         record_original(folder, filename, job.created)
         with LOCK:
             register_upload(config.DATA, job, folder_id)
             save_job(folder, job)
-            worker.submit(run_job, folder, job, slots)
+            if not is_image:
+                worker.submit(run_job, folder, job, slots)
             return decorate(load_library(config.DATA), job)
     except (OSError, RuntimeError) as exc:
-        slots.release()
+        if not is_image:
+            slots.release()
         if folder.is_dir():
             remove_document(folder)
         raise HTTPException(
@@ -96,7 +114,8 @@ async def upload(
             "ローカル保存または処理キューの開始に失敗しました。空き容量とログを確認してください。",
         ) from exc
     except (ValueError, HTTPException) as exc:
-        slots.release()
+        if not is_image:
+            slots.release()
         remove_document(folder)  # Only this request's newly created incomplete upload.
         if isinstance(exc, HTTPException):
             raise

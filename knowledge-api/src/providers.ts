@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { ApiError, type Extraction, extractionSchema, viewerResultSchema } from "./contracts";
+import { type ArtifactRead, readResults } from "./document-reads";
 import { type ProfileSelection, profileSelection } from "./ocr";
 import type { JobRow, RevisionRow } from "./store";
 
 export interface Extractor {
+  documentRead?(input: ArtifactRead): Promise<unknown>;
   viewer?(input: {
     source_id: string;
     source_revision: string;
@@ -49,8 +51,12 @@ export type Generated = z.infer<typeof generatedSchema>;
 export interface AnswerProvider {
   generate(question: string, evidence: Evidence[], signal: AbortSignal): Promise<Generated>;
 }
-export async function boundedJSON(response: Response, max = 2 * 1024 * 1024): Promise<unknown> {
-  if (!response.ok) {
+export async function boundedJSON(
+  response: Response,
+  max = 2 * 1024 * 1024,
+  allowError = false,
+): Promise<unknown> {
+  if (!response.ok && !allowError) {
     await response.body?.cancel();
     throw new ApiError(503, "provider_unavailable", "Provider request failed", true);
   }
@@ -94,6 +100,36 @@ export class HttpExtractor implements Extractor {
     private endpoint: string,
     private token: string,
   ) {}
+  async documentRead(input: ArtifactRead) {
+    const response = await fetch(`${this.endpoint}/internal/v1/document-read`, {
+      method: "POST",
+      redirect: "error",
+      signal: AbortSignal.timeout(30000),
+      headers: { authorization: `Bearer ${this.token}`, "content-type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if ([404, 409, 413, 422].includes(response.status)) {
+      const value = (await boundedJSON(response, 16384, true)) as { detail?: string } | null;
+      const allowed = [
+        "document_read_not_ready",
+        "document_read_too_large",
+        "page_image_unsupported",
+        "invalid_document_range",
+        "document_table_not_found",
+        "preview_unavailable",
+      ];
+      throw new ApiError(
+        response.status,
+        allowed.includes(value?.detail ?? "")
+          ? (value?.detail ?? "document_read_unavailable")
+          : "document_read_unavailable",
+      );
+    }
+    return providerResponse(
+      readResults[input.options.operation] as z.ZodType<unknown>,
+      await boundedJSON(response),
+    );
+  }
   async viewer(input: {
     source_id: string;
     source_revision: string;

@@ -113,6 +113,12 @@ operationはcreate・draft・update・edit・commit・metadata・attachment。�
 
 ## MCPの接続例
 
+Eumenesホスト向けの設定例・導入手順・読取り専用の接続確認は[接続資源](../integrations/eumenes/README.md)を参照する。
+
+ツールの前提・手順・呼び出し例は、同じgatewayの[利用ガイドAPIとMCP](tool-guides.md)から取得できる。接続後に`get_tool_guide`へ`guide_id: "overview"`を渡す。HTTPでは利用者別MCP Bearerで`GET /api/v1/tool-guides`と`GET /api/v1/tool-guides/{guide_id}`を使用する。
+
+ファイルの登録・差し替えと再抽出・再索引は[MCPによる取り込みと処理管理](mcp-document-ingestion.md)を参照。ホストがファイルを転送し、MCPには利用者と用途に結び付いたtransfer_idを渡す。
+
 Streamable HTTPの接続先は `public_url + /mcp/`。利用者別BearerはホストのMCP接続設定へ置き、ツール引数へ渡さない。ツールのargumentsは公開OpenAPIから作った項目情報を持ち、実際の認可・更新は同じHTTP APIで検査する。
 
 ```python
@@ -140,7 +146,7 @@ async with streamablehttp_client(
         }})
         if result.isError:
             raise RuntimeError("下書き作成を確認できないため、結果照会へ進む")
-        draft = result.structuredContent
+        draft = result.structuredContent or json.loads(result.content[0].text)
         # 続く更新にはdraft_id、etag、sha256を使う。
 ```
 
@@ -172,7 +178,7 @@ APIと永続領域は、重い処理の停止と分けて管理する。`KNOWLED
 
 processor停止中でも、保存済み本文・下書き・Markdown確定は利用できる。確定時に抽出キューが満杯でも本文を保持し、検索反映を待機させる。readyはDB・設定・ディスクと、processing_enabled・markdown_editing・extractionなどのcapabilityを返す。Embedding接続の設定があることと、実通信の成功は別である。
 
-gatewayのコンテナ用には [Dockerfile.gateway](../deploy/Dockerfile.gateway) と [compose.gateway.yml](../deploy/compose.gateway.yml) を用意した。gateway.jsonのapi_urlを非公開の `http://api:18766`、public_urlをブラウザーから届く入口に設定し、必要な内部Hostをmcp_hostsへ明示する。
+gatewayのコンテナ用には [Dockerfile.gateway](../deploy/Dockerfile.gateway) と [compose.gateway.yml](../deploy/compose.gateway.yml) を用意した。[コンテナ用設定例](../integrations/documents/gateway.container.example.json)では転送先を専用volumeへ指定する。gateway.jsonのapi_urlを非公開の `http://api:18766`、public_urlをブラウザーから届く入口に設定し、必要な内部Hostをmcp_hostsへ明示する。
 
 ```sh
 docker compose -f deploy/compose.knowledge.yml -f deploy/compose.gateway.yml --profile gateway up -d --build

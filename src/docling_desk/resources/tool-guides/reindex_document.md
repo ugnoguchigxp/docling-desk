@@ -1,0 +1,9 @@
+# 保存済み抽出結果の再索引
+
+write権限が必要。get_document_statusでsource_etagとfts_readyを確認しetagへ渡す。fts_readyでない場合はextraction_not_readyとなる。
+
+保存済み抽出結果から索引を更新する。OCR・Office変換を再実行しない。同じ条件のEmbeddingは既存機構で再利用する。受付結果のjob_idをget_document_jobで追跡し、get_document_statusでFTSと意味索引を確認する。実行中はjob_running、上限超過はqueue_fullとなる。
+
+## 呼び出しと返却値
+
+MCPは業務引数をargumentsの中へ入れる。HTTPの対応操作と完全な入出力スキーマはschemasで取得する。利用者はホストの認証結果で決まり、モデル引数で権限を作らない。

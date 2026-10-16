@@ -15,6 +15,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 from docling_desk.documents.conversion import Job, save_job
+from docling_desk.documents.images import ImageMetadata
 from docling_desk.explanation.store import LOCK as EXPLANATION_LOCK
 from docling_desk.explanation.store import active as explanation_active
 from docling_desk.explanation.store import copy_saved
@@ -45,6 +46,7 @@ class Folder(BaseModel):
 class Placement(BaseModel):
     name: str
     parent_id: str | None = None
+    image_metadata: ImageMetadata | None = None
 
 
 class Library(BaseModel):
@@ -149,7 +151,21 @@ def snapshot(data: Path) -> dict:
         library = load(data)
         return {
             "folders": [f.model_dump() for f in library.folders.values()],
-            "jobs": [decorate(library, j).model_dump() for j in read_jobs(data)],
+            "jobs": [
+                {
+                    **decorate(library, j).model_dump(),
+                    **(
+                        {
+                            "image_metadata": (
+                                placement(library, j).image_metadata or ImageMetadata()
+                            ).model_dump()
+                        }
+                        if j.image
+                        else {}
+                    ),
+                }
+                for j in read_jobs(data)
+            ],
         }
 
 
@@ -394,7 +410,11 @@ def operate(data: Path, request: Operation) -> dict:
                                 )
                             copy_saved(document_folder(data, source_id), path)
                             jobs[new_id] = new_job
-                            library.files[new_id] = Placement(name=name, parent_id=parent)
+                            library.files[new_id] = Placement(
+                                name=name,
+                                parent_id=parent,
+                                image_metadata=placement(library, source_job).image_metadata,
+                            )
                         return new_id
 
                     copied_id = copy_item(kind, id, request.destination, copied_name)

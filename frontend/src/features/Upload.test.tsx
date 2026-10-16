@@ -279,7 +279,7 @@ it("keeps the dialog open when every file is rejected", async () => {
     file("bad.pdf"),
     file("offline.pdf"),
     file("notes.exe"),
-    file("picture.png"),
+    file("picture.bmp"),
     file("huge.pdf", limit + 1),
   ]);
   submitUpload();
@@ -289,7 +289,7 @@ it("keeps the dialog open when every file is rejected", async () => {
   expect(result).toContain("bad.pdf：容量不足");
   expect(result).toContain("offline.pdf：offline");
   expect(result).toContain("notes.exe：");
-  expect(result).toContain("picture.png：");
+  expect(result).toContain("picture.bmp：");
   expect(result).toContain("huge.pdf：上限50 MiBを超えています。");
   expect(uploads).toEqual(["bad.pdf", "offline.pdf"]);
   expect(document.getElementById("uploadDialog")).toHaveAttribute("open");
@@ -410,7 +410,7 @@ it("locks the dialog until the in-flight upload finishes", async () => {
   expect(document.getElementById("uploadMessage")).toHaveTextContent(
     "アップロード中… 1 / 2件",
   );
-  expect(screen.getByRole("button", { name: "抽出を開始" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "追加する" })).toBeDisabled();
   expect(screen.getByRole("combobox", { name: "画像から文字を読み取る方法" })).toBeDisabled();
 
   const hovering = dragData();

@@ -583,7 +583,7 @@ describe("Wiki", () => {
     await settle(gate.resolve, json({ articles: [], namespaces: [] }));
     expect(
       await screen.findByText(
-        "記事がありません。Markdownファイルを取り込んでください。",
+        "記事がありません。新しく作成するか、Markdownファイルを取り込んでください。",
       ),
     ).toBeInTheDocument();
     expect(document.title).toBe("Wiki · Docling Desk");
@@ -601,7 +601,7 @@ describe("Wiki", () => {
     expect(await screen.findByText("一覧を取得できません")).toBeInTheDocument();
     expect(await screen.findByText("記事を読めません")).toBeInTheDocument();
     expect(
-      screen.getByText("記事がありません。Markdownファイルを取り込んでください。"),
+      screen.getByText("記事がありません。新しく作成するか、Markdownファイルを取り込んでください。"),
     ).toBeInTheDocument();
     expect(screen.queryByText("Markdownで知識をまとめる")).not.toBeInTheDocument();
   });
@@ -647,7 +647,7 @@ describe("Wiki", () => {
       "___none___",
     );
     expect(
-      screen.getByText("記事がありません。Markdownファイルを取り込んでください。"),
+      screen.getByText("記事がありません。新しく作成するか、Markdownファイルを取り込んでください。"),
     ).toBeInTheDocument();
     await user.clear(screen.getByRole("searchbox", { name: "Wikiの記事名を絞り込む" }));
     await user.selectOptions(screen.getByRole("combobox", { name: "Wikiの分類" }), "Other");

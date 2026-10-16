@@ -10,6 +10,30 @@ import {
 } from "./api";
 afterEach(() => vi.unstubAllGlobals());
 
+test("shows structured validation errors without losing the server's explanation", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            detail: [
+              {
+                loc: ["body", "path"],
+                msg: "Value error, 記事は相対パスで指定してください。",
+              },
+            ],
+          }),
+          { status: 422 },
+        ),
+      ),
+  );
+  await expect(request("/api/wiki/sources/wiki-test")).rejects.toThrow(
+    "記事は相対パスで指定してください。",
+  );
+});
+
 test("reports HTTP errors even when an intermediary responds with HTML", async () => {
   vi.stubGlobal(
     "fetch",

@@ -70,9 +70,9 @@ async def local_only(
                 "style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; "
                 "form-action 'none'; sandbox allow-scripts"
             )
-    elif request.url.path.startswith("/api/wiki/sources/") and request.url.path.endswith(
-        "/original"
-    ):
+    elif (
+        request.url.path.startswith("/api/wiki/sources/") and request.url.path.endswith("/original")
+    ) or request.url.path.startswith("/api/wiki/media/"):
         response.headers["Content-Security-Policy"] = (
             "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; "
             "object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
@@ -89,6 +89,14 @@ async def local_only(
     elif request.url.path.startswith("/files/"):
         response.headers["Content-Security-Policy"] = (
             "default-src 'none'; frame-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; sandbox"
+        )
+    elif request.url.path in {"/", "/static/frontend/index.html"}:
+        # The Plate authoring UI accepts user-inserted media URLs. Imported Wiki
+        # HTML and document viewers still use their existing inert renderers.
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; "
+            "font-src 'self' data:; style-src 'self'; script-src 'self'; "
+            "frame-src 'self' https:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"
         )
     else:
         response.headers["Content-Security-Policy"] = (

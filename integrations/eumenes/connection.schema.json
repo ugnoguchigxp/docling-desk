@@ -1,0 +1,26 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "gateway_url": {
+      "title": "Gateway Url",
+      "type": "string"
+    },
+    "mcp_token_env": {
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "title": "Mcp Token Env",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "gateway_url",
+    "mcp_token_env"
+  ],
+  "title": "Connection",
+  "type": "object"
+}

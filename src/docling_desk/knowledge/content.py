@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, unquote, urlencode, urlsplit
 from markdown_it import MarkdownIt
 
 from docling_desk import config
+from docling_desk.knowledge.article_info import is_wiki_image
 from docling_desk.knowledge.catalog import csv_rows
 
 
@@ -185,6 +186,7 @@ def render(
             token.attrSet("id", next(heading)["anchor"])
         for child in token.children or []:
             if child.type == "link_open":
+                child.attrSet("data-wiki-href", child.attrGet("href") or "")
                 href, external = link(child.attrGet("href") or "")
                 child.attrSet("href", href or "#")
                 if not href:
@@ -199,6 +201,10 @@ def render(
                     child.attrSet("target", "_blank")
                     child.attrSet("rel", "noopener noreferrer")
             if child.type == "image":
+                if is_wiki_image(child.attrGet("src") or ""):
+                    child.attrSet("src", config.url(child.attrGet("src")))
+                    child.attrSet("loading", "lazy")
+                    continue
                 # Remote images do not cause unrequested network access or leak article locations.
                 label = f"[画像: {child.content}]"
                 src = child.attrGet("src") or ""

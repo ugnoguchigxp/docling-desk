@@ -8,6 +8,7 @@ import type { Language, View } from "./lib/types";
 import { folderPath, Library } from "./features/Library";
 import { useUpload } from "./features/Upload";
 import { Viewer } from "./features/Viewer";
+import { ImageDetails } from "./features/ImageDetails";
 import { KnowledgeSearch, ModeMenu, Wiki } from "./features/Knowledge";
 export function App() {
   const { route, navigate } = useRoute(),
@@ -111,11 +112,26 @@ export function App() {
         <Library
           data={data}
           folder={route.folder}
-          hidden={route.mode !== "library" || !!route.job}
+          hidden={route.mode !== "library" || (!!route.job && !job?.image)}
+          scope={route.libraryScope}
+          layout={route.libraryView}
+          onScope={(scope) =>
+            navigate({
+              ...route,
+              libraryScope: scope,
+              libraryView: undefined,
+              folder: null,
+            })
+          }
+          onLayout={(layout) =>
+            navigate({ ...route, libraryView: layout }, false)
+          }
           navigation={menu}
           message={query.error?.message || message}
           setMessage={setMessage}
-          onFolder={(folder) => navigate({ ...route, folder })}
+          onFolder={(folder) =>
+            navigate({ ...route, folder, libraryView: undefined })
+          }
           onJob={(job) => {
             openedFrom.current =
               document.activeElement instanceof HTMLElement
@@ -135,7 +151,8 @@ export function App() {
           navigation={menu}
           hidden={route.mode !== "wiki"}
         />
-        {job && (
+        {job?.image && <ImageDetails key={job.id} job={job} onClose={back} />}
+        {job && !job.image && (
           <Viewer
             key={job.id}
             job={job}

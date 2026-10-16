@@ -10,9 +10,13 @@ services:
       VIEWER_CONFIG_FILE: /run/secrets/gateway.json
     volumes:
       - ${KNOWLEDGE_GATEWAY_CONFIG:-../.knowledge-api/gateway.json}:/run/secrets/gateway.json:ro
+      - gateway-transfers:/var/lib/docling-gateway
     ports:
       - "127.0.0.1:${KNOWLEDGE_GATEWAY_PORT:-18768}:18768"
     restart: unless-stopped
     init: true
     stop_grace_period: 30s
     # Gateway has no original volume, SQLite database or model credentials.
+
+volumes:
+  gateway-transfers:

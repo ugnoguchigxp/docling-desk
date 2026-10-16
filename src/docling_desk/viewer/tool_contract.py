@@ -9,21 +9,29 @@ from docling_desk.config import PROJECT_ROOT, RESOURCES
 from docling_desk.viewer.document_tools import DOCUMENT_TOOLS
 
 
-def document_arguments(name: str) -> dict:
-    candidates = [RESOURCES / "contracts/knowledge-api.openapi.json"]
+def read_contract(name: str = "knowledge-api.openapi.json") -> dict:
+    candidates = [RESOURCES / "contracts" / name]
     if PROJECT_ROOT:
-        candidates.insert(0, PROJECT_ROOT / "contracts/knowledge-api.openapi.json")
+        candidates.insert(0, PROJECT_ROOT / "contracts" / name)
     path = next((candidate for candidate in candidates if candidate.is_file()), None)
     if not path:
-        raise RuntimeError("Document OpenAPI contract is not installed")
-    contract = json.loads(Path(path).read_text(encoding="utf-8"))
+        raise RuntimeError(f"Contract is not installed: {name}")
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def document_arguments(name: str) -> dict:
+    contract = read_contract()
     method, route, identities, queries = DOCUMENT_TOOLS[name]
     operation = contract["paths"]["/api/v1" + route][method.lower()]
     schema = (
-        operation.get("requestBody", {})
-        .get("content", {})
-        .get("application/json", {})
-        .get("schema", {})
+        {}
+        if method == "GET"
+        else (
+            operation.get("requestBody", {})
+            .get("content", {})
+            .get("application/json", {})
+            .get("schema", {})
+        )
     )
     properties = dict(schema.get("properties", {}))
     required = list(schema.get("required", []))
@@ -31,11 +39,12 @@ def document_arguments(name: str) -> dict:
         properties[field] = {"type": "string", "format": "uuid"}
         required.append(field)
     for field in queries:
-        properties[field] = (
-            {"type": "integer", "minimum": 0}
-            if field in {"offset", "limit"}
-            else {"type": "string", "format": "uuid"}
+        parameter = next(
+            p for p in operation["parameters"] if p["in"] == "query" and p["name"] == field
         )
+        properties[field] = parameter["schema"]
+        if parameter.get("required"):
+            required.append(field)
     for parameter in operation.get("parameters", []):
         field = {"Idempotency-Key": "idempotency_key", "If-Match": "etag"}.get(parameter["name"])
         if field:

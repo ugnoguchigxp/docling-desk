@@ -34,8 +34,25 @@ class BuildPy(build_py):
 
         target = Path(self.build_lib) / "docling_desk/resources/contracts"
         target.mkdir(parents=True, exist_ok=True)
-        for name in ("knowledge-api.openapi.json", "viewer-embedding.schema.json"):
+        for name in (
+            "knowledge-api.openapi.json",
+            "viewer-embedding.schema.json",
+            "mcp-tools.json",
+            "tool-guides.openapi.json",
+            "document-transfers.openapi.json",
+        ):
             shutil.copyfile(Path("contracts") / name, target / name)
+        for relative in (
+            "eumenes/README.md",
+            "eumenes/connection.example.json",
+            "eumenes/connection.schema.json",
+            "documents/clients.example.json",
+            "documents/gateway.example.json",
+            "documents/gateway.container.example.json",
+        ):
+            destination = Path(self.build_lib) / "docling_desk/resources/integrations" / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(Path("integrations") / relative, destination)
         bundle = Path(self.build_lib) / "docling_desk/resources/static/frontend"
         keep = active_assets(bundle)
         if (bundle / "assets").is_dir():

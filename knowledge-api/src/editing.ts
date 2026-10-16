@@ -21,6 +21,12 @@ import { checkpoint } from "./quality";
 import { embeddingKey } from "./retrieval";
 import { nowISO, type SourceRow, type Store } from "./store";
 
+export const documentListParameters = {
+  offset: z.number().int().min(0).max(1000000).default(0),
+  limit: z.number().int().min(1).max(50).default(20),
+  source_id: id.optional(),
+};
+
 const text = z.string().refine((s) => Buffer.from(s).toString("utf8") === s, "Invalid Unicode");
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const etag = z.string().min(1).max(256);
@@ -1036,13 +1042,17 @@ export function installEditing(
         endpoint.method === "get" &&
         (endpoint.path === "/api/v1/sources" || endpoint.path === "/api/v1/drafts")
       ) {
+        const query = c.req.query();
         const offset = parse(
-          z.coerce.number().int().min(0).max(1000000),
-          c.req.query("offset") ?? "0",
+          documentListParameters.offset,
+          query.offset === undefined ? undefined : Number(query.offset),
         );
-        const limit = parse(z.coerce.number().int().min(1).max(50), c.req.query("limit") ?? "20");
+        const limit = parse(
+          documentListParameters.limit,
+          query.limit === undefined ? undefined : Number(query.limit),
+        );
         const sourceFilter = c.req.query("source_id");
-        if (sourceFilter) parse(id, sourceFilter);
+        if (sourceFilter) parse(documentListParameters.source_id, sourceFilter);
         const rows =
           endpoint.path === "/api/v1/sources"
             ? store.db

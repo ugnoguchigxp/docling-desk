@@ -1,0 +1,1866 @@
+{
+  "schema_version": 1,
+  "guides": [
+    {
+      "guide_id": "overview",
+      "kind": "overview",
+      "title": "Docling Deskの利用方法",
+      "summary": "Docling Deskの利用方法",
+      "tool_names": [
+        "list_tool_guides",
+        "get_tool_guide",
+        "list_document_scopes",
+        "search_documents",
+        "get_document_context",
+        "request_document_view",
+        "connect_document_view",
+        "connect_document_editor",
+        "list_documents",
+        "get_document",
+        "create_markdown_document",
+        "update_document_metadata",
+        "list_document_drafts",
+        "create_document_draft",
+        "get_document_draft",
+        "update_document_draft",
+        "edit_document_draft",
+        "commit_document_draft",
+        "get_document_operation",
+        "add_document_attachment",
+        "list_document_attachments",
+        "list_draft_attachments",
+        "get_document_attachment",
+        "get_draft_attachment",
+        "get_document_job",
+        "retry_document_job",
+        "import_document",
+        "replace_document_source",
+        "get_document_status",
+        "reextract_document",
+        "reindex_document",
+        "get_document_outline",
+        "get_document_section",
+        "list_document_tables",
+        "get_document_table",
+        "get_document_page_image"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "workflow.search-and-cite",
+        "workflow.edit-and-commit",
+        "workflow.recover-operation",
+        "workflow.import-and-read",
+        "workflow.read-document"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "操作手順",
+          "file": "overview.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": []
+    },
+    {
+      "guide_id": "tool.add_document_attachment",
+      "kind": "tool",
+      "title": "下書きへの添付登録",
+      "summary": "原文の下書きに添付を登録する。",
+      "tool_names": [
+        "add_document_attachment"
+      ],
+      "required_actions": [
+        "write"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "add_document_attachment.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "add_document_attachment-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "add_document_attachment",
+          "arguments": {
+            "arguments": {
+              "draft_id": "11111111-1111-4111-8111-111111111111",
+              "etag": "\"draft-1\"",
+              "idempotency_key": "synthetic-operation-key",
+              "filename": "synthetic.txt",
+              "media_type": "text/plain",
+              "body_base64": "b2s="
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.commit_document_draft",
+      "kind": "tool",
+      "title": "下書きの確定",
+      "summary": "共有下書きを文書の新しい保存版として確定する。",
+      "tool_names": [
+        "commit_document_draft"
+      ],
+      "required_actions": [
+        "write"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "commit_document_draft.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "commit_document_draft-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "commit_document_draft",
+          "arguments": {
+            "arguments": {
+              "draft_id": "11111111-1111-4111-8111-111111111111",
+              "etag": "\"draft-1\"",
+              "idempotency_key": "synthetic-operation-key",
+              "source_etag": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.connect_document_editor",
+      "kind": "tool",
+      "title": "編集画面の接続",
+      "summary": "利用者が編集画面で確認した接続コードを承認する。",
+      "tool_names": [
+        "connect_document_editor"
+      ],
+      "required_actions": [
+        "write"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "connect_document_editor.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "connect_document_editor-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "connect_document_editor",
+          "arguments": {
+            "code": "12ab34cd"
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.connect_document_view",
+      "kind": "tool",
+      "title": "原本閲覧の接続",
+      "summary": "利用者が画面で確認した接続コードを承認する。",
+      "tool_names": [
+        "connect_document_view"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "connect_document_view.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "connect_document_view-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "connect_document_view",
+          "arguments": {
+            "code": "12ab34cd"
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.create_document_draft",
+      "kind": "tool",
+      "title": "下書きの作成",
+      "summary": "新規または既存Markdownから共有下書きを作る。",
+      "tool_names": [
+        "create_document_draft"
+      ],
+      "required_actions": [
+        "write"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "create_document_draft.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "create_document_draft-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "create_document_draft",
+          "arguments": {
+            "arguments": {
+              "body": "# 合成資料\n\n本文。\n",
+              "metadata": {
+                "title": "合成資料",
+                "collection_id": "documents",
+                "source_kind": "wiki",
+                "language": "ja"
+              },
+              "idempotency_key": "synthetic-operation-key"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.create_markdown_document",
+      "kind": "tool",
+      "title": "Markdownの直接保存",
+      "summary": "Markdown原文を新しい文書として確定保存する。",
+      "tool_names": [
+        "create_markdown_document"
+      ],
+      "required_actions": [
+        "write"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "create_markdown_document.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "create_markdown_document-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "create_markdown_document",
+          "arguments": {
+            "arguments": {
+              "body": "# 合成資料\n\n本文。\n",
+              "metadata": {
+                "title": "合成資料",
+                "collection_id": "documents",
+                "source_kind": "wiki",
+                "language": "ja"
+              },
+              "idempotency_key": "synthetic-operation-key"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.edit_document_draft",
+      "kind": "tool",
+      "title": "下書きの部分編集",
+      "summary": "基準本文と一致する箇所だけを一括編集する。",
+      "tool_names": [
+        "edit_document_draft"
+      ],
+      "required_actions": [
+        "write"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "edit_document_draft.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "edit_document_draft-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "edit_document_draft",
+          "arguments": {
+            "arguments": {
+              "draft_id": "11111111-1111-4111-8111-111111111111",
+              "etag": "\"draft-1\"",
+              "idempotency_key": "synthetic-operation-key",
+              "base_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "edits": [
+                {
+                  "expected": "本文。",
+                  "replacement": "更新本文。"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.get_document",
+      "kind": "tool",
+      "title": "本文と保存版の取得",
+      "summary": "文書の本文・現在版・編集に必要な情報を取得する。",
+      "tool_names": [
+        "get_document"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "get_document.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "get_document-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "get_document",
+          "arguments": {
+            "arguments": {
+              "source_id": "11111111-1111-4111-8111-111111111111"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.get_document_attachment",
+      "kind": "tool",
+      "title": "保存版の添付取得",
+      "summary": "確定済み文書の添付を取得する。",
+      "tool_names": [
+        "get_document_attachment"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "get_document_attachment.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "get_document_attachment-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "get_document_attachment",
+          "arguments": {
+            "arguments": {
+              "source_id": "11111111-1111-4111-8111-111111111111",
+              "attachment_id": "11111111-1111-4111-8111-111111111111"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.get_document_context",
+      "kind": "tool",
+      "title": "根拠と周辺本文の取得",
+      "summary": "同じ利用者の検索結果から本文・周辺文脈・表を取得する。",
+      "tool_names": [
+        "get_document_context"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "get_document_context.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "get_document_context-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "get_document_context",
+          "arguments": {
+            "retrieval_id": "11111111-1111-4111-8111-111111111111",
+            "references": [
+              {
+                "source_id": "11111111-1111-4111-8111-111111111111",
+                "source_revision": "11111111-1111-4111-8111-111111111111",
+                "evidence_revision": "11111111-1111-4111-8111-111111111111",
+                "context_id": "11111111-1111-4111-8111-111111111111"
+              }
+            ],
+            "max_chars": 80000
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.get_document_draft",
+      "kind": "tool",
+      "title": "下書きの取得",
+      "summary": "原文と編集の基準になるetag・sha256を取得する。",
+      "tool_names": [
+        "get_document_draft"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "get_document_draft.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "get_document_draft-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "get_document_draft",
+          "arguments": {
+            "arguments": {
+              "draft_id": "11111111-1111-4111-8111-111111111111"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.get_document_job",
+      "kind": "tool",
+      "title": "文書処理の状態確認",
+      "summary": "抽出・削除等の永続ジョブを確認する。",
+      "tool_names": [
+        "get_document_job"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "get_document_job.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "get_document_job-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "get_document_job",
+          "arguments": {
+            "arguments": {
+              "job_id": "11111111-1111-4111-8111-111111111111"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.get_document_operation",
+      "kind": "tool",
+      "title": "通信断後の結果照会",
+      "summary": "保存応答を失った操作の結果を同じ利用者として照会する。",
+      "tool_names": [
+        "get_document_operation"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "get_document_operation.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "get_document_operation-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "get_document_operation",
+          "arguments": {
+            "arguments": {
+              "operation": "commit",
+              "target_id": "11111111-1111-4111-8111-111111111111",
+              "key": "synthetic-operation-key"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.get_document_status",
+      "title": "文書の現在版と処理状態",
+      "summary": "文書の現在版と処理状態。前提・再送・状態の扱いは利用ガイドを参照。",
+      "kind": "tool",
+      "tool_names": [
+        "get_document_status"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.import-and-read"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "get_document_status.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出しと結果",
+          "file": "get_document_status-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "p3-recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "get_document_status",
+          "arguments": {
+            "arguments": {
+              "source_id": "11111111-1111-4111-8111-111111111111"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.get_draft_attachment",
+      "kind": "tool",
+      "title": "下書きの添付取得",
+      "summary": "共有下書きの添付を取得する。",
+      "tool_names": [
+        "get_draft_attachment"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "get_draft_attachment.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "get_draft_attachment-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "get_draft_attachment",
+          "arguments": {
+            "arguments": {
+              "draft_id": "11111111-1111-4111-8111-111111111111",
+              "attachment_id": "11111111-1111-4111-8111-111111111111"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.get_tool_guide",
+      "kind": "tool",
+      "title": "利用ガイドの取得",
+      "summary": "前提・入出力例・復旧手順を取得する。最初の呼び出しはget_tool_guide(guide_id=\"overview\")。",
+      "tool_names": [
+        "get_tool_guide"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "get_tool_guide.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "get_tool_guide-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "get_tool_guide",
+          "arguments": {
+            "guide_id": "overview"
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.import_document",
+      "title": "資料ファイルの取り込み",
+      "summary": "資料ファイルの取り込み。前提・再送・状態の扱いは利用ガイドを参照。",
+      "kind": "tool",
+      "tool_names": [
+        "import_document"
+      ],
+      "required_actions": [
+        "write"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.import-and-read"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "import_document.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出しと結果",
+          "file": "import_document-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "p3-recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "import_document",
+          "arguments": {
+            "arguments": {
+              "transfer_id": "11111111111111111111111111111111",
+              "idempotency_key": "synthetic-import-1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.list_document_attachments",
+      "kind": "tool",
+      "title": "保存版の添付一覧",
+      "summary": "確定済み文書に属する添付を一覧取得する。",
+      "tool_names": [
+        "list_document_attachments"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "list_document_attachments.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "list_document_attachments-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "list_document_attachments",
+          "arguments": {
+            "arguments": {
+              "source_id": "11111111-1111-4111-8111-111111111111"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.list_document_drafts",
+      "kind": "tool",
+      "title": "下書き一覧の取得",
+      "summary": "共有下書きを一覧取得する。",
+      "tool_names": [
+        "list_document_drafts"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "list_document_drafts.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "list_document_drafts-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "list_document_drafts",
+          "arguments": {
+            "arguments": {
+              "source_id": "11111111-1111-4111-8111-111111111111",
+              "offset": 0,
+              "limit": 20
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.list_document_scopes",
+      "kind": "tool",
+      "title": "許可範囲の確認",
+      "summary": "この接続で利用できるcollection・project・regionとactionを取得する。",
+      "tool_names": [
+        "list_document_scopes"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "list_document_scopes.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "list_document_scopes-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "list_document_scopes",
+          "arguments": {}
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.list_documents",
+      "kind": "tool",
+      "title": "資料一覧の取得",
+      "summary": "許可範囲内の文書を一覧取得する。",
+      "tool_names": [
+        "list_documents"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "list_documents.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "list_documents-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "list_documents",
+          "arguments": {
+            "arguments": {
+              "offset": 0,
+              "limit": 20
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.list_draft_attachments",
+      "kind": "tool",
+      "title": "下書きの添付一覧",
+      "summary": "共有下書きに属する添付を一覧取得する。",
+      "tool_names": [
+        "list_draft_attachments"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "list_draft_attachments.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "list_draft_attachments-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "list_draft_attachments",
+          "arguments": {
+            "arguments": {
+              "draft_id": "11111111-1111-4111-8111-111111111111"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.list_tool_guides",
+      "kind": "tool",
+      "title": "利用ガイドの一覧",
+      "summary": "全体説明・ツール・作業手順の一覧を取得する。初回はget_tool_guide(guide_id=\"overview\")を読む。",
+      "tool_names": [
+        "list_tool_guides"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "list_tool_guides.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "list_tool_guides-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "list_tool_guides",
+          "arguments": {
+            "kind": "workflow",
+            "limit": 20
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.reextract_document",
+      "title": "保存済み原本の再抽出",
+      "summary": "保存済み原本の再抽出。前提・再送・状態の扱いは利用ガイドを参照。",
+      "kind": "tool",
+      "tool_names": [
+        "reextract_document"
+      ],
+      "required_actions": [
+        "write"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.import-and-read"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "reextract_document.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出しと結果",
+          "file": "reextract_document-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "p3-recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "reextract_document",
+          "arguments": {
+            "arguments": {
+              "source_id": "11111111-1111-4111-8111-111111111111",
+              "etag": "\"source-1\"",
+              "ocr_provider": "local"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.reindex_document",
+      "title": "保存済み抽出結果の再索引",
+      "summary": "保存済み抽出結果の再索引。前提・再送・状態の扱いは利用ガイドを参照。",
+      "kind": "tool",
+      "tool_names": [
+        "reindex_document"
+      ],
+      "required_actions": [
+        "write"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.import-and-read"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "reindex_document.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出しと結果",
+          "file": "reindex_document-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "p3-recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "reindex_document",
+          "arguments": {
+            "arguments": {
+              "source_id": "11111111-1111-4111-8111-111111111111",
+              "etag": "\"source-1\""
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.replace_document_source",
+      "title": "資料原本の差し替え",
+      "summary": "資料原本の差し替え。前提・再送・状態の扱いは利用ガイドを参照。",
+      "kind": "tool",
+      "tool_names": [
+        "replace_document_source"
+      ],
+      "required_actions": [
+        "write"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.import-and-read"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "replace_document_source.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出しと結果",
+          "file": "replace_document_source-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "p3-recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "replace_document_source",
+          "arguments": {
+            "arguments": {
+              "transfer_id": "22222222222222222222222222222222",
+              "source_id": "11111111-1111-4111-8111-111111111111",
+              "etag": "\"source-1\"",
+              "idempotency_key": "synthetic-replace-1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.request_document_view",
+      "kind": "tool",
+      "title": "原本閲覧の要求",
+      "summary": "版付き参照を検証して原本の閲覧先を取得する。",
+      "tool_names": [
+        "request_document_view"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "request_document_view.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "request_document_view-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "request_document_view",
+          "arguments": {
+            "source_id": "11111111-1111-4111-8111-111111111111",
+            "source_revision": "11111111-1111-4111-8111-111111111111",
+            "evidence_revision": "11111111-1111-4111-8111-111111111111"
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.retry_document_job",
+      "kind": "tool",
+      "title": "失敗ジョブの再試行",
+      "summary": "現在版の失敗した抽出・削除ジョブを再開する。",
+      "tool_names": [
+        "retry_document_job"
+      ],
+      "required_actions": [
+        "write"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "retry_document_job.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "retry_document_job-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "retry_document_job",
+          "arguments": {
+            "arguments": {
+              "job_id": "11111111-1111-4111-8111-111111111111",
+              "allow_ocr_resubmit": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.search_documents",
+      "kind": "tool",
+      "title": "資料の横断検索",
+      "summary": "許可範囲内を検索し、根拠取得に使う参照を返す。",
+      "tool_names": [
+        "search_documents"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "search_documents.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "search_documents-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "search_documents",
+          "arguments": {
+            "query": "在庫照合",
+            "scope": {
+              "collection_ids": [
+                "documents"
+              ]
+            },
+            "mode": "text",
+            "limit": 10
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.update_document_draft",
+      "kind": "tool",
+      "title": "下書き全文の更新",
+      "summary": "共有下書きの原文を全文更新する。",
+      "tool_names": [
+        "update_document_draft"
+      ],
+      "required_actions": [
+        "write"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "update_document_draft.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "update_document_draft-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "update_document_draft",
+          "arguments": {
+            "arguments": {
+              "draft_id": "11111111-1111-4111-8111-111111111111",
+              "etag": "\"draft-1\"",
+              "idempotency_key": "synthetic-operation-key",
+              "body": "# 合成資料\n\n更新本文。\n"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.update_document_metadata",
+      "kind": "tool",
+      "title": "文書管理情報の更新",
+      "summary": "title・language・保存先などの管理情報を更新する。",
+      "tool_names": [
+        "update_document_metadata"
+      ],
+      "required_actions": [
+        "write"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.recover-operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "update_document_metadata.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出し例と結果",
+          "file": "update_document_metadata-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "update_document_metadata",
+          "arguments": {
+            "arguments": {
+              "source_id": "11111111-1111-4111-8111-111111111111",
+              "title": "合成資料",
+              "collection_id": "documents",
+              "source_kind": "wiki",
+              "language": "ja",
+              "etag": "\"source-1\"",
+              "idempotency_key": "synthetic-operation-key"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "workflow.edit-and-commit",
+      "kind": "workflow",
+      "title": "下書きの編集と確定",
+      "summary": "下書きの編集と確定",
+      "tool_names": [
+        "get_document",
+        "create_document_draft",
+        "get_document_draft",
+        "edit_document_draft",
+        "commit_document_draft",
+        "get_document_job"
+      ],
+      "required_actions": [
+        "read",
+        "write"
+      ],
+      "related_guides": [
+        "tool.get_document"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "操作手順",
+          "file": "workflow.edit-and-commit.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": []
+    },
+    {
+      "guide_id": "workflow.import-and-read",
+      "title": "資料の取り込みと処理確認",
+      "summary": "ホストのファイル転送からMCP登録・差し替え・ジョブ追跡・検索まで。",
+      "kind": "workflow",
+      "tool_names": [
+        "import_document",
+        "replace_document_source",
+        "get_document_status",
+        "reextract_document",
+        "reindex_document",
+        "get_document_job",
+        "list_document_scopes",
+        "search_documents",
+        "get_document_context"
+      ],
+      "required_actions": [
+        "read",
+        "write"
+      ],
+      "related_guides": [
+        "tool.import_document",
+        "tool.replace_document_source",
+        "tool.get_document_status",
+        "tool.reextract_document",
+        "tool.reindex_document"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "操作手順",
+          "file": "workflow.import-and-read.md"
+        },
+        {
+          "id": "recovery",
+          "title": "通信断と復旧",
+          "file": "p3-recovery.md"
+        }
+      ],
+      "examples": []
+    },
+    {
+      "guide_id": "workflow.recover-operation",
+      "kind": "workflow",
+      "title": "通信断と競合からの復旧",
+      "summary": "通信断と競合からの復旧",
+      "tool_names": [
+        "get_document_operation",
+        "get_document_draft",
+        "get_document_job",
+        "retry_document_job"
+      ],
+      "required_actions": [
+        "read",
+        "write"
+      ],
+      "related_guides": [
+        "tool.get_document_operation"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "操作手順",
+          "file": "workflow.recover-operation.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": []
+    },
+    {
+      "guide_id": "workflow.search-and-cite",
+      "kind": "workflow",
+      "title": "検索から根拠と原本閲覧",
+      "summary": "検索から根拠と原本閲覧",
+      "tool_names": [
+        "list_document_scopes",
+        "search_documents",
+        "get_document_context",
+        "request_document_view",
+        "connect_document_view"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "tool.list_document_scopes"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "操作手順",
+          "file": "workflow.search-and-cite.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "recovery.md"
+        }
+      ],
+      "examples": []
+    },
+    {
+      "guide_id": "tool.get_document_outline",
+      "kind": "tool",
+      "title": "文書構造の取得",
+      "summary": "保存済み抽出結果の要素ID・階層・見出し・ページ等の単位を取得する。",
+      "tool_names": [
+        "get_document_outline"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.read-document"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "get_document_outline.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出しと結果",
+          "file": "get_document_outline-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "document-reads-recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "get_document_outline",
+          "arguments": {
+            "arguments": {
+              "source_id": "11111111-1111-4111-8111-111111111111",
+              "source_revision": "22222222-2222-4222-8222-222222222222",
+              "evidence_revision": "33333333-3333-4333-8333-333333333333"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.get_document_section",
+      "kind": "tool",
+      "title": "文書の指定範囲の取得",
+      "summary": "取得済み見出し・要素・ページ等の範囲から、出典付きの抽出本文を読む。",
+      "tool_names": [
+        "get_document_section"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.read-document"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "get_document_section.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出しと結果",
+          "file": "get_document_section-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "document-reads-recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "get_document_section",
+          "arguments": {
+            "arguments": {
+              "source_id": "11111111-1111-4111-8111-111111111111",
+              "source_revision": "22222222-2222-4222-8222-222222222222",
+              "evidence_revision": "33333333-3333-4333-8333-333333333333",
+              "selector": {
+                "kind": "section",
+                "ref": "#/texts/0"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.list_document_tables",
+      "kind": "tool",
+      "title": "文書内の表一覧",
+      "summary": "抽出済みの表ID・見出し・寸法・結合有無・出典を一覧する。",
+      "tool_names": [
+        "list_document_tables"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.read-document"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "list_document_tables.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出しと結果",
+          "file": "list_document_tables-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "document-reads-recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "list_document_tables",
+          "arguments": {
+            "arguments": {
+              "source_id": "11111111-1111-4111-8111-111111111111",
+              "source_revision": "22222222-2222-4222-8222-222222222222",
+              "evidence_revision": "33333333-3333-4333-8333-333333333333"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.get_document_table",
+      "kind": "tool",
+      "title": "表のセル・CSVの取得",
+      "summary": "一覧で得た表IDから、指定した行列範囲のセル構造とCSVを取得する。",
+      "tool_names": [
+        "get_document_table"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.read-document"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "get_document_table.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出しと結果",
+          "file": "get_document_table-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "document-reads-recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "get_document_table",
+          "arguments": {
+            "arguments": {
+              "source_id": "11111111-1111-4111-8111-111111111111",
+              "source_revision": "22222222-2222-4222-8222-222222222222",
+              "evidence_revision": "33333333-3333-4333-8333-333333333333",
+              "table_ref": "#/tables/0",
+              "format": "csv"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "tool.get_document_page_image",
+      "kind": "tool",
+      "title": "ページ・スライド画像の取得",
+      "summary": "版を確認してPDFページまたはPPTXスライドのプレビュー画像をMCP画像として取得する。",
+      "tool_names": [
+        "get_document_page_image"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.read-document"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "用途と前提",
+          "file": "get_document_page_image.md"
+        },
+        {
+          "id": "examples",
+          "title": "呼び出しと結果",
+          "file": "get_document_page_image-example.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "document-reads-recovery.md"
+        }
+      ],
+      "examples": [
+        {
+          "tool_name": "get_document_page_image",
+          "arguments": {
+            "arguments": {
+              "source_id": "11111111-1111-4111-8111-111111111111",
+              "source_revision": "22222222-2222-4222-8222-222222222222",
+              "evidence_revision": "33333333-3333-4333-8333-333333333333",
+              "unit": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "guide_id": "workflow.read-document",
+      "kind": "workflow",
+      "title": "構造・範囲・表・画像を読む",
+      "summary": "版と出典を保って文書を必要な範囲で読む。",
+      "tool_names": [
+        "get_document_outline",
+        "get_document_section",
+        "list_document_tables",
+        "get_document_table",
+        "get_document_page_image"
+      ],
+      "required_actions": [
+        "read"
+      ],
+      "related_guides": [
+        "overview",
+        "workflow.search-and-cite",
+        "workflow.import-and-read"
+      ],
+      "sections": [
+        {
+          "id": "usage",
+          "title": "取得手順",
+          "file": "workflow.read-document.md"
+        },
+        {
+          "id": "recovery",
+          "title": "失敗時の対処",
+          "file": "document-reads-recovery.md"
+        }
+      ],
+      "examples": []
+    }
+  ]
+}

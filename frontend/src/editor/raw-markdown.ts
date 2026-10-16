@@ -89,6 +89,74 @@ export function rawParts(source: string): RawPart[] {
     parts.push({ raw: source.slice(cursor), editable: false, kind: "spacing" });
   return parts;
 }
+
+export function isWikiImage(url: string): boolean {
+  return /^\/api\/wiki\/images\/[a-f0-9]{64}\.(png|jpg|gif|webp)$/.test(url);
+}
+
+export function firstPlateImage(
+  nodes: import("platejs").Value,
+): ReturnType<typeof firstMarkdownImage> {
+  for (const node of nodes) {
+    if (node.type === "img" && typeof node.url === "string") {
+      const caption = Array.isArray(node.caption)
+        ? node.caption.map((c) => c.text).join("")
+        : "";
+      return {
+        url: node.url,
+        alt: typeof node.alt === "string" ? node.alt : caption,
+        caption: Array.isArray(node.caption)
+          ? caption
+          : typeof node.title === "string"
+            ? node.title
+            : "",
+      };
+    }
+    if ("children" in node) {
+      const image = firstPlateImage(node.children as import("platejs").Value);
+      if (image) return image;
+    }
+  }
+  return null;
+}
+
+/** Read document order from the AST; code, frontmatter and HTML are not images. */
+export function firstMarkdownImage(source: string): {
+  url: string;
+  alt: string;
+  caption: string;
+} | null {
+  const tree = parser.parse(source.replace(/^\ufeff/, ""));
+  const definitions = new Map(
+    tree.children
+      .filter((n) => n.type === "definition")
+      .map((n) => [n.identifier, n]),
+  );
+  function visit(node: RootContent): ReturnType<typeof firstMarkdownImage> {
+    if (node.type === "image")
+      return { url: node.url, alt: node.alt ?? "", caption: node.title ?? "" };
+    if (node.type === "imageReference") {
+      const definition = definitions.get(node.identifier);
+      if (definition)
+        return {
+          url: definition.url,
+          alt: node.alt ?? "",
+          caption: definition.title ?? "",
+        };
+    }
+    if ("children" in node)
+      for (const child of node.children) {
+        const found = visit(child as RootContent);
+        if (found) return found;
+      }
+    return null;
+  }
+  for (const node of tree.children) {
+    const found = visit(node);
+    if (found) return found;
+  }
+  return null;
+}
 export function combineParts(parts: RawPart[]): string {
   return parts.map((part) => part.raw).join("");
 }

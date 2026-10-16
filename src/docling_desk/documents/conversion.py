@@ -29,6 +29,7 @@ from docling_core.types.doc import DocItem, ImageRefMode, PictureItem, TableItem
 from pydantic import BaseModel, Field
 
 from docling_desk.config import MAX_BYTES, MAX_PAGES, MODELS
+from docling_desk.documents.images import ImageInfo
 from docling_desk.documents.ocr_profiles import (
     OCR_META,
     enrich_office_images,
@@ -87,6 +88,7 @@ class Job(BaseModel):
     synthetic: bool = False
     ocr_profile: dict | None = None
     error_code: str | None = None
+    image: ImageInfo | None = None
 
 
 class Element(BaseModel):

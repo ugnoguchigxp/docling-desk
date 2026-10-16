@@ -117,6 +117,13 @@ def test_editor_calls_public_api_with_trusted_actor_etag_and_key(editor):
 def test_other_draft_and_arbitrary_paths_are_denied(editor):
     client, _, _, _, draft_id, _, _ = editor
     token = connect(client, draft_id)
+    for name in ("get_document_status", "reextract_document", "reindex_document"):
+        assert (
+            client.post(
+                f"/editor/session/{token}/tools", json={"name": name, "arguments": {}}
+            ).status_code
+            == 403
+        )
     assert (
         client.post(
             f"/editor/session/{token}/tools",

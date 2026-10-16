@@ -132,6 +132,7 @@ export const extractionSchema = z
     chunks: z.array(recordSchema).max(100000),
     warnings: z.array(z.string()).max(1000).default([]),
     viewer_ready: z.boolean().optional(),
+    structure_ready: z.boolean().optional(),
   })
   .strict();
 export type Extraction = z.infer<typeof extractionSchema>;

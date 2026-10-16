@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from docling_desk.config import RESOURCES
-from docling_desk.viewer.document_tools import DOCUMENT_TOOLS, document_tool
+from docling_desk.viewer.document_tools import DOCUMENT_READS, DOCUMENT_TOOLS, document_tool
 
 
 class EditorTarget(BaseModel):
@@ -190,10 +190,14 @@ def install_editor(app, gateway):
 
 async def editor_tool(gateway, token: str, session: dict, call: EditorCall):
     if call.name not in DOCUMENT_TOOLS or call.name in {
+        *DOCUMENT_READS,
         "retry_document_job",
         "update_document_metadata",
         "create_markdown_document",
         "get_document_job",
+        "get_document_status",
+        "reextract_document",
+        "reindex_document",
     }:
         raise HTTPException(403, "editor_operation_forbidden")
     args = dict(call.arguments)

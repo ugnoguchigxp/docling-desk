@@ -135,6 +135,10 @@ http://127.0.0.1:8765 で開けます。仮想環境を有効にしなくても�
 - [Azure OCR](docs/azure-ocr-setup.md)
 - [外部ナレッジAPI](docs/knowledge-api.md)
 - [HTTPとMCPによるMarkdown編集と接続手順](docs/external-document-platform.md)
+- [Eumenes向けの接続例・導入と確認](integrations/eumenes/README.md)
+- [HTTPとMCPで取得するツール利用ガイド](docs/tool-guides.md)
+- [MCPによる資料の取り込み・差し替え・処理管理](docs/mcp-document-ingestion.md)
+- [MCPによる文書構造・範囲・表・ページ画像の取得](docs/mcp-document-reading.md)
 - [文書ビューアーの組み込み](docs/viewer-embedding.md)
 
 ## 開発

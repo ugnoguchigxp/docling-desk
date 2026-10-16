@@ -1,0 +1,10 @@
+# 下書きの編集と確定
+
+1. 既存Markdownならget_documentでsource_id・source_revision・etag・原文を取得。文書etagを下書き作成のsource_etagへ渡す。新規なら許可されたmetadataとbodyを用意する。
+2. 最初のキーを保存してcreate_document_draft。既存文書では3つの基準値を渡す。
+3. get_document_draftのbody・etag・sha256を読み、変更箇所をLLMが判断する。
+4. edit_document_draftへdraft_id・最新etag・base_sha256・edits・今回のidempotency_keyを渡す。expectedは原文と完全一致。UTF-8バイト位置とUTF-16添字を混同しない。
+5. 更新後のetagを使いcommit_document_draft。source_etagには下書きのbase_etag（基準文書のetag）を渡し、新規ならnullを明示する。
+6. 確定結果の文書版とjob_idを保持し、get_document_jobで索引状態を確認する。保存済みと検索準備完了を別に伝える。
+
+412や原文不一致では入力を保持し最新本文から見直す。勝手な自動マージ、基準版だけの変更、同じ操作への新しいキーの採番はしない。下書きのままの本文は通常検索に出ない。

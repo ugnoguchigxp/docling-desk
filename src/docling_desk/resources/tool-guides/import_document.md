@@ -1,0 +1,11 @@
+# 資料ファイルの取り込み
+
+ホストが先にPOST /api/v1/document-transfersへfile・metadata・任意のocr_providerをmultipartで送る。認証は利用者別MCP Bearer。MCPにファイル本体、URL、ローカルパスを渡さない。metadataは許可された保存先とSourceMetadataの全必須項目を持つ。返ったtransfer_idを使う。
+
+write権限が必要。このtransferはimport用で、利用者・資格情報・保存先・原本バイト・OCR設定に結び付く。idempotency_keyは初回送信前に記録する。成功は原本登録の受付であり、検索完了ではない。source_id・source_revision・job_idを保持し、get_document_jobとget_document_statusへ進む。
+
+## 呼び出しと返却値
+
+MCPは業務引数をargumentsの中へ入れる。HTTPの対応操作と完全な入出力スキーマはschemasで取得する。利用者はホストの認証結果で決まり、モデル引数で権限を作らない。
+
+転送のmetadataはJSON文字列。完全な型はschemasのtransfer_http内、multipartのmetadata.contentSchemaで取得できる。source_kind省略時はdocument、language省略時はjaを業務APIが補完する。

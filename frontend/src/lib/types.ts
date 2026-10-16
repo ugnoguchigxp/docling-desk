@@ -1,6 +1,22 @@
 export type View = "preview" | "tables" | "structure" | "rag";
 export type Language = "original" | "en" | "ja";
 export type Kind = "page" | "slide" | "sheet" | "document";
+export interface ImageInfo {
+  reference: string;
+  sha256: string;
+  media_type: string;
+  byte_size: number;
+  width: number;
+  height: number;
+  animated: boolean;
+}
+export interface ImageMetadata {
+  description: string;
+  tags: string[];
+  default_alt: string;
+  default_credit: string;
+  source_url: string;
+}
 export interface Job {
   id: string;
   filename: string;
@@ -19,6 +35,8 @@ export interface Job {
   preview: string | null;
   slide_layout: boolean;
   synthetic?: boolean;
+  image?: ImageInfo | null;
+  image_metadata?: ImageMetadata;
   translations?: Record<
     string,
     { saved: number; active: number; failed: number }

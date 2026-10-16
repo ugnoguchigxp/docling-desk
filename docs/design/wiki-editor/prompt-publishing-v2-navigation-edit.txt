@@ -1,0 +1,1 @@
+Use case: precise-object-edit. Edit target: the generated four-column future publishing settings mockup. Replace only the topmost global navigation with 資料一覧 / Wiki (selected) / 本文を検索. Keep Docling Desk and the adjacent upload / new-document icon buttons. Preserve all platform fields, future feature notice, restrictions, colors, spacing and bottom panels. No other changes.
