@@ -13,6 +13,8 @@ from starlette.concurrency import run_in_threadpool
 from docling_desk import config
 from docling_desk.config import MAX_BYTES, MIN_FREE
 from docling_desk.documents.conversion import Job, convert_job, save_job, validate_input
+from docling_desk.documents.diagram_store import SUFFIX as EXCALIDRAW_SUFFIX
+from docling_desk.documents.diagram_store import import_scene
 from docling_desk.documents.diagrams import (
     DIAGRAM_SUFFIXES,
     diagram_filename,
@@ -85,11 +87,13 @@ async def upload(
     with LOCK:
         destination_exists(load_library(config.DATA), folder_id)
     filename = Path((file.filename or "").replace("\\", "/")).name
+    suffix = Path(filename).suffix.lower()
+    is_excalidraw = suffix == EXCALIDRAW_SUFFIX
     is_diagram = diagram_filename(filename)
-    is_image = not is_diagram and Path(filename).suffix.lower() in IMAGE_SUFFIXES
-    needs_conversion = not is_image and not is_diagram
-    needs_ocr = needs_conversion and Path(filename).suffix.lower() not in TEXT_DOCUMENT_SUFFIXES
-    if Path(filename).suffix.lower() not in SUPPORTED_SUFFIXES | IMAGE_SUFFIXES | DIAGRAM_SUFFIXES:
+    is_image = not is_diagram and suffix in IMAGE_SUFFIXES
+    needs_conversion = not is_image and not is_diagram and not is_excalidraw
+    needs_ocr = needs_conversion and suffix not in TEXT_DOCUMENT_SUFFIXES
+    if suffix not in SUPPORTED_SUFFIXES | IMAGE_SUFFIXES | DIAGRAM_SUFFIXES | {EXCALIDRAW_SUFFIX}:
         raise HTTPException(415, f"{SUPPORTED_LABEL}を選んでください。")
     try:
         profile = load_profile(ocr_provider if needs_ocr else "disabled")
@@ -115,7 +119,7 @@ async def upload(
     )
     try:
         with TemporaryDirectory(prefix="docling-upload-") as staging:
-            source = Path(staging) / ("original" + Path(filename).suffix.lower())
+            source = Path(staging) / ("original" + suffix)
             total = 0
             with source.open("wb") as stream:
                 while chunk := await file.read(1024 * 1024):
@@ -123,6 +127,9 @@ async def upload(
                     if total > MAX_BYTES:
                         raise HTTPException(413, "上限50 MiBを超えています。")
                     stream.write(chunk)
+            if is_excalidraw:
+                raw = await run_in_threadpool(source.read_bytes)
+                return await run_in_threadpool(import_scene, config.DATA, filename, folder_id, raw)
             if not is_diagram and source.suffix == ".png":
                 is_diagram = await run_in_threadpool(png_has_diagram, source)
             if is_diagram:

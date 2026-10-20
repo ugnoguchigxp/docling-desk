@@ -39,6 +39,7 @@ export interface Job {
   synthetic?: boolean;
   image?: ImageInfo | null;
   diagram?: boolean;
+  excalidraw?: boolean;
   image_metadata?: ImageMetadata;
   translations?: Record<
     string,

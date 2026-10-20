@@ -1,13 +1,14 @@
 export const supportedAccept =
-  ".pdf,.pptx,.xlsx,.docx,.md,.markdown,.txt,.text,.tex,.latex,.png,.jpg,.jpeg,.gif,.webp,.drawio,.dio,.xml,.svg,.html,.htm";
+  ".pdf,.pptx,.xlsx,.docx,.md,.markdown,.txt,.text,.tex,.latex,.png,.jpg,.jpeg,.gif,.webp,.drawio,.dio,.xml,.svg,.html,.htm,.excalidraw";
 export const supportedLabel =
-  "PDF / PPTX / XLSX / DOCX / Markdown / テキスト / TeX / 画像 / draw.io";
+  "PDF / PPTX / XLSX / DOCX / Markdown / テキスト / TeX / 画像 / draw.io / Excalidraw";
 export const isDocument = (name: string) =>
   /\.(docx|md|markdown|txt|text|tex|latex)$/i.test(name);
 export const isSupported = (name: string) =>
-  /\.(pdf|pptx|xlsx|docx|md|markdown|txt|text|tex|latex|png|jpg|jpeg|gif|webp|drawio|dio|xml|svg|html|htm)$/i.test(
+  /\.(pdf|pptx|xlsx|docx|md|markdown|txt|text|tex|latex|png|jpg|jpeg|gif|webp|drawio|dio|xml|svg|html|htm|excalidraw)$/i.test(
     name,
   );
+export const isExcalidraw = (name: string) => /\.excalidraw$/i.test(name);
 export function matchesFormat(name: string, format: string) {
   if (format === "drawio")
     return (

@@ -12,6 +12,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from docling_desk import config
 from docling_desk.api import (
     assets,
+    diagrams,
     explanation,
     health,
     library,
@@ -22,6 +23,7 @@ from docling_desk.api import (
 )
 from docling_desk.blob_mirror import MirrorWorker, create_mirror
 from docling_desk.documents.conversion import Job, save_job
+from docling_desk.documents.diagram_store import repair_diagrams
 from docling_desk.explanation.service import ExplanationManager
 from docling_desk.explanation.store import recover as explanation_recover
 from docling_desk.knowledge.api import create_router as knowledge_router
@@ -62,6 +64,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             app.state.blob_worker = MirrorWorker(mirror, config.BLOB_INTERVAL)
         with exclusive_write(config.DATA, "migration"):
             migrate_layout(config.DATA)
+            repair_diagrams(config.DATA)
         interrupt_pending(config.DATA)
         explanation_recover(config.DATA)
         app.state.explanation_manager = ExplanationManager()
@@ -110,6 +113,7 @@ def create_app() -> FastAPI:
     application.include_router(preview.router)
     application.include_router(explanation.router)
     application.include_router(translation.router)
+    application.include_router(diagrams.router)
     application.include_router(assets.router)
     return application
 

@@ -246,13 +246,43 @@ it("validates the dialog and uploads the chosen files", async () => {
   expect(result).toContain("2件の資料を追加しました");
   expect(uploads.map((item) => item.name)).toEqual(["notes.PDF", "exact.pdf"]);
   expect(uploads[0]).toMatchObject({ folder: "folder-a", provider: "local" });
-  expect(dialog).not.toHaveAttribute("open");
+  // onMessage runs before the state update that closes the dialog renders.
+  await waitFor(() => expect(dialog).not.toHaveAttribute("open"));
   expect(reset).toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "アップロードを開く" }));
   expect(dialog).toHaveAttribute("open");
   expect(document.getElementById("uploadLocation")).toHaveTextContent(
     "保存先：資料一覧 / A",
   );
+});
+
+it("offers .excalidraw in the picker and uploads it like any other file", async () => {
+  const uploads: UploadCall[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/ocr") return json({ azure_available: true });
+      if (url === "/api/upload") {
+        const recorded = recordUpload(init);
+        if (recorded) uploads.push(recorded);
+        return json({});
+      }
+      return json({});
+    }),
+  );
+  const { user, onMessage } = renderUpload({ destination: "folder-a" });
+  await user.click(screen.getByRole("button", { name: "アップロードを開く" }));
+  const input = document.querySelector("#upload input[type=file]");
+  if (!(input instanceof HTMLInputElement))
+    throw new Error("missing file field");
+  expect(input.accept.split(",")).toEqual(
+    expect.arrayContaining([".excalidraw", ".drawio", ".pdf"]),
+  );
+  assignFiles(input, [file("scene.excalidraw"), file("scene.excalidraw.exe")]);
+  submitUpload();
+  await waitFor(() => expect(onMessage).toHaveBeenCalled());
+  expect(uploads.map((item) => item.name)).toEqual(["scene.excalidraw"]);
+  expect(String(onMessage.mock.calls.at(-1)?.[0])).toContain("Excalidraw");
 });
 
 it("keeps the dialog open when every file is rejected", async () => {

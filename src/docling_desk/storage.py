@@ -64,8 +64,31 @@ def job_file(folder: Path) -> Path:
     return folder / "job.json"
 
 
+def diagram_key(folder: Path) -> str | None:
+    """Current revision key of a version 2 diagram manifest, else None."""
+    manifest = data_root(folder) / "content" / "documents" / folder.name / "manifest.json"
+    try:
+        value = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    key = value.get("key") if isinstance(value, dict) else None
+    prefix = f"documents/{folder.name}/revisions/"
+    if (
+        not isinstance(value, dict)
+        or value.get("version") != 2
+        or value.get("kind") != "excalidraw"
+        or not isinstance(key, str)
+        or not key.startswith(prefix)
+        or ".." in key.split("/")
+    ):
+        return None
+    return key
+
+
 def original_file(folder: Path, suffix: str) -> Path:
     if managed(folder):
+        if suffix == ".excalidraw" and (key := diagram_key(folder)):
+            return data_root(folder) / "content" / key
         target = data_root(folder) / "content" / "documents" / folder.name / ("original" + suffix)
         if target.exists() or not (folder / ("original" + suffix)).exists():
             return target
@@ -92,11 +115,17 @@ def source_folder(source: Path) -> Path:
     directory = source.parent
     if directory.parent.name == "documents" and directory.parent.parent.name == "content":
         return document_root(directory.parent.parent.parent) / directory.name
+    if directory.parent.name == "revisions" and directory.parent.parent.parent.name == "documents":
+        document = directory.parent.parent
+        if document.parent.parent.name == "content":
+            return document_root(document.parent.parent.parent) / document.name
     return directory
 
 
 def record_original(folder: Path, filename: str, created: float) -> None:
     if not managed(folder):
+        return
+    if diagram_key(folder):
         return
     source = original_file(folder, Path(filename).suffix.lower())
     target = source.parent / "manifest.json"

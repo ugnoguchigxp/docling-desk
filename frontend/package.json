@@ -14,7 +14,7 @@
     "build": "pnpm typecheck && vite build",
     "export:static": "node scripts/export-static.mjs",
     "test:e2e": "playwright test --project=operations",
-    "test:e2e:synthetic": "UI_SYNTHETIC=1 playwright test --project=wiki --project=printing --project=operations",
+    "test:e2e:synthetic": "UI_SYNTHETIC=1 playwright test --project=wiki --project=printing --project=operations --project=diagram",
     "test:e2e:saved": "playwright test --project=saved",
     "test:e2e:dev": "UI_DEV=1 playwright test --project=operations",
     "test:visual": "playwright test --project=layout",

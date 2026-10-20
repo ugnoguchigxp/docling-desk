@@ -266,6 +266,8 @@ def operate(data: Path, request: Operation) -> dict:
                 ("folder", p) in items for p in ancestors(library, placement(library, j).parent_id)
             )
         ]
+        if request.action == "copy" and any(j.excalidraw for j in affected_jobs):
+            raise HTTPException(409, "図表の複製には対応していません。")
         if request.action in {"delete", "copy"} and any(
             j.state in {"queued", "running"} for j in affected_jobs
         ):

@@ -93,6 +93,7 @@ class Job(BaseModel):
     error_code: str | None = None
     image: ImageInfo | None = None
     diagram: bool = False
+    excalidraw: bool = False
 
 
 class Element(BaseModel):

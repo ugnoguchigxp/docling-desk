@@ -81,6 +81,7 @@ export const library = decoder<Library>(
         slide_layout: boolean,
         synthetic: maybe(boolean),
         diagram: maybe(boolean),
+        excalidraw: maybe(boolean),
         image: maybe(
           fields({
             reference: string,

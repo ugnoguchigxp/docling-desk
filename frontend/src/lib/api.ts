@@ -18,15 +18,7 @@ export async function request<T>(
       response.ok ? "応答を読み込めませんでした。" : `HTTP ${response.status}`,
     );
   });
-  if (response.status === 401) {
-    const target = loginRedirect(value, window.location);
-    // The shared login expired: return through the host application's login.
-    // Concurrent requests fail together; only the first one navigates.
-    if (target && !leaving) {
-      leaving = true;
-      window.location.assign(target);
-    }
-  }
+  if (response.status === 401) leaveForLogin(value);
   if (!response.ok)
     throw new Error(
       object(value) && typeof value.detail === "string"
@@ -42,6 +34,15 @@ export async function request<T>(
           : `HTTP ${response.status}`,
     );
   return decode ? decode(value) : (value as T);
+}
+/** The shared login expired: return through the host application's login.
+ * Concurrent requests fail together; only the first one navigates. */
+export function leaveForLogin(body: unknown) {
+  const target = loginRedirect(body, window.location);
+  if (target && !leaving) {
+    leaving = true;
+    window.location.assign(target);
+  }
 }
 /**
  * Login URL for a 401 response, using the return parameter and format that the

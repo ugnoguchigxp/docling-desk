@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, expect, test, vi } from "vitest";
 import type { Job } from "../lib/types";
 import { Viewer } from "./Viewer";
@@ -23,6 +24,14 @@ vi.mock("./Translation", () => ({
 }));
 vi.mock("./Explanation", () => ({
   useExplanation: () => ({ panel: null }),
+}));
+vi.mock("./DiagramEditor", () => ({
+  DiagramEditor: (props: { job: Job; onChanged?: () => void }) => (
+    <div data-testid="diagram-editor">
+      {props.job.id}
+      <button onClick={() => props.onChanged?.()}>changed</button>
+    </div>
+  ),
 }));
 vi.mock("./PrintPreview", () => ({
   PrintPreview: (props: { onClose: () => void; current: number }) => (
@@ -108,4 +117,59 @@ test("disables printing until a failed document has a preview", () => {
     />,
   );
   expect(screen.getByRole("button", { name: "プリントプレビュー" })).toBeDisabled();
+});
+
+test("renders the Excalidraw editor for standalone diagrams, not the extraction viewer", () => {
+  const client = new QueryClient();
+  const invalidate = vi.spyOn(client, "invalidateQueries");
+  const onBack = vi.fn();
+  render(
+    <QueryClientProvider client={client}>
+      <Viewer
+        job={job({
+          id: "scene",
+          filename: "図.excalidraw",
+          original_filename: null,
+          preview: "excalidraw",
+          slide_layout: false,
+          pages: 0,
+          excalidraw: true,
+        })}
+        view="preview"
+        onView={() => {}}
+        onBack={onBack}
+        message="競合しました"
+        initialLanguage="original"
+        onLanguage={() => {}}
+        initialUnit={null}
+        navigation={<span>nav</span>}
+      />
+    </QueryClientProvider>,
+  );
+  expect(screen.getByTestId("diagram-editor")).toHaveTextContent("scene");
+  expect(screen.getByText("図.excalidraw")).toBeInTheDocument();
+  expect(screen.getByText("nav")).toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent("競合しました");
+  expect(screen.queryByText("rev-1")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "資料一覧へ戻る" }));
+  expect(onBack).toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "changed" }));
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ["library"] });
+});
+
+test("keeps draw.io diagrams on the read-only viewer", () => {
+  render(
+    <Viewer
+      job={job({ diagram: true, slide_layout: false, preview: null })}
+      view="preview"
+      onView={() => {}}
+      onBack={() => {}}
+      message=""
+      initialLanguage="original"
+      onLanguage={() => {}}
+      initialUnit={null}
+    />,
+  );
+  expect(screen.queryByTestId("diagram-editor")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("図のビューアー")).toBeInTheDocument();
 });

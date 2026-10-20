@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import type { ComponentProps } from "react";
-import { Button, ActionLink, DisclosureMenu } from "../components/ui";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  Button,
+  ActionLink,
+  DisclosureMenu,
+  IconButton,
+  Toolbar,
+} from "../components/ui";
 import { originalUrl } from "../lib/api";
 import { withBase } from "../lib/base";
 import { isDone, isLightweightPreview } from "../lib/types";
@@ -9,6 +16,7 @@ import { DocumentViewer } from "../viewer/DocumentViewer";
 import { useTranslation } from "./Translation";
 import { useExplanation } from "./Explanation";
 import { DiagramViewer } from "./DiagramViewer";
+import { DiagramEditor } from "./DiagramEditor";
 import { PrintPreview } from "./PrintPreview";
 
 /** Application-only generation and export actions surround the reusable viewer. */
@@ -17,10 +25,45 @@ type ViewerProps = Omit<
   "extensions" | "embedded" | "onUnitChange" | "onQuestion"
 >;
 export function Viewer(props: ViewerProps) {
+  if (props.job.excalidraw) return <ExcalidrawViewer {...props} />;
   return props.job.diagram ? (
     <DiagramViewer {...props} />
   ) : (
     <ExtractedViewer {...props} />
+  );
+}
+/** Standalone Excalidraw files are edited, not extracted or previewed. */
+function ExcalidrawViewer({ job, onBack, message, navigation }: ViewerProps) {
+  const cache = useQueryClient();
+  useEffect(() => {
+    document.title = `${job.filename} · Docling Desk`;
+  }, [job.filename]);
+  return (
+    <section id="detail" aria-label="図表エディター">
+      <Toolbar as="header" id="viewerToolbar" className="viewer-toolbar">
+        {navigation}
+        <IconButton
+          id="backToFiles"
+          icon="back"
+          label="資料一覧へ戻る"
+          onClick={onBack}
+        />
+        <span id="filename" title={job.filename}>
+          {job.filename}
+        </span>
+      </Toolbar>
+      {message && (
+        <p className="viewer-message" role="status">
+          {message}
+        </p>
+      )}
+      <DiagramEditor
+        job={job}
+        onChanged={() =>
+          void cache.invalidateQueries({ queryKey: ["library"] })
+        }
+      />
+    </section>
   );
 }
 function ExtractedViewer(props: ViewerProps) {

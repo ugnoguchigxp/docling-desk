@@ -930,7 +930,8 @@ it("blocks overlapping work while an operation is still running", async () => {
   await waitFor(() =>
     expect(screen.getByText("フォルダーを作成しました。")).toBeInTheDocument(),
   );
-  expect(dialog).not.toHaveAttribute("open");
+  // The dialog element is closed by an effect after the message renders.
+  await waitFor(() => expect(dialog).not.toHaveAttribute("open"));
 });
 
 it("disables destinations that contain a folder being moved", async () => {
@@ -982,4 +983,210 @@ it("switches to gallery without losing selection and remembers each folder's vie
   expect(
     screen.getByRole("list", { name: "保存済みの資料" }),
   ).toBeInTheDocument();
+});
+
+const diagramJob = job({
+  id: "scene1",
+  filename: "構成図.excalidraw",
+  folder_id: "a",
+  state: "success",
+  created: 700,
+  pages: 0,
+  preview: "excalidraw",
+  excalidraw: true,
+});
+
+function renderLibrary(data: Snapshot, initialFolder: string | null = null) {
+  const onJob = vi.fn();
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  function Host() {
+    const [folder, setFolder] = useState(initialFolder);
+    const [message, setMessage] = useState("");
+    return (
+      <Library
+        data={data}
+        folder={folder}
+        onFolder={setFolder}
+        onJob={onJob}
+        onUpload={() => {}}
+        message={message}
+        setMessage={setMessage}
+        hidden={false}
+      />
+    );
+  }
+  render(
+    <QueryClientProvider client={client}>
+      <Host />
+    </QueryClientProvider>,
+  );
+  return { onJob, user: userEvent.setup({ delay: null }) };
+}
+
+/** Fake server: PUT /api/diagrams/{id} creates the diagram that /api/library then lists. */
+function diagramServer(name: string, folder_id: string | null) {
+  const created: Job[] = [];
+  return (url: string) => {
+    if (url.startsWith("/api/diagrams/")) {
+      created.push(
+        job({
+          id: url.split("/").pop()!,
+          filename: name,
+          folder_id,
+          state: "success",
+          created: 9,
+          pages: 0,
+          preview: "excalidraw",
+          excalidraw: true,
+        }),
+      );
+      return json({}, 201);
+    }
+    return url === "/api/library"
+      ? json({ folders, jobs: [...jobs, ...created] })
+      : json();
+  };
+}
+
+it("creates an Excalidraw diagram in the current folder and opens it", async () => {
+  const calls: { url: string; init?: RequestInit }[] = [];
+  const server = diagramServer("設計.excalidraw", "a");
+  installFetch((url, init) => {
+    calls.push({ url, init });
+    return server(url);
+  });
+  const { user, onJob } = renderLibrary(libraryData, "a");
+  await user.click(screen.getByRole("button", { name: "図表を作成" }));
+  const dialog = document.getElementById("diagramDialog") as HTMLDialogElement;
+  expect(dialog).toHaveAttribute("open");
+  expect(document.getElementById("diagramLocation")).toHaveTextContent(
+    "作成先：資料一覧 / アルファ",
+  );
+  const name = document.getElementById("diagramName") as HTMLInputElement;
+  expect(name).toHaveValue("新しい図表");
+  await user.clear(name);
+  await user.type(name, "設計");
+  await user.click(document.getElementById("submitDiagram")!);
+  await waitFor(() => expect(onJob).toHaveBeenCalled());
+
+  const put = calls.find((c) => c.url.startsWith("/api/diagrams/"))!;
+  expect(put.url).toMatch(/^\/api\/diagrams\/[0-9a-f]{32}$/);
+  expect(put.init?.method).toBe("PUT");
+  const headers = put.init?.headers as Record<string, string>;
+  expect(headers["If-None-Match"]).toBe("*");
+  expect(headers["Idempotency-Key"]).toBeTruthy();
+  const body = JSON.parse(put.init?.body as string) as {
+    name: string;
+    folder_id: string | null;
+    scene: Record<string, unknown>;
+  };
+  expect(body).toMatchObject({ name: "設計.excalidraw", folder_id: "a" });
+  expect(body.scene).toEqual({
+    type: "excalidraw",
+    version: 2,
+    source: window.location.origin,
+    elements: [],
+    appState: { gridSize: null, viewBackgroundColor: "#ffffff" },
+    files: {},
+  });
+  expect(onJob).toHaveBeenCalledWith(
+    expect.objectContaining({
+      id: put.url.split("/").pop(),
+      filename: "設計.excalidraw",
+      excalidraw: true,
+    }),
+  );
+  expect(dialog).not.toHaveAttribute("open");
+});
+
+it("keeps an existing extension and reuses the id and key when retrying a failed creation", async () => {
+  const ids: string[] = [];
+  const keys: string[] = [];
+  let attempts = 0;
+  const server = diagramServer("A.EXCALIDRAW", null);
+  installFetch((url, init) => {
+    if (!url.startsWith("/api/diagrams/")) return server(url);
+    ids.push(url);
+    keys.push((init?.headers as Record<string, string>)["Idempotency-Key"]);
+    attempts++;
+    return attempts === 1
+      ? json({ detail: "保存先を確認してください。" }, 503)
+      : server(url);
+  });
+  const { user, onJob } = renderLibrary(libraryData);
+  await user.click(screen.getByRole("button", { name: "図表を作成" }));
+  const name = document.getElementById("diagramName") as HTMLInputElement;
+  await user.clear(name);
+  await user.type(name, "A.EXCALIDRAW");
+  await user.click(document.getElementById("submitDiagram")!);
+  await waitFor(() =>
+    expect(document.getElementById("diagramError")).toHaveTextContent(
+      "保存先を確認してください。",
+    ),
+  );
+  expect(onJob).not.toHaveBeenCalled();
+  expect(document.getElementById("diagramDialog")).toHaveAttribute("open");
+  await user.click(document.getElementById("submitDiagram")!);
+  await waitFor(() => expect(onJob).toHaveBeenCalledTimes(1));
+  expect(ids[1]).toBe(ids[0]);
+  expect(keys[1]).toBe(keys[0]);
+  expect(JSON.parse(fetchBody(0)).name).toBe("A.EXCALIDRAW");
+});
+
+function fetchBody(index: number): string {
+  const calls = vi
+    .mocked(fetch)
+    .mock.calls.filter(([u]) => String(u).startsWith("/api/diagrams/"));
+  return String(calls[index][1]?.body);
+}
+
+it("labels Excalidraw files, filters them, and refuses to copy them", async () => {
+  const data: Snapshot = { folders, jobs: [...jobs, diagramJob] };
+  const { user } = renderLibrary(data);
+  // The folder that holds the diagram cannot be copied either.
+  await user.click(screen.getByRole("checkbox", { name: "アルファを選択" }));
+  expect(document.getElementById("selectionCopy")).toBeDisabled();
+  await user.click(screen.getByRole("checkbox", { name: "アルファを選択" }));
+  expect(document.getElementById("selectionCopy")).toBeEnabled();
+  await user.click(screen.getByRole("checkbox", { name: "オメガを選択" }));
+  expect(document.getElementById("selectionCopy")).toBeEnabled();
+  await user.click(screen.getByRole("checkbox", { name: "オメガを選択" }));
+
+  await user.selectOptions(
+    screen.getByRole("combobox", { name: "ファイルの種類" }),
+    "excalidraw",
+  );
+  expect(order()).toEqual(["アルファ", "オメガ"]);
+  await user.selectOptions(
+    screen.getByRole("combobox", { name: "ファイルの種類" }),
+    "",
+  );
+  await user.click(screen.getByRole("button", { name: "アルファを開く" }));
+  await user.selectOptions(
+    screen.getByRole("combobox", { name: "ファイルの種類" }),
+    "excalidraw",
+  );
+  expect(order()).toEqual(["デルタ", "ベータ", "構成図.excalidraw"]);
+  const row = rowByName("構成図.excalidraw");
+  expect(
+    within(row).getByText("図表", { selector: ".file-kind" }),
+  ).toBeInTheDocument();
+  expect(
+    within(row).getByText("図表", { selector: ".file-state" }),
+  ).toBeInTheDocument();
+
+  await user.click(
+    screen.getByRole("checkbox", { name: "構成図.excalidrawを選択" }),
+  );
+  expect(document.getElementById("selectionCopy")).toBeDisabled();
+  expect(document.getElementById("selectionCopy")).toHaveAttribute(
+    "title",
+    "図表の複製には対応していません。",
+  );
+  const menu = openItemMenu("構成図.excalidraw");
+  expect(menu.getByRole("button", { name: "コピー先" })).toBeDisabled();
+  fireEvent.click(menu.getByRole("button", { name: "コピー先" }));
+  expect(document.getElementById("libraryDialog")).not.toHaveAttribute("open");
 });

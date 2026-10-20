@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 
 from docling_desk import config
 from docling_desk.api.dependencies import job_detail, job_folder
+from docling_desk.documents.diagram_store import SUFFIX as EXCALIDRAW_SUFFIX
 from docling_desk.documents.diagrams import DIAGRAM_SUFFIXES
 from docling_desk.documents.images import IMAGE_SUFFIXES
 from docling_desk.documents.text import SUPPORTED_SUFFIXES
@@ -88,12 +89,20 @@ def artifact(
 ) -> Response:
     folder = job_folder(job_id)
     if relative in {
-        "original" + suffix for suffix in SUPPORTED_SUFFIXES | IMAGE_SUFFIXES | DIAGRAM_SUFFIXES
+        "original" + suffix
+        for suffix in SUPPORTED_SUFFIXES | IMAGE_SUFFIXES | DIAGRAM_SUFFIXES | {EXCALIDRAW_SUFFIX}
     }:
         target = original_file(folder, relative[len("original") :])
         if not safe_path(config.DATA, target) or not target.is_file():
             raise HTTPException(404)
-        return FileResponse(target, filename=job_detail(job_id).filename if download else None)
+        return FileResponse(
+            target,
+            filename=job_detail(job_id).filename if download else None,
+            # Excalidraw scenes are JSON; without this they would be served as text/plain.
+            media_type="application/vnd.excalidraw+json"
+            if target.suffix == EXCALIDRAW_SUFFIX
+            else None,
+        )
     target = (folder / relative).resolve()
     if (
         not target.is_relative_to(folder.resolve())

@@ -22,11 +22,11 @@ import {
   TextField,
   Toolbar,
 } from "../components/ui";
-import { errorText, originalUrl, post } from "../lib/api";
+import { errorText, library, originalUrl, post, request } from "../lib/api";
 import { withBase } from "../lib/base";
 import { thumbnailUrl } from "../lib/media";
 import "./media-library.css";
-import { isDocument, matchesFormat } from "../lib/formats";
+import { isDocument, isExcalidraw, matchesFormat } from "../lib/formats";
 import {
   isDone,
   itemKey,
@@ -53,6 +53,32 @@ export function chain(folders: Folder[], id: string | null) {
 export function folderPath(folders: Folder[], id: string | null) {
   return ["資料一覧", ...chain(folders, id).map((f) => f.name)].join(" / ");
 }
+const DIAGRAM_EXTENSION = ".excalidraw";
+const DEFAULT_DIAGRAM_NAME = "新しい図表";
+const COPY_REFUSED = "図表の複製には対応していません。";
+/** Extension shown on file badges; Excalidraw files get a short Japanese label. */
+function kindLabel(job: Pick<Job, "excalidraw">, name: string) {
+  return job.excalidraw || isExcalidraw(name)
+    ? "図表"
+    : name.split(".").pop()?.toUpperCase();
+}
+function diagramFilename(input: string) {
+  const trimmed = input.trim() || DEFAULT_DIAGRAM_NAME;
+  return trimmed.toLowerCase().endsWith(DIAGRAM_EXTENSION)
+    ? trimmed
+    : trimmed + DIAGRAM_EXTENSION;
+}
+/** The minimal standard empty Excalidraw scene (the server stores the bytes as sent). */
+function emptyScene() {
+  return {
+    type: "excalidraw",
+    version: 2,
+    source: window.location.origin,
+    elements: [],
+    appState: { gridSize: null, viewBackgroundColor: "#ffffff" },
+    files: {},
+  };
+}
 function Thumbnail({ job }: { job: Job }) {
   const [failed, setFailed] = useState(false);
   const source = thumbnailUrl(job);
@@ -60,7 +86,7 @@ function Thumbnail({ job }: { job: Job }) {
     <img src={source} alt="" loading="lazy" onError={() => setFailed(true)} />
   ) : (
     <span className="gallery-file-kind">
-      {(job.original_filename || job.filename).split(".").pop()?.toUpperCase()}
+      {kindLabel(job, job.original_filename || job.filename)}
     </span>
   );
 }
@@ -109,6 +135,9 @@ export function Library({
     [name, setName] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
+    [diagram, setDiagram] = useState<{ parent: string | null } | null>(null),
+    [diagramName, setDiagramName] = useState(DEFAULT_DIAGRAM_NAME),
+    [diagramError, setDiagramError] = useState(""),
     [localScope, setLocalScope] = useState<"folder" | "images">("folder"),
     [preferences, setPreferences] = useState<
       Record<string, "list" | "gallery">
@@ -152,7 +181,14 @@ export function Library({
     onScope?.(next);
   }
   const operationBusy = useRef(false),
-    dragged = useRef<ItemRef[] | null>(null);
+    dragged = useRef<ItemRef[] | null>(null),
+    // One attempt = one id and key, so a retry cannot create a second diagram.
+    attempt = useRef<{
+      id: string;
+      key: string;
+      name: string;
+      parent: string | null;
+    } | null>(null);
   const items = useMemo<Item[]>(
     () => [
       ...data.folders.map((f) => ({ ...f, kind: "folder" as const })),
@@ -203,6 +239,17 @@ export function Library({
         a.id.localeCompare(b.id),
     );
   const selected = visible.filter((i) => checked.has(itemKey(i)));
+  // Folders that directly or indirectly contain a diagram (copy is refused).
+  const diagramFolders = useMemo(() => {
+    const ids = new Set<string>();
+    for (const j of data.jobs)
+      if (j.excalidraw)
+        for (const f of chain(data.folders, j.folder_id)) ids.add(f.id);
+    return ids;
+  }, [data]);
+  const holdsDiagram = (item: Item) =>
+    item.kind === "file" ? !!item.excalidraw : diagramFolders.has(item.id);
+  const copyBlocked = selected.some(holdsDiagram);
   useEffect(() => {
     setChecked(new Set());
     setQuery("");
@@ -259,6 +306,10 @@ export function Library({
   function start(action: Operation | "delete", targets = selected) {
     if (operationBusy.current || (!targets.length && action !== "create"))
       return;
+    if (action === "copy" && targets.some(holdsDiagram)) {
+      setMessage(COPY_REFUSED);
+      return;
+    }
     if (action === "delete") {
       void perform(
         { action, items: targets.map(({ kind, id }) => ({ kind, id })) },
@@ -270,6 +321,61 @@ export function Library({
     setDestination(folder);
     setName(action === "rename" ? itemName(targets[0]) : "");
     setError("");
+  }
+  function startDiagram() {
+    if (operationBusy.current) return;
+    setDiagram({ parent: folder });
+    setDiagramName(DEFAULT_DIAGRAM_NAME);
+    setDiagramError("");
+  }
+  async function createDiagram() {
+    if (operationBusy.current || !diagram) return;
+    const filename = diagramFilename(diagramName);
+    if (
+      attempt.current?.name !== filename ||
+      attempt.current.parent !== diagram.parent
+    )
+      attempt.current = {
+        id: crypto.randomUUID().replaceAll("-", ""),
+        key: crypto.randomUUID(),
+        name: filename,
+        parent: diagram.parent,
+      };
+    const { id, key } = attempt.current;
+    operationBusy.current = true;
+    setBusy(true);
+    setDiagramError("");
+    try {
+      await request(`/api/diagrams/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "If-None-Match": "*",
+          "Idempotency-Key": key,
+        },
+        body: JSON.stringify({
+          name: filename,
+          folder_id: diagram.parent,
+          scene: emptyScene(),
+        }),
+      });
+      attempt.current = null;
+      setDiagram(null);
+      setMessage("図表を作成しました。");
+      const fresh = await cache.fetchQuery({
+        queryKey: ["library"],
+        queryFn: ({ signal }) => library(signal),
+        staleTime: 0,
+      });
+      const job = fresh.jobs.find((j) => j.id === id);
+      if (job) onJob(job);
+      else setMessage("図表を作成しました。一覧から開いてください。");
+    } catch (e) {
+      setDiagramError(errorText(e));
+    } finally {
+      operationBusy.current = false;
+      setBusy(false);
+    }
   }
   function dropProps(id: string | null): HTMLAttributes<HTMLElement> {
     return {
@@ -328,7 +434,13 @@ export function Library({
         <Button onClick={() => open(item)}>開く</Button>
         <Button onClick={() => start("rename", [item])}>名前を変更</Button>
         <Button onClick={() => start("move", [item])}>移動先</Button>
-        <Button onClick={() => start("copy", [item])}>コピー先</Button>
+        <Button
+          disabled={holdsDiagram(item)}
+          title={holdsDiagram(item) ? COPY_REFUSED : undefined}
+          onClick={() => start("copy", [item])}
+        >
+          コピー先
+        </Button>
         {item.kind === "file" && (
           <ActionLink href={withBase(originalUrl(item))}>原本を保存</ActionLink>
         )}
@@ -364,6 +476,10 @@ export function Library({
           <Button id="newFolder" onClick={() => start("create")}>
             <Icon name="folder" />
             新しいフォルダー
+          </Button>
+          <Button id="newDiagram" onClick={startDiagram}>
+            <Icon name="file-plus" />
+            図表を作成
           </Button>
           <Button id="addFile" className="primary" onClick={onUpload}>
             <Icon name="plus" />
@@ -468,7 +584,8 @@ export function Library({
             </Button>
             <Button
               id="selectionCopy"
-              disabled={busy}
+              disabled={busy || copyBlocked}
+              title={copyBlocked ? COPY_REFUSED : undefined}
               onClick={() => start("copy")}
             >
               コピー先
@@ -519,6 +636,7 @@ export function Library({
                 <option value="txt">テキスト</option>
                 <option value="tex">TeX</option>
                 <option value="drawio">draw.io</option>
+                <option value="excalidraw">Excalidraw</option>
                 <option value="image">画像</option>
                 <option value="png">PNG</option>
                 <option value="jpg">JPEG</option>
@@ -579,7 +697,9 @@ export function Library({
                             ? `${item.image.width} × ${item.image.height} · ${item.image.media_type.split("/")[1].toUpperCase()}`
                             : item.diagram
                               ? "閲覧可能"
-                              : labels[item.state]}
+                              : item.excalidraw
+                                ? "図表"
+                                : labels[item.state]}
                       </span>
                       {scope === "images" && item.kind === "file" && (
                         <span className="gallery-meta">
@@ -702,7 +822,7 @@ export function Library({
                               className={`file-kind ${item.filename.split(".").pop()?.toLowerCase()}`}
                               aria-hidden="true"
                             >
-                              {item.filename.split(".").pop()?.toUpperCase()}
+                              {kindLabel(item, item.filename)}
                             </span>
                           )}
                           <span className="file-name" title={itemName(item)}>
@@ -724,7 +844,9 @@ export function Library({
                               ? "画像"
                               : item.diagram
                                 ? "閲覧可能"
-                                : labels[item.state]}
+                                : item.excalidraw
+                                  ? "図表"
+                                  : labels[item.state]}
                         </span>
                         {item.kind === "file" &&
                           Object.entries(item.translations || {}).map(
@@ -750,11 +872,13 @@ export function Library({
                           ? "—"
                           : item.image
                             ? "—"
-                            : isDocument(
-                                  item.original_filename || item.filename,
-                                ) && isDone(item)
-                              ? "文書全体"
-                              : item.pages || "—"}
+                            : item.excalidraw
+                              ? "—"
+                              : isDocument(
+                                    item.original_filename || item.filename,
+                                  ) && isDone(item)
+                                ? "文書全体"
+                                : item.pages || "—"}
                       </td>
                       <td
                         title={new Date(item.created * 1000).toLocaleString(
@@ -792,6 +916,68 @@ export function Library({
           </p>
         </div>
       </section>
+      <Dialog
+        id="diagramDialog"
+        className="library-dialog"
+        aria-labelledby="diagramDialogTitle"
+        open={!!diagram}
+        busy={busy}
+        onClose={() => {
+          if (!busy) setDiagram(null);
+        }}
+      >
+        <form
+          id="diagramForm"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void createDiagram();
+          }}
+        >
+          <DialogHeading
+            id="diagramDialogTitle"
+            title="図表を作成"
+            onClose={() => setDiagram(null)}
+            disabled={busy}
+          />
+          <p id="diagramLocation">
+            {`作成先：${folderPath(data.folders, diagram?.parent ?? null)}`}
+          </p>
+          <label>
+            名前
+            <TextField
+              id="diagramName"
+              type="text"
+              maxLength={200}
+              autoComplete="off"
+              required
+              value={diagramName}
+              disabled={busy}
+              onChange={(e) => setDiagramName(e.target.value)}
+            />
+          </label>
+          <p className="upload-hint">拡張子「.excalidraw」は自動で付きます。</p>
+          <StatusMessage id="diagramError" role="alert" hidden={!diagramError}>
+            {diagramError}
+          </StatusMessage>
+          <DialogActions>
+            <Button
+              id="cancelDiagram"
+              onClick={() => setDiagram(null)}
+              disabled={busy}
+            >
+              キャンセル
+            </Button>
+            <Button
+              id="submitDiagram"
+              type="submit"
+              className="primary"
+              disabled={busy}
+            >
+              作成
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
       <Dialog
         id="libraryDialog"
         className="library-dialog"

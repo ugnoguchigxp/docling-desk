@@ -1,5 +1,12 @@
 import { expect, test } from "vitest";
-import { isDocument, isSupported, matchesFormat } from "./formats";
+import {
+  isDocument,
+  isExcalidraw,
+  isSupported,
+  matchesFormat,
+  supportedAccept,
+  supportedLabel,
+} from "./formats";
 
 test("recognizes documents, supported uploads, and format filters", () => {
   expect(isDocument("Note.DOCX")).toBe(true);
@@ -71,4 +78,20 @@ test("accepts native draw.io containers and filters diagrams", () => {
     expect(matchesFormat(name, "drawio")).toBe(true);
   }
   expect(matchesFormat("graph.txt", "drawio")).toBe(false);
+});
+
+test("accepts standalone Excalidraw files and filters them", () => {
+  expect(supportedAccept).toContain(".excalidraw");
+  expect(supportedLabel).toContain("Excalidraw");
+  for (const name of ["scene.excalidraw", "Scene.EXCALIDRAW"]) {
+    expect(isSupported(name)).toBe(true);
+    expect(isExcalidraw(name)).toBe(true);
+    expect(isDocument(name)).toBe(false);
+    expect(matchesFormat(name, "excalidraw")).toBe(true);
+    expect(matchesFormat(name, "drawio")).toBe(false);
+  }
+  expect(isSupported("scene.excalidraw.exe")).toBe(false);
+  expect(isSupported("scene.excalidraw.json")).toBe(false);
+  expect(matchesFormat("graph.drawio", "excalidraw")).toBe(false);
+  expect(supportedAccept).toContain(".drawio");
 });

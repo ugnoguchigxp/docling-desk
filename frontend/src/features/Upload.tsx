@@ -300,7 +300,7 @@ export function useUpload(
             {`保存先：${fixed.current.path}`}
           </p>
           <label className="picker">
-            PDF・PowerPoint・Excel・Word・Markdown・テキスト・画像
+            PDF・PowerPoint・Excel・Word・Markdown・テキスト・画像・draw.io・Excalidraw
             <TextField
               type="file"
               name="file"
@@ -337,6 +337,7 @@ export function useUpload(
           </p>
           <p className="upload-hint">
             単独の画像ファイルは保存のみ行い、OCR・本文抽出は行いません。
+            Excalidraw（.excalidraw）は図表として取り込み、そのまま編集できます。
           </p>
           <StatusMessage id="uploadMessage" hidden={!dialogMessage}>
             {dialogMessage}

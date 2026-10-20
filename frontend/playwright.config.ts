@@ -51,6 +51,7 @@ export default defineConfig({
     { name: "wiki", testMatch: "wiki.spec.ts" },
     { name: "printing", testMatch: "print.spec.ts" },
     { name: "operations", testMatch: "operations.spec.ts" },
+    { name: "diagram", testMatch: "diagram.spec.ts" },
     { name: "layout", testMatch: "layout.spec.ts", timeout: 1800000 },
     { name: "saved", testMatch: "saved.spec.ts" },
   ],

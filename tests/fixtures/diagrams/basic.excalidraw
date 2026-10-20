@@ -1,0 +1,12 @@
+{
+	"type": "excalidraw",
+	"version": 2,
+	"source": "https://excalidraw.com",
+	"elements": [
+		{"id": "a1", "type": "rectangle", "x": 10, "y": 20.5, "width": 100, "height": 50, "link": null, "customField": {"keep": [3, 2, 1]}, "text": "日本語"},
+		{"id": "a2", "type": "arrow", "x": 0, "y": 0, "width": 10, "height": 10, "points": [[0, 0], [10, 10]], "link": "https://example.com/x"},
+		{"id": "a3", "type": "image", "x": 5, "y": 5, "width": 1, "height": 1, "fileId": "f1", "link": "mailto:a@example.com"}
+	],
+	"appState": {"viewBackgroundColor": "#ffffff", "gridSize": null},
+	"files": {"f1": {"id": "f1", "mimeType": "image/png", "created": 1760000000000, "dataURL": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"}}
+}
