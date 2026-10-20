@@ -1,5 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { PNG } from "pngjs";
+import { deflateRawSync } from "node:zlib";
+import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { waitForViewerSurface } from "./viewer-ready";
 import type { Folder, ItemRef, Library } from "../src/lib/types";
@@ -76,13 +79,11 @@ test("image library: upload, thumbnail, metadata, compact Markdown copy, and a s
   }
   await page.goto("/?mode=library");
   await page.locator("#addFile").click();
-  await page
-    .locator('#upload input[type="file"]')
-    .setInputFiles({
-      name: "library-image.png",
-      mimeType: "image/png",
-      buffer: PNG.sync.write(png),
-    });
+  await page.locator('#upload input[type="file"]').setInputFiles({
+    name: "library-image.png",
+    mimeType: "image/png",
+    buffer: PNG.sync.write(png),
+  });
   await page.locator('#upload button[type="submit"]').click();
   await expect(page.locator("#uploadDialog")).toBeHidden();
   await page.getByRole("button", { name: "画像を探す", exact: true }).click();
@@ -103,6 +104,15 @@ test("image library: upload, thumbnail, metadata, compact Markdown copy, and a s
     "src",
     /\/api\/wiki\/images\/[a-f0-9]{64}\.png$/,
   );
+  await dialog.getByRole("button", { name: "100%", exact: true }).click();
+  const originalImage = dialog.locator(".image-details-preview img");
+  await expect(originalImage).toHaveCSS("width", "320px");
+  await dialog.getByRole("button", { name: "画像を拡大", exact: true }).click();
+  await expect(originalImage).toHaveCSS("width", "400px");
+  await dialog.getByRole("button", { name: "全体表示", exact: true }).click();
+  await expect(
+    dialog.getByRole("button", { name: "全体表示", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
   await dialog.getByLabel("代替テキスト", { exact: true }).fill("図 [概要]");
   await dialog
     .getByLabel("説明", { exact: true })
@@ -207,6 +217,21 @@ for (const extension of ["md", "markdown", "txt", "text"]) {
         "white-space",
         "pre-wrap",
       );
+    }
+    if (!markdown) {
+      await preview.getByRole("searchbox", { name: "本文を検索" }).fill("本文");
+      await expect(preview.locator("mark.current")).toHaveText("本文");
+      await preview
+        .getByRole("button", { name: "折り返し", exact: true })
+        .click();
+      await expect(preview.locator("pre.plain-text")).toHaveCSS(
+        "white-space",
+        "pre",
+      );
+      await preview
+        .getByRole("button", { name: "折り返し", exact: true })
+        .click();
+      await expect(preview.locator("pre.plain-text")).toHaveText(content);
     }
     await expect(page.getByLabel("文書のズーム倍率")).toBeEnabled();
     await page.locator("#tab-structure").click();
@@ -1405,4 +1430,253 @@ test("production cold-load measurements and lazy table bundle", async ({
       2,
     ),
   );
+});
+
+test("TeX upload switches between typeset pages and source viewer", async ({
+  page,
+}) => {
+  test.skip(
+    spawnSync("tectonic", ["--version"]).status !== 0,
+    "Optional Tectonic engine is not installed",
+  );
+  const content = String.raw`\documentclass{article}
+\begin{document}
+Hello TeX. $E=mc^2$
+\newpage Second page.
+\end{document}
+`;
+  await page.goto("/?mode=library");
+  await page.locator("#addFile").click();
+  await page.locator('#upload input[type="file"]').setInputFiles({
+    name: "browser-paper.tex",
+    mimeType: "application/x-tex",
+    buffer: Buffer.from(content),
+  });
+  await page.locator('#upload button[type="submit"]').click();
+  await expect(page.locator("#uploadDialog")).toBeHidden();
+  await page.locator("#fileType").selectOption("tex");
+  const row = page
+    .locator("#library tr")
+    .filter({ hasText: "browser-paper.tex" });
+  await expect(row).toContainText("抽出完了", { timeout: 130000 });
+  await page.getByLabel("browser-paper.texを開く", { exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "組版表示", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  const preview = page.frameLocator("#original");
+  await expect(preview.locator(".pdf-page")).toHaveCount(2);
+  const first = preview.frameLocator('.pdf-page[data-number="1"] iframe');
+  await expect(first.locator("svg")).toBeVisible();
+  await expect(first.locator("body")).toContainText("Hello");
+  await preview
+    .getByRole("button", { name: "次のページ", exact: true })
+    .click();
+  await expect(
+    preview.getByRole("spinbutton", { name: "ページ番号" }),
+  ).toHaveValue("2");
+  await page.getByRole("button", { name: "TeXソース", exact: true }).click();
+  await expect(preview.locator("pre.plain-text")).toHaveText(content);
+  await preview.getByRole("searchbox", { name: "本文を検索" }).fill("newpage");
+  await expect(preview.locator("mark.current")).toHaveText("newpage");
+  await preview.getByRole("button", { name: "行番号", exact: true }).click();
+  await expect(preview.locator("pre")).not.toHaveClass(/line-numbers/);
+  await mkdir("../qa/file-viewers", { recursive: true });
+  await page.screenshot({
+    path: "../qa/file-viewers/tex-source.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "組版表示", exact: true }).click();
+  await expect(preview.locator(".pdf-page")).toHaveCount(2);
+  await expect(first.locator("svg")).toBeVisible();
+  await expect
+    .poll(() =>
+      preview
+        .locator(".pdf-thumbnail img")
+        .first()
+        .evaluate((image: HTMLImageElement) => image.naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  await page.screenshot({
+    path: "../qa/file-viewers/tex-typeset.png",
+    fullPage: true,
+  });
+});
+
+const graphModel = (label: string, extra = "") =>
+  `<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="2" value="${label}" style="rounded=1;whiteSpace=wrap;html=1;fontSize=18;fillColor=#dae8fc;" vertex="1" parent="1"><mxGeometry x="30" y="40" width="240" height="90" as="geometry"/></mxCell>${extra}</root></mxGraphModel>`;
+const packDiagram = (value: string) =>
+  deflateRawSync(Buffer.from(encodeURIComponent(value))).toString("base64");
+const nativeDiagram = `<mxfile><diagram id="a" name="受付">${graphModel("日本語の工程図")}</diagram><diagram id="b" name="完了">${packDiagram(graphModel("完了ページ"))}</diagram></mxfile>`;
+
+async function openDiagram(
+  page: Page,
+  name: string,
+  buffer: Buffer,
+  mimeType = "application/xml",
+) {
+  await page.goto("/?mode=library");
+  await page.locator("#addFile").click();
+  await page
+    .locator('#upload input[type="file"]')
+    .setInputFiles({ name, mimeType, buffer });
+  await page.locator('#upload button[type="submit"]').click();
+  await expect(page.locator("#uploadDialog")).toBeHidden();
+  await page.locator("#fileType").selectOption("drawio");
+  await expect(
+    page.locator("#library tr").filter({ hasText: name }),
+  ).toContainText("閲覧可能");
+  await page.getByLabel(`${name}を開く`, { exact: true }).click();
+  const preview = page.frameLocator("#original");
+  await expect(preview.locator("#diagramCanvas > svg")).toBeVisible();
+  return preview;
+}
+
+for (const extension of [
+  "drawio",
+  "dio",
+  "xml",
+  "drawio.svg",
+  "drawio.png",
+  "png",
+  "html",
+]) {
+  test(`draw.io compact preview: ${extension}`, async ({ page }) => {
+    const buffer =
+      extension === "drawio.svg"
+        ? Buffer.from(
+            `<svg xmlns="http://www.w3.org/2000/svg" content="${nativeDiagram.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;")}"/>`,
+          )
+        : extension === "drawio.png" || extension === "png"
+          ? await readFile("../tests/fixtures/drawio/embedded.drawio.png")
+          : extension === "html"
+            ? Buffer.from(
+                `<div class="mxgraph" data-mxgraph='${JSON.stringify({ xml: nativeDiagram }).replaceAll("&", "&amp;").replaceAll("'", "&#39;")}'></div>`,
+              )
+            : Buffer.from(nativeDiagram);
+    const preview = await openDiagram(
+      page,
+      `browser-native.${extension}`,
+      buffer,
+    );
+    await expect(preview.locator("#diagramCanvas")).toContainText("日本語");
+    await expect(preview.locator("#diagramStatus")).toBeHidden();
+    await expect(
+      page.getByRole("button", { name: /翻訳|わかりやすく解説/ }),
+    ).toHaveCount(0);
+    await preview
+      .getByRole("button", { name: "次のページ", exact: true })
+      .click();
+    await expect(preview.locator("#diagramCanvas")).toContainText("完了ページ");
+    const label = preview.getByText("完了ページ", { exact: true });
+    const beforePan = (await label.boundingBox())!;
+    const stage = (await preview.locator("#diagramCanvas").boundingBox())!;
+    await page.mouse.move(
+      stage.x + stage.width - 150,
+      stage.y + stage.height - 150,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      stage.x + stage.width - 70,
+      stage.y + stage.height - 100,
+      { steps: 8 },
+    );
+    await page.mouse.up();
+    await expect
+      .poll(async () => (await label.boundingBox())!.x)
+      .toBeGreaterThan(beforePan.x + 40);
+    await preview.getByRole("button", { name: "100%", exact: true }).click();
+    await expect(preview.locator("#diagramZoom")).toHaveText("100%");
+    await preview
+      .getByRole("button", { name: "図を拡大", exact: true })
+      .click();
+    await expect(preview.locator("#diagramZoom")).toHaveText("125%");
+    await preview
+      .getByRole("button", { name: "全体表示", exact: true })
+      .click();
+    await expect(preview.locator("#diagramZoom")).toHaveText("100%");
+    await preview.getByLabel("図のページ", { exact: true }).selectOption("0");
+    await expect(preview.locator("#diagramCanvas")).toContainText("日本語");
+    await page
+      .getByRole("button", { name: "資料一覧へ戻る", exact: true })
+      .click();
+    await expect(
+      page.getByLabel(`browser-native.${extension}を開く`, { exact: true }),
+    ).toBeFocused();
+  });
+}
+
+test("draw.io standard and embedded stencils, images, math, layers and restricted external references", async ({
+  page,
+}) => {
+  const external: string[] = [];
+  await page.route("https://diagram-external.invalid/**", async (route) => {
+    external.push(route.request().url());
+    await route.abort();
+  });
+  const buffer = await readFile("../tests/fixtures/drawio/rich.drawio");
+  const preview = await openDiagram(page, "browser-rich.drawio", buffer);
+  await expect(preview.locator("#diagramCanvas")).toContainText("埋込み画像");
+  await expect
+    .poll(() =>
+      preview
+        .locator("#diagramCanvas img")
+        .first()
+        .evaluate((image: HTMLImageElement) => image.naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  await expect(preview.locator("mjx-container")).toBeVisible();
+  await expect(preview.locator("#diagramStatus")).toBeHidden();
+  await preview.getByRole("button", { name: "レイヤー", exact: true }).click();
+  await expect(
+    preview.getByRole("checkbox", { name: "追加レイヤー", exact: true }),
+  ).not.toBeChecked();
+  await preview
+    .getByRole("checkbox", { name: "追加レイヤー", exact: true })
+    .check();
+  await expect(preview.locator("#diagramCanvas")).toContainText(
+    "隠れていた図形",
+  );
+  await preview.getByRole("button", { name: "レイヤー", exact: true }).click();
+  await preview
+    .getByRole("button", { name: "次のページ", exact: true })
+    .click();
+  await expect(preview.getByRole("status")).toContainText("外部参照");
+  expect(external).toEqual([]);
+  await mkdir("../qa/file-viewers", { recursive: true });
+  await preview
+    .getByRole("button", { name: "前のページ", exact: true })
+    .click();
+  await page.screenshot({
+    path: "../qa/file-viewers/drawio-preview.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(preview.locator("#diagramCanvas > svg")).toBeVisible();
+});
+
+test("draw.io internal links keep page controls in sync and unknown shapes are reported", async ({
+  page,
+}) => {
+  const first = `<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><UserObject label="次の図へ" link="data:page/id,last" id="2"><mxCell vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;"><mxGeometry x="30" y="40" width="180" height="80" as="geometry"/></mxCell></UserObject></root></mxGraphModel>`;
+  const last = graphModel("未登録の独自図形").replace(
+    "rounded=1;",
+    "shape=unknownDiagramShape;",
+  );
+  const raw = `<mxfile><diagram id="first" name="先頭">${first}</diagram><diagram id="last" name="末尾">${last}</diagram></mxfile>`;
+  const preview = await openDiagram(
+    page,
+    "browser-links.drawio",
+    Buffer.from(raw),
+  );
+  await preview.getByText("次の図へ", { exact: true }).click();
+  await expect(preview.getByLabel("図のページ", { exact: true })).toHaveValue(
+    "1",
+  );
+  await expect(preview.locator("#diagramCanvas")).toContainText(
+    "未登録の独自図形",
+  );
+  await expect(preview.getByRole("status")).toContainText("独自図形");
+  await expect(
+    preview.getByRole("button", { name: "次のページ", exact: true }),
+  ).toBeDisabled();
 });

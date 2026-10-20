@@ -640,3 +640,41 @@ describe("DocumentViewer", () => {
     expect(document.getElementById("explanationDisclosure")).toBeNull();
   });
 });
+
+it("switches TeX between the existing PDF viewer and searchable source", () => {
+  render(
+    <Viewer
+      job={job({
+        filename: "paper.TeX",
+        preview: "text-preview.html",
+        tex_preview: "tex-preview.pdf",
+        pages: 0,
+      })}
+    />,
+  );
+  expect(original()).toHaveAttribute("src", "/view/job/pdf");
+  expect(screen.getByRole("button", { name: "組版表示" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "TeXソース" }));
+  expect(original().getAttribute("src")).toContain("/view/job/source");
+  fireEvent.click(screen.getByRole("button", { name: "組版表示" }));
+  expect(original()).toHaveAttribute("src", "/view/job/pdf");
+});
+
+it("keeps TeX source readable when compilation is unavailable", () => {
+  render(
+    <Viewer
+      job={job({
+        filename: "paper.tex",
+        preview: "text-preview.html",
+        tex_error: "組版エラー",
+        state: "partial",
+      })}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "組版表示" })).toBeDisabled();
+  expect(original().getAttribute("src")).toContain("/view/job/source");
+  expect(screen.getByRole("status")).toHaveTextContent("組版エラー");
+});

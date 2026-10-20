@@ -154,7 +154,7 @@ em.executor.shutdown(wait=True)
 
 # No conversion/model process for uploads in this UI-only lane.
 def fixed_convert(folder, job):
-    if Path(job.filename).suffix.lower() in {".md", ".markdown", ".txt", ".text"}:
+    if Path(job.filename).suffix.lower() in {".md", ".markdown", ".txt", ".text", ".tex", ".latex"}:
         from docling_desk.documents.conversion import convert_job
 
         convert_job(folder, job)

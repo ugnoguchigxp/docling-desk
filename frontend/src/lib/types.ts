@@ -33,9 +33,12 @@ export interface Job {
   rag_policy: string | null;
   error: string | null;
   preview: string | null;
+  tex_preview?: string | null;
+  tex_error?: string | null;
   slide_layout: boolean;
   synthetic?: boolean;
   image?: ImageInfo | null;
+  diagram?: boolean;
   image_metadata?: ImageMetadata;
   translations?: Record<
     string,

@@ -8,15 +8,22 @@ import { isDocument } from "../lib/formats";
 import { DocumentViewer } from "../viewer/DocumentViewer";
 import { useTranslation } from "./Translation";
 import { useExplanation } from "./Explanation";
+import { DiagramViewer } from "./DiagramViewer";
 import { PrintPreview } from "./PrintPreview";
 
 /** Application-only generation and export actions surround the reusable viewer. */
-export function Viewer(
-  props: Omit<
-    ComponentProps<typeof DocumentViewer>,
-    "extensions" | "embedded" | "onUnitChange" | "onQuestion"
-  >,
-) {
+type ViewerProps = Omit<
+  ComponentProps<typeof DocumentViewer>,
+  "extensions" | "embedded" | "onUnitChange" | "onQuestion"
+>;
+export function Viewer(props: ViewerProps) {
+  return props.job.diagram ? (
+    <DiagramViewer {...props} />
+  ) : (
+    <ExtractedViewer {...props} />
+  );
+}
+function ExtractedViewer(props: ViewerProps) {
   const [current, setCurrent] = useState<number | null>(
     props.job.slide_layout ||
       isLightweightPreview(props.job) ||
@@ -79,7 +86,10 @@ export function Viewer(
               >
                 プリントプレビュー
               </Button>
-              <ActionLink id="originalDownload" href={withBase(originalUrl(props.job))}>
+              <ActionLink
+                id="originalDownload"
+                href={withBase(originalUrl(props.job))}
+              >
                 原文ドキュメントをダウンロード
               </ActionLink>
             </DisclosureMenu>

@@ -102,6 +102,13 @@ def main() -> None:
                 "resources/models/manifest.json",
                 "resources/ops/retention-policy.json",
                 "resources/static/frontend/index.html",
+                "resources/static/diagram-viewer.js",
+                "resources/static/diagram-config.js",
+                "resources/static/vendor/drawio/viewer-static.min.js",
+                "resources/static/vendor/drawio/stencils.min.js",
+                "resources/static/vendor/drawio/drawio-mathjax.min.js",
+                "resources/static/vendor/drawio/manifest.json",
+                "resources/static/vendor/drawio/LICENSE",
                 "resources/scripts/render-slide-thumbnail.swift",
                 "resources/tool-guides/manifest.json",
                 "resources/integrations/eumenes/README.md",
@@ -239,6 +246,16 @@ with TestClient(app, base_url="http://localhost") as client:
     assert not (config.DATA / "content/documents" / job_id).exists()
     assert not (config.DATA / "derived/documents" / job_id).exists()
     assert not (config.DATA / "runtime/documents" / job_id).exists()
+    diagram = client.post("/api/upload", files={"file": ("synthetic-installed.drawio",
+        b'<mxfile><diagram><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>')})
+    assert diagram.status_code == 202 and diagram.json()["diagram"], diagram.text
+    diagram_id = diagram.json()["id"]
+    assert client.get(f"/view/{diagram_id}/diagram").status_code == 200
+    for asset in ("viewer-static.min.js", "stencils.min.js", "drawio-mathjax.min.js"):
+        assert client.get("/static/vendor/drawio/" + asset).status_code == 200
+    assert not list((config.DATA / "derived/documents" / diagram_id).glob("*.html"))
+    removed = client.post("/api/library/operations", json={"action": "delete", "items": [{"kind": "file", "id": diagram_id}]})
+    assert removed.status_code == 200
     assert client.get("/api/library").json()["jobs"] == []
 assert not (config.PACKAGE_ROOT / "data").exists()
 assert not (config.PACKAGE_ROOT / ".cache").exists()

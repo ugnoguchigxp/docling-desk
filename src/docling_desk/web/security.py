@@ -54,7 +54,7 @@ async def local_only(
                 "default-src 'none'; script-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
                 "font-src 'self' data:; object-src 'none'; base-uri 'none'; sandbox allow-scripts"
             )
-        if request.url.path.endswith(("/word", "/document")):
+        if request.url.path.endswith(("/word", "/document", "/source")):
             response.headers["Content-Security-Policy"] = (
                 "default-src 'none'; script-src 'self'; img-src 'self' data:; "
                 "style-src 'self' 'unsafe-inline'; font-src 'self' data:; "
@@ -64,6 +64,12 @@ async def local_only(
             response.headers["Content-Security-Policy"] = (
                 "default-src 'none'; script-src 'self'; img-src 'self'; frame-src 'self'; "
                 "style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; "
+                "form-action 'none'; sandbox allow-scripts"
+            )
+        if request.url.path.endswith("/diagram"):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                "img-src data:; font-src data:; object-src 'none'; base-uri 'none'; "
                 "form-action 'none'; sandbox allow-scripts"
             )
     elif (

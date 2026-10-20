@@ -94,6 +94,11 @@ def test_document_preview_translation_explanation_and_download(document, monkeyp
     translated = client.get(url + "?language=en")
     assert translated.headers["x-translation-state"] == "translated"
     assert "Translated " in translated.text
+    if job.filename.endswith((".txt", ".text")):
+        source = client.get(f"/view/{job.id}/source?language=en")
+        assert source.headers["x-translation-state"] == "translated"
+        assert "Translated " in source.text
+        assert "source-viewer.js" in source.text
     assert client.get(url + "?language=invalid").status_code == 422
     explanation = snapshot(folder)
     assert explanation["unlocated_count"] == 0 and len(explanation["units"]) == 1

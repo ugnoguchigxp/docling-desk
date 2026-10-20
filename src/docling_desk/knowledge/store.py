@@ -361,15 +361,13 @@ class Store:
                     **article_metadata(frontmatter),
                     **(explicit or {}),
                 }
-                if (
-                    explicit is None
-                    and records.get(sid, {}).get("sha256") != sha256(raw)
-                ):
+                if explicit is None and records.get(sid, {}).get("sha256") != sha256(raw):
                     # Reimporting Markdown must not keep a stale rich document over the new body.
                     metadata.pop("editor_document", None)
                 if metadata.get("article_info") is not None:
                     metadata["article_info"] = with_body_image(
-                        ArticleInfo.model_validate(metadata["article_info"]), raw,
+                        ArticleInfo.model_validate(metadata["article_info"]),
+                        raw,
                         metadata.get("editor_document"),
                     ).model_dump()
                 parsed_title, _, sections = parse(evidence_body(body))

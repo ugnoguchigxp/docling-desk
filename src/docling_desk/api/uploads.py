@@ -13,6 +13,12 @@ from starlette.concurrency import run_in_threadpool
 from docling_desk import config
 from docling_desk.config import MAX_BYTES, MIN_FREE
 from docling_desk.documents.conversion import Job, convert_job, save_job, validate_input
+from docling_desk.documents.diagrams import (
+    DIAGRAM_SUFFIXES,
+    diagram_filename,
+    png_has_diagram,
+    read_diagram,
+)
 from docling_desk.documents.images import (
     IMAGE_SUFFIXES,
     image_thumbnail,
@@ -29,7 +35,7 @@ from docling_desk.documents.library import (
     load as load_library,
 )
 from docling_desk.documents.ocr_profiles import load_profile
-from docling_desk.documents.text import SUPPORTED_LABEL, SUPPORTED_SUFFIXES
+from docling_desk.documents.text import SUPPORTED_LABEL, SUPPORTED_SUFFIXES, TEXT_DOCUMENT_SUFFIXES
 from docling_desk.operations.backup import exclusive_write
 from docling_desk.storage import document_folder, original_file, record_original, remove_document
 
@@ -59,7 +65,7 @@ def publish_upload(source: Path, job: Job, folder_id: str | None, worker, slots)
             record_original(folder, job.filename, job.created)
             register_upload(config.DATA, job, folder_id)
             save_job(folder, job)
-            if not job.image:
+            if not job.image and not job.diagram:
                 worker.submit(run_job, folder, job, slots)
             return decorate(load_library(config.DATA), job)
         except Exception:
@@ -79,12 +85,15 @@ async def upload(
     with LOCK:
         destination_exists(load_library(config.DATA), folder_id)
     filename = Path((file.filename or "").replace("\\", "/")).name
-    is_image = Path(filename).suffix.lower() in IMAGE_SUFFIXES
-    if Path(filename).suffix.lower() not in SUPPORTED_SUFFIXES | IMAGE_SUFFIXES:
+    is_diagram = diagram_filename(filename)
+    is_image = not is_diagram and Path(filename).suffix.lower() in IMAGE_SUFFIXES
+    needs_conversion = not is_image and not is_diagram
+    needs_ocr = needs_conversion and Path(filename).suffix.lower() not in TEXT_DOCUMENT_SUFFIXES
+    if Path(filename).suffix.lower() not in SUPPORTED_SUFFIXES | IMAGE_SUFFIXES | DIAGRAM_SUFFIXES:
         raise HTTPException(415, f"{SUPPORTED_LABEL}を選んでください。")
     try:
-        profile = load_profile("disabled" if is_image else ocr_provider)
-        if not is_image:
+        profile = load_profile(ocr_provider if needs_ocr else "disabled")
+        if needs_ocr:
             profile.check_credentials(api_key())
     except (ValueError, RuntimeError):
         raise HTTPException(
@@ -96,7 +105,7 @@ async def upload(
     slots = getattr(request.app.state, "slots", None)
     if worker is None or slots is None:
         raise HTTPException(503, "処理を受け付ける準備ができていません。")
-    if not is_image and not slots.acquire(blocking=False):
+    if needs_conversion and not slots.acquire(blocking=False):
         raise HTTPException(429, "処理待ちは最大3件です。完了後に追加してください。")
     job = Job(
         id=uuid4().hex,
@@ -114,7 +123,15 @@ async def upload(
                     if total > MAX_BYTES:
                         raise HTTPException(413, "上限50 MiBを超えています。")
                     stream.write(chunk)
-            if is_image:
+            if not is_diagram and source.suffix == ".png":
+                is_diagram = await run_in_threadpool(png_has_diagram, source)
+            if is_diagram:
+                diagram = await run_in_threadpool(read_diagram, source)
+                job.diagram = True
+                job.state = "success"
+                job.pages = len(diagram.names)
+                job.preview = "diagram"
+            elif is_image:
                 job.image = await run_in_threadpool(inspect_image, source)
                 job.state = "success"
                 job.pictures = 1
@@ -122,14 +139,14 @@ async def upload(
                 await run_in_threadpool(validate_input, source)
             return await run_in_threadpool(publish_upload, source, job, folder_id, worker, slots)
     except (OSError, RuntimeError) as exc:
-        if not is_image:
+        if needs_conversion:
             slots.release()
         raise HTTPException(
             500,
             "ローカル保存または処理キューの開始に失敗しました。空き容量とログを確認してください。",
         ) from exc
     except (ValueError, HTTPException) as exc:
-        if not is_image:
+        if needs_conversion:
             slots.release()
         if isinstance(exc, HTTPException):
             raise

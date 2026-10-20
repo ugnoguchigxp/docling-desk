@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ActionLink,
@@ -87,8 +87,33 @@ function ImageFields({
     [message, setMessage] = useState(""),
     [conflict, setConflict] = useState(false),
     [imageError, setImageError] = useState(false),
+    [zoom, setZoom] = useState<number | null>(null),
+    [viewport, setViewport] = useState({ width: 0, height: 0 }),
+    stage = useRef<HTMLDivElement>(null),
+    drag = useRef<{ x: number; y: number; left: number; top: number } | null>(
+      null,
+    ),
     copied = useRef<HTMLInputElement>(null),
     saving = useRef(false);
+  useEffect(() => {
+    if (!stage.current) return;
+    const measure = () =>
+      setViewport({
+        width: stage.current!.clientWidth,
+        height: stage.current!.clientHeight,
+      });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage.current);
+    return () => observer.disconnect();
+  }, []);
+  const fit = Math.min(
+    1,
+    viewport.width / asset.width,
+    viewport.height / asset.height,
+  );
+  const ratio = zoom ?? fit;
+  const scale = (value: number) => setZoom(Math.max(0.05, Math.min(8, value)));
   const markdown = imageMarkdown(values.default_alt, asset.reference);
   function change(key: keyof typeof values, value: string) {
     setValues((previous) => ({ ...previous, [key]: value }));
@@ -142,15 +167,92 @@ function ImageFields({
   return (
     <div className="image-details-body">
       <div className="image-details-preview">
-        {imageError ? (
-          <StatusMessage>画像を表示できませんでした。</StatusMessage>
-        ) : (
-          <img
-            src={withBase(asset.reference)}
-            alt={values.default_alt}
-            onError={() => setImageError(true)}
+        <div
+          className="image-viewer-controls"
+          role="group"
+          aria-label="画像の表示操作"
+        >
+          <IconButton
+            icon="minus"
+            label="画像を縮小"
+            disabled={imageError || ratio <= 0.05}
+            onClick={() => scale(ratio / 1.25)}
           />
-        )}
+          <span aria-live="polite">{Math.round(ratio * 100)}%</span>
+          <IconButton
+            icon="plus"
+            label="画像を拡大"
+            disabled={imageError || ratio >= 8}
+            onClick={() => scale(ratio * 1.25)}
+          />
+          <Button disabled={imageError} onClick={() => setZoom(1)}>
+            100%
+          </Button>
+          <Button
+            disabled={imageError}
+            aria-pressed={zoom === null}
+            onClick={() => setZoom(null)}
+          >
+            全体表示
+          </Button>
+        </div>
+        <div
+          className="image-viewer-stage"
+          ref={stage}
+          tabIndex={0}
+          role="region"
+          aria-label="画像表示領域"
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            const node = event.currentTarget;
+            drag.current = {
+              x: event.clientX,
+              y: event.clientY,
+              left: node.scrollLeft,
+              top: node.scrollTop,
+            };
+            node.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={(event) => {
+            if (!drag.current) return;
+            event.currentTarget.scrollLeft =
+              drag.current.left + drag.current.x - event.clientX;
+            event.currentTarget.scrollTop =
+              drag.current.top + drag.current.y - event.clientY;
+          }}
+          onPointerUp={() => {
+            drag.current = null;
+          }}
+          onLostPointerCapture={() => {
+            drag.current = null;
+          }}
+          onPointerCancel={() => {
+            drag.current = null;
+          }}
+        >
+          {imageError ? (
+            <StatusMessage>画像を表示できませんでした。</StatusMessage>
+          ) : (
+            <div
+              className="image-viewer-canvas"
+              style={{
+                width: Math.max(viewport.width, asset.width * ratio),
+                height: Math.max(viewport.height, asset.height * ratio),
+              }}
+            >
+              <img
+                src={withBase(asset.reference)}
+                alt={values.default_alt}
+                draggable={false}
+                style={{
+                  width: asset.width * ratio,
+                  height: asset.height * ratio,
+                }}
+                onError={() => setImageError(true)}
+              />
+            </div>
+          )}
+        </div>
         <span>
           {asset.width} × {asset.height} px
           {asset.animated ? " · アニメーション" : ""}
@@ -168,7 +270,7 @@ function ImageFields({
           <IconButton
             icon="copy"
             label="Markdownをコピー"
-          disabled={imageError}
+            disabled={imageError}
             onClick={() => void copy()}
           />
         </div>

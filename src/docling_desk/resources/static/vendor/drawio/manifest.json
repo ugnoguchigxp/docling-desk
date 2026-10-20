@@ -1,0 +1,14 @@
+{
+  "version": "v32.5.5",
+  "source": "https://github.com/jgraph/drawio/tree/v32.5.5",
+  "files": {
+    "mathjax-LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "img-LICENSE": "55f8931a59e1f6e3ffff6c950c44339981c4806925ac0d97517a71164b0ca2ea",
+    "LICENSE": "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1",
+    "stencils.min.js": "f6ee4f7244ed74ba74b012ee621bc8d14f8492583a976e37f2b75328145c29b6",
+    "viewer-static.min.js": "15777571ef7c042b2a4a6c6d29052f416fbaaaae5dcf868521c4a3a75f2147d8",
+    "shapes-LICENSE": "55f8931a59e1f6e3ffff6c950c44339981c4806925ac0d97517a71164b0ca2ea",
+    "drawio-mathjax.min.js": "335bd61e5213d844d17e28bffa605ab22c7a7189526d07832687f3b93d9c0569",
+    "stencils-LICENSE": "f4098ff053b5954abbf69b15811ef06cd277847ca49934beda355c3d841ebdac"
+  }
+}

@@ -7,6 +7,7 @@ Dependencies, model artifacts, fonts, and third-party components retain their ow
 - The Azure OCR adapter is also available as a separate package under `packages/docling-azure-ocr`.
 - Wiki import/translation code was adapted from a non-public implementation by the same author (see `integrations/wiki/reference-assets.json`); retained notices are in `src/docling_desk/wiki_batch/NOTICE.md` and `licenses/` beside it.
 - PyMuPDF (`pymupdf`) is a direct dependency used for PDF text and preview processing. It is dual-licensed under AGPL-3.0 or the Artifex commercial license; this project uses it under the AGPL-3.0 terms. Anyone distributing or hosting a build that includes it (wheel, Docker image, or network service) must meet the AGPL-3.0 obligations, including offering the corresponding source.
+- The draw.io v32.5.5 read-only viewer, standard stencils, and its MathJax renderer are bundled under `src/docling_desk/resources/static/vendor/drawio/`. Upstream licenses, asset terms, source version and SHA-256 checksums are retained alongside the unmodified files. No draw.io editor or desktop application is launched.
 - Bundled AG Grid and TabuLens notices and checksums are retained under `src/docling_desk/resources/static/vendor`.
 - Built frontend third-party notices are generated as `static/frontend/licenses.txt` within the installed resources.
 - Model revisions and download sources are in `src/docling_desk/resources/models/manifest.json`. The application license does not grant rights to model weights or user documents.

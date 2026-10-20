@@ -82,7 +82,7 @@ export function useUpload(
         await cache.invalidateQueries({ queryKey: ["library"] });
         const result = [
           added
-            ? `${added}件の資料を追加しました。画像はそのまま閲覧でき、文書の抽出状況は資料一覧で確認できます。`
+            ? `${added}件の資料を追加しました。画像・図はそのまま閲覧でき、文書の抽出状況は資料一覧で確認できます。`
             : "資料を追加できませんでした。",
           ...failures,
         ].join("\n");

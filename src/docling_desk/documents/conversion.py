@@ -43,6 +43,7 @@ from docling_desk.documents.text import (
     MARKDOWN_SUFFIXES,
     SUPPORTED_LABEL,
     SUPPORTED_SUFFIXES,
+    TEX_SUFFIXES,
     TEXT_DOCUMENT_SUFFIXES,
     TEXT_SUFFIXES,
     plain_document,
@@ -84,11 +85,14 @@ class Job(BaseModel):
     error: str | None = None
     warnings: list[str] = Field(default_factory=list)
     preview: str | None = None
+    tex_preview: str | None = None
+    tex_error: str | None = None
     slide_layout: bool = False
     synthetic: bool = False
     ocr_profile: dict | None = None
     error_code: str | None = None
     image: ImageInfo | None = None
+    diagram: bool = False
 
 
 class Element(BaseModel):
@@ -400,6 +404,16 @@ def _convert_job(folder: Path, job: Job, *, ocr_runtime: OcrRuntime | None = Non
         job.rag_policy = policy.version
         if source.suffix in TEXT_DOCUMENT_SUFFIXES:
             job.preview = text_preview(doc, source, source_text, folder)
+            if source.suffix in TEX_SUFFIXES:
+                from docling_desk.preview.tex import compile_tex
+
+                job.tex_preview = None
+                job.tex_error = None
+                try:
+                    job.tex_preview = compile_tex(source, folder)
+                except (OSError, RuntimeError, ValueError) as exc:
+                    job.tex_error = str(exc)
+                    job.state = "partial"
             if source.suffix in MARKDOWN_SUFFIXES:
                 job.warnings.append(
                     "Markdownを整形して表示します。リンク先や外部画像は読み込みません。"

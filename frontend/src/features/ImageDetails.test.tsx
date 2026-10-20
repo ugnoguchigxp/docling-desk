@@ -58,6 +58,13 @@ const oldClose = Object.getOwnPropertyDescriptor(
 );
 const oldClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
 beforeEach(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
   Object.defineProperties(HTMLDialogElement.prototype, {
     showModal: {
       configurable: true,
@@ -180,4 +187,21 @@ test("failed copy selects text and a conflicting save preserves typed input", as
   expect(
     screen.getByRole("button", { name: "最新情報を読み直す" }),
   ).toBeInTheDocument();
+});
+
+test("image viewer switches between actual size, zoom and fit", async () => {
+  mount();
+  const actual = await screen.findByRole("button", { name: "100%" });
+  fireEvent.click(actual);
+  const image = screen.getByRole("img", { name: "図 [概要]" });
+  expect(image).toHaveStyle({ width: "160px", height: "90px" });
+  fireEvent.click(screen.getByRole("button", { name: "画像を拡大" }));
+  expect(image).toHaveStyle({ width: "200px", height: "112.5px" });
+  fireEvent.click(screen.getByRole("button", { name: "画像を縮小" }));
+  expect(image).toHaveStyle({ width: "160px" });
+  fireEvent.click(screen.getByRole("button", { name: "全体表示" }));
+  expect(screen.getByRole("button", { name: "全体表示" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 });

@@ -76,8 +76,11 @@ export const library = decoder<Library>(
         rag_policy: maybe(string),
         error: maybe(string),
         preview: maybe(string),
+        tex_preview: maybe(string),
+        tex_error: maybe(string),
         slide_layout: boolean,
         synthetic: maybe(boolean),
+        diagram: maybe(boolean),
         image: maybe(
           fields({
             reference: string,

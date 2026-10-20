@@ -18,7 +18,7 @@ import {
 import { Icon } from "../components/Icons";
 import { FeatureBoundary } from "../components/FeatureBoundary";
 import { fileUrl, object } from "../lib/api";
-import { isDocument } from "../lib/formats";
+import { isDocument, isSource, isTex } from "../lib/formats";
 import {
   isDone,
   isLightweightPreview,
@@ -81,11 +81,16 @@ export function DocumentViewer({
   useEffect(() => {
     if (view === "tables") setTablesVisited(true);
   }, [view]);
-  const wholeDocument = isDocument(job.original_filename || job.filename);
+  const originalName = job.original_filename || job.filename;
+  const tex = isTex(originalName);
+  const sourceText = isSource(originalName);
+  const [texMode, setTexMode] = useState<"pdf" | "source">("pdf");
+  const texPdf = tex && texMode === "pdf" && !!job.tex_preview;
+  const wholeDocument = isDocument(originalName) && !texPdf;
   const lightweight = isLightweightPreview(job);
   const slideView = job.slide_layout || lightweight;
   const workbook = job.filename.toLowerCase().endsWith(".xlsx"),
-    pdf = job.filename.toLowerCase().endsWith(".pdf");
+    pdf = job.filename.toLowerCase().endsWith(".pdf") || texPdf;
   const requestedPage = initialUnit
     ? Math.max(1, Math.min(initialUnit, wholeDocument ? 1 : job.pages || 1))
     : null;
@@ -228,13 +233,14 @@ export function DocumentViewer({
       : pdf
         ? `/view/${job.id}/pdf`
         : wholeDocument
-          ? `/view/${job.id}/${word ? "word" : "document"}?language=${language}&revision=${encodeURIComponent(revision)}`
+          ? `/view/${job.id}/${word ? "word" : sourceText ? "source" : "document"}?language=${language}&revision=${encodeURIComponent(revision)}`
           : fileUrl(job.id, job.preview)
     : "about:blank";
   const previewUrl = job.preview ? source.url(preview) : preview;
   const warning =
     message ||
     job.error ||
+    (tex ? job.tex_error : "") ||
     (["queued", "running"].includes(job.state)
       ? `${labels[job.state]}です。完了するとプレビューを表示します。`
       : "");
@@ -271,10 +277,31 @@ export function DocumentViewer({
           />
           {slides.controls}
           {wordControls}
+          {tex && view === "preview" && (
+            <div
+              className="slide-controls"
+              role="group"
+              aria-label="TeXの表示切替"
+            >
+              <Button
+                aria-pressed={texPdf}
+                disabled={!job.tex_preview}
+                onClick={() => setTexMode("pdf")}
+              >
+                組版表示
+              </Button>
+              <Button
+                aria-pressed={!texPdf}
+                onClick={() => setTexMode("source")}
+              >
+                TeXソース
+              </Button>
+            </div>
+          )}
           <div className="viewer-actions">
-            {view === "preview" && copy.controls}
-            {view === "preview" && explanation.controls}
-            {translation.controls}
+            {view === "preview" && !texPdf && copy.controls}
+            {view === "preview" && !texPdf && explanation.controls}
+            {!texPdf && translation.controls}
             <ActionLink
               id="originalOpen"
               className="icon-button"
@@ -319,8 +346,8 @@ export function DocumentViewer({
             hidden={view !== "preview"}
             className={explanation.opened ? "explanation-open" : ""}
           >
-            {explanation.panel}
-            {translation.content}
+            {!texPdf && explanation.panel}
+            {!texPdf && translation.content}
             {slides.content}
             <DocumentFrame
               id="original"

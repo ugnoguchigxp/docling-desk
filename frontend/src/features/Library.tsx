@@ -188,7 +188,9 @@ export function Library({
           .includes(query.trim().normalize("NFC").toLocaleLowerCase("ja")) &&
         (!type ||
           i.kind === "folder" ||
-          matchesFormat(i.original_filename || i.filename, type)),
+          (type === "drawio"
+            ? !!i.diagram
+            : matchesFormat(i.original_filename || i.filename, type))),
     )
     .sort(
       (a, b) =>
@@ -515,6 +517,8 @@ export function Library({
                 <option value="docx">Word</option>
                 <option value="md">Markdown</option>
                 <option value="txt">テキスト</option>
+                <option value="tex">TeX</option>
+                <option value="drawio">draw.io</option>
                 <option value="image">画像</option>
                 <option value="png">PNG</option>
                 <option value="jpg">JPEG</option>
@@ -573,7 +577,9 @@ export function Library({
                           ? "フォルダー"
                           : item.image
                             ? `${item.image.width} × ${item.image.height} · ${item.image.media_type.split("/")[1].toUpperCase()}`
-                            : labels[item.state]}
+                            : item.diagram
+                              ? "閲覧可能"
+                              : labels[item.state]}
                       </span>
                       {scope === "images" && item.kind === "file" && (
                         <span className="gallery-meta">
@@ -716,7 +722,9 @@ export function Library({
                             ? "フォルダー"
                             : item.image
                               ? "画像"
-                              : labels[item.state]}
+                              : item.diagram
+                                ? "閲覧可能"
+                                : labels[item.state]}
                         </span>
                         {item.kind === "file" &&
                           Object.entries(item.translations || {}).map(

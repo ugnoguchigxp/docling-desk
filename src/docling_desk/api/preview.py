@@ -7,20 +7,45 @@ from docling_core.types.doc import DoclingDocument
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, Response
 
+from docling_desk import config
 from docling_desk.api.dependencies import job_detail, job_folder, json_job
 from docling_desk.api.translation import translated_html, translation_folder
 from docling_desk.documents.conversion import Job
+from docling_desk.documents.diagrams import read_diagram
 from docling_desk.documents.tables import TableView, project_tables
-from docling_desk.documents.text import TEXT_DOCUMENT_SUFFIXES
+from docling_desk.documents.text import TEX_SUFFIXES, TEXT_DOCUMENT_SUFFIXES
+from docling_desk.preview.diagrams import diagram_html
+from docling_desk.preview.document_frames import interactive_html
 from docling_desk.preview.editable_preview import ensure_pdf_preview
 from docling_desk.preview.html_view import viewer_html
 from docling_desk.preview.pdf_view import pdf_html, pdf_pages, pdf_thumbnail, render_pdf_page
 from docling_desk.preview.sheets import preview_sheets, sheet_html, workbook_html
 from docling_desk.preview.thumbnails import thumbnail
-from docling_desk.storage import job_file, original_file
-from docling_desk.translation.source import template_for
+from docling_desk.storage import job_file, original_file, safe_path
+from docling_desk.translation.source import slide_template, template_for
 
 router = APIRouter()
+
+
+@router.get("/view/{job_id}/diagram", response_class=HTMLResponse)
+def diagram_view(job_id: str, unit: int = Query(default=1, ge=1)) -> HTMLResponse:
+    folder = job_folder(job_id)
+    job = job_detail(job_id)
+    if not job.diagram:
+        raise HTTPException(404)
+    source = original_file(folder, Path(job.original_filename or job.filename).suffix.lower())
+    if not safe_path(config.DATA, source) or not source.is_file():
+        raise HTTPException(404)
+    try:
+        diagram = read_diagram(source)
+        if unit > len(diagram.names):
+            raise HTTPException(404)
+        return HTMLResponse(
+            diagram_html(job.id, job.filename, diagram, unit),
+            headers={"Cache-Control": "private, no-store"},
+        )
+    except (OSError, ValueError) as exc:
+        raise HTTPException(422, "図を読み込めませんでした。原本を確認してください。") from exc
 
 
 @router.get("/api/jobs/{job_id}/slides/{number}/thumbnail")
@@ -44,7 +69,12 @@ def pdf_source(job_id: str) -> tuple[Job, Path]:
     folder = job_folder(job_id)
     job = job_detail(job_id)
     source = original_file(folder, ".pdf")
-    if not job.filename.lower().endswith(".pdf") or not job.preview or not source.is_file():
+    suffix = Path(job.original_filename or job.filename).suffix.lower()
+    if suffix in TEX_SUFFIXES and job.tex_preview == "tex-preview.pdf":
+        source = folder / "tex-preview.pdf"
+    elif suffix != ".pdf":
+        raise HTTPException(404)
+    if not job.preview or not source.is_file():
         raise HTTPException(404)
     return job, source
 
@@ -66,6 +96,9 @@ def pdf_page_html(job_id: str, number: int, language: str = "original") -> HTMLR
         ensure_pdf_preview(source, job_folder(job_id))
         if not 1 <= number <= len(pdf_pages(source)):
             raise HTTPException(404)
+        if Path(job.original_filename or job.filename).suffix.lower() in TEX_SUFFIXES:
+            raw = slide_template(job_folder(job_id), f"editable-preview/page-{number}.html")
+            return HTMLResponse(interactive_html(raw, job_id, f"page-{number}"))
         raw = template_for(job_folder(job_id), job.model_dump(), number)
         return translated_html(job_id, f"page-{number}", raw, language)
     except (OSError, RuntimeError, ValueError) as exc:
@@ -164,6 +197,27 @@ def text_document_view(job_id: str, language: str = "original") -> HTMLResponse:
         return translated_html(job_id, "document-1", raw, language)
     except (OSError, ValueError, KeyError) as exc:
         raise HTTPException(422, "文書プレビューを読み込めませんでした。") from exc
+
+
+@router.get("/view/{job_id}/source", response_class=HTMLResponse)
+def source_view(job_id: str, language: str = "original") -> HTMLResponse:
+    response = text_document_view(job_id, language)
+    # Add controls only after the common document sanitizer. Source is escaped
+    # text and is never executed, including TeX commands and embedded HTML.
+    raw = response.body.decode("utf-8")
+    raw = raw.replace(
+        "</head>",
+        '<link rel="stylesheet" href="/static/source-viewer.css">'
+        '<script src="/static/source-viewer.js" defer></script></head>',
+        1,
+    )
+    return HTMLResponse(
+        raw,
+        headers={
+            "Cache-Control": "no-store",
+            "X-Translation-State": response.headers["X-Translation-State"],
+        },
+    )
 
 
 @router.get("/view/{job_id}/slides/{number}", response_class=HTMLResponse)

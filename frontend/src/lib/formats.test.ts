@@ -37,8 +37,38 @@ test("accepts supported image uploads and filters their filename extensions", ()
 });
 
 test("rejects unsupported uploads and filenames with a disguised image extension", () => {
-  for (const name of ["image.svg", "image.bmp", "image.tiff", "image.avif", "image.png.exe"]) {
+  for (const name of [
+    "image.svg.exe",
+    "image.bmp",
+    "image.tiff",
+    "image.avif",
+    "image.png.exe",
+  ]) {
     expect(isSupported(name)).toBe(false);
     expect(matchesFormat(name, "image")).toBe(false);
   }
+});
+
+test("accepts standalone TeX documents and their format filter", () => {
+  for (const name of ["paper.TeX", "paper.LaTeX"]) {
+    expect(isSupported(name)).toBe(true);
+    expect(isDocument(name)).toBe(true);
+    expect(matchesFormat(name, "tex")).toBe(true);
+    expect(matchesFormat(name, "txt")).toBe(false);
+  }
+  expect(isSupported("paper.tex.exe")).toBe(false);
+});
+
+test("accepts native draw.io containers and filters diagrams", () => {
+  for (const name of [
+    "graph.DRAWIO",
+    "graph.dio",
+    "graph.xml",
+    "graph.drawio.svg",
+    "graph.drawio.png",
+  ]) {
+    expect(isSupported(name)).toBe(true);
+    expect(matchesFormat(name, "drawio")).toBe(true);
+  }
+  expect(matchesFormat("graph.txt", "drawio")).toBe(false);
 });

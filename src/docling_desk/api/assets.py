@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 
 from docling_desk import config
 from docling_desk.api.dependencies import job_detail, job_folder
+from docling_desk.documents.diagrams import DIAGRAM_SUFFIXES
 from docling_desk.documents.images import IMAGE_SUFFIXES
 from docling_desk.documents.text import SUPPORTED_SUFFIXES
 from docling_desk.storage import original_file, safe_path
@@ -42,6 +43,11 @@ def static(name: str) -> FileResponse:
         "sheet-frame.js",
         "pdf-viewer.js",
         "pdf-viewer.css",
+        "source-viewer.js",
+        "source-viewer.css",
+        "diagram-viewer.js",
+        "diagram-viewer.css",
+        "diagram-config.js",
         "translation.js",
         "translation.css",
         "explanation.js",
@@ -62,6 +68,16 @@ def vendor(name: str) -> FileResponse:
     return FileResponse(config.RESOURCES / "static/vendor" / name)
 
 
+@router.get("/static/vendor/drawio/{name}")
+def drawio_vendor(name: str) -> FileResponse:
+    if name not in {"viewer-static.min.js", "stencils.min.js", "drawio-mathjax.min.js"}:
+        raise HTTPException(404)
+    return FileResponse(
+        config.RESOURCES / "static/vendor/drawio" / name,
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
 @router.get("/files/{job_id}/{relative:path}", response_model=None)
 def artifact(
     job_id: str,
@@ -71,7 +87,9 @@ def artifact(
     thumbnail: bool = False,
 ) -> Response:
     folder = job_folder(job_id)
-    if relative in {"original" + suffix for suffix in SUPPORTED_SUFFIXES | IMAGE_SUFFIXES}:
+    if relative in {
+        "original" + suffix for suffix in SUPPORTED_SUFFIXES | IMAGE_SUFFIXES | DIAGRAM_SUFFIXES
+    }:
         target = original_file(folder, relative[len("original") :])
         if not safe_path(config.DATA, target) or not target.is_file():
             raise HTTPException(404)
