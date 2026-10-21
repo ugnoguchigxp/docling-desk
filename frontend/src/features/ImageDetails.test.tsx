@@ -187,6 +187,54 @@ test("failed copy selects text and a conflicting save preserves typed input", as
   expect(
     screen.getByRole("button", { name: "最新情報を読み直す" }),
   ).toBeInTheDocument();
+  expect(screen.getByText("画像情報が更新されました。")).toHaveAttribute(
+    "data-kind",
+    "stale",
+  );
+});
+
+test.each([412, 428])(
+  "status %i is a stale version that offers reloading",
+  async (status) => {
+    mount(status);
+    await screen.findByLabelText("コピーするMarkdown");
+    fireEvent.click(screen.getByRole("button", { name: "属性を保存" }));
+    expect(
+      await screen.findByRole("button", { name: "最新情報を読み直す" }),
+    ).toBeInTheDocument();
+  },
+);
+
+test("a duplicate name (409) is an ordinary error that keeps the input", async () => {
+  mount(409);
+  await screen.findByLabelText("コピーするMarkdown");
+  fireEvent.change(screen.getByLabelText("説明"), {
+    target: { value: "失わない入力" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "属性を保存" }));
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveAttribute("data-kind", "error");
+  expect(screen.getByLabelText("説明")).toHaveValue("失わない入力");
+  expect(
+    screen.queryByRole("button", { name: "最新情報を読み直す" }),
+  ).toBeNull();
+  expect(screen.getByRole("button", { name: "属性を保存" })).toBeEnabled();
+});
+
+test("a server failure is an error that offers saving again, not a version conflict", async () => {
+  mount(500);
+  await screen.findByLabelText("コピーするMarkdown");
+  fireEvent.change(screen.getByLabelText("説明"), {
+    target: { value: "失わない入力" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "属性を保存" }));
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveAttribute("data-kind", "error");
+  expect(screen.getByLabelText("説明")).toHaveValue("失わない入力");
+  expect(
+    screen.queryByRole("button", { name: "最新情報を読み直す" }),
+  ).toBeNull();
+  expect(screen.getByRole("button", { name: "属性を保存" })).toBeEnabled();
 });
 
 test("image viewer switches between actual size, zoom and fit", async () => {

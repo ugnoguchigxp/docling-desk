@@ -8,8 +8,13 @@ import {
   MetadataDisclosure,
   SidePanel,
   StatusMessage,
+  mostUrgent,
+  type StatusKind,
 } from "../components/ui";
+import { useAsyncScope } from "../lib/async-scope";
 import { errorText, post, request } from "../lib/api";
+import { WATCH_MS, pollInterval } from "../lib/polling";
+import { queryKeys } from "../lib/query-keys";
 import {
   isDone,
   unitLabel,
@@ -20,6 +25,14 @@ import {
   type Job,
 } from "../lib/types";
 const active = ["queued", "running"];
+const stageKind = (state?: string): StatusKind =>
+  state === "queued"
+    ? "pending"
+    : state && active.includes(state)
+      ? "running"
+      : state === "failed"
+        ? "error"
+        : "partial";
 const webNames: Record<string, string> = {
   success: "本文を確認済み",
   partial: "一部を確認済み",
@@ -29,7 +42,25 @@ const webNames: Record<string, string> = {
   skipped_sensitive: "検索語を送信せず省略",
   disabled_by_policy: "設定により無効",
   not_needed: "追加調査なし",
+  send_not_confirmed: "送信の確認がないため検索しませんでした",
+  held_numeric_query: "数字を含む検索語は保留しました",
 };
+/** The web line of an explanation: its status, then why a query was held back. */
+export function webSummary(web: {
+  status: string;
+  observations?: { error_code?: string }[];
+}) {
+  const held = [
+    ...new Set(
+      (web.observations || [])
+        .map((o) => o.error_code || "")
+        .filter((code) => code === "send_not_confirmed" || code === "held_numeric_query"),
+    ),
+  ]
+    .filter((code) => webNames[code] !== webNames[web.status])
+    .map((code) => webNames[code]);
+  return [webNames[web.status] || web.status, ...held].join(" / ");
+}
 function Refs({
   evidenceIds,
   value,
@@ -74,7 +105,7 @@ function ExplanationBody({
   return (
     <>
       <p>
-        {`作成: ${new Date(value.created_at).toLocaleString("ja-JP")} · Web: ${webNames[value.web_search.status] || value.web_search.status}`}
+        {`作成: ${new Date(value.created_at).toLocaleString("ja-JP")} · Web: ${webSummary(value.web_search)}`}
       </p>
       {value.explanation.sections.map((s, i) => (
         <div key={i}>
@@ -154,11 +185,13 @@ export function useExplanation(job: Job, current: number | null) {
     [lastError, setLastError] = useState(""),
     lock = useRef(false),
     openLock = useRef(false),
-    openAttempt = useRef(0),
     position = useRef(current);
   position.current = current;
+  // Opening is tied to the unit shown: it expires when the unit changes, the
+  // panel closes, the screen goes away or opening starts again.
+  const scope = useAsyncScope(current);
   const overview = useQuery({
-    queryKey: ["explanations", job.id],
+    queryKey: queryKeys.explanations(job.id),
     queryFn: ({ signal }) =>
       request<ExplanationOverview>(
         `/api/jobs/${job.id}/explanations`,
@@ -166,22 +199,25 @@ export function useExplanation(job: Job, current: number | null) {
         contracts.explanations,
       ),
     enabled: isDone(job),
+    // 1.5 s while generating. An open panel with nothing running only watches
+    // for changes made elsewhere; a failed read backs off instead of retrying
+    // every 1.5 s.
     refetchInterval: (q) =>
-      opened ||
-      q.state.error ||
-      q.state.data?.units.some((u) => active.includes(u.state.state))
-        ? 1500
-        : false,
+      pollInterval(q.state, {
+        busy: 1500,
+        isBusy: (data) =>
+          data.units.some((u) => active.includes(u.state.state)),
+        idle: opened ? WATCH_MS : false,
+      }),
   });
   const data = overview.data,
     entry = data?.units.find((u) => u.number === current);
   const result = useQuery({
-    queryKey: [
-      "explanation-result",
+    queryKey: queryKeys.explanationResult(
       job.id,
       entry?.id,
       entry?.state.latest_version_id,
-    ],
+    ),
     queryFn: ({ signal }) =>
       request<ExplanationResult>(
         `/api/jobs/${job.id}/explanations/${entry!.id}`,
@@ -190,12 +226,13 @@ export function useExplanation(job: Job, current: number | null) {
       ),
     enabled: opened && !!entry?.available,
   });
+  const { invalidate } = scope;
   const close = useCallback(() => {
-    openAttempt.current++;
+    invalidate();
     openLock.current = false;
     setOpened(false);
     document.getElementById("explainOpen")?.focus();
-  }, []);
+  }, [invalidate]);
   const { refetch } = overview;
   useEffect(() => {
     const online = () => {
@@ -206,15 +243,8 @@ export function useExplanation(job: Job, current: number | null) {
   }, [refetch]);
   useEffect(() => {
     setLastError("");
-    openAttempt.current++;
     openLock.current = false;
   }, [current]);
-  useEffect(
-    () => () => {
-      openAttempt.current++;
-    },
-    [],
-  );
   async function generate(unit: ExplanationUnit, force = false) {
     if (
       lock.current ||
@@ -232,7 +262,9 @@ export function useExplanation(job: Job, current: number | null) {
         unit_id: unit.id,
         force,
       });
-      await cache.invalidateQueries({ queryKey: ["explanations", job.id] });
+      await cache.invalidateQueries({
+        queryKey: queryKeys.explanations(job.id),
+      });
     } catch (e) {
       if (position.current === unit.number) setLastError(errorText(e));
     } finally {
@@ -243,20 +275,15 @@ export function useExplanation(job: Job, current: number | null) {
   async function open() {
     if (openLock.current) return;
     openLock.current = true;
-    const attempt = ++openAttempt.current,
+    const isCurrent = scope.start(),
       requested = position.current;
     setOpened(true);
-    requestAnimationFrame(() =>
-      document.getElementById("explanationPanel")?.focus(),
-    );
+    requestAnimationFrame(() => {
+      if (isCurrent()) document.getElementById("explanationPanel")?.focus();
+    });
     try {
       const result = await overview.refetch();
-      if (
-        attempt !== openAttempt.current ||
-        position.current !== requested ||
-        result.error
-      )
-        return;
+      if (!isCurrent() || result.error) return;
       const unit = result.data?.units.find((u) => u.number === requested);
       if (
         unit &&
@@ -275,7 +302,9 @@ export function useExplanation(job: Job, current: number | null) {
             unit_id: unit.id,
             force: false,
           });
-          await cache.invalidateQueries({ queryKey: ["explanations", job.id] });
+          await cache.invalidateQueries({
+            queryKey: queryKeys.explanations(job.id),
+          });
         } catch (e) {
           if (position.current === requested) setLastError(errorText(e));
         } finally {
@@ -284,7 +313,7 @@ export function useExplanation(job: Job, current: number | null) {
         }
       }
     } finally {
-      if (attempt === openAttempt.current) openLock.current = false;
+      if (isCurrent()) openLock.current = false;
     }
   }
   const retryVisible =
@@ -299,28 +328,38 @@ export function useExplanation(job: Job, current: number | null) {
     !active.includes(entry.state.state) &&
     data?.enabled &&
     !entry.storage_error;
-  const status = [
-    entry?.state.stage,
-    entry?.state.error,
-    entry?.state.state === "failed"
-      ? entry.state.review_issues?.slice(0, 5).join("\n")
-      : "",
-    entry?.warning,
-    lastError,
-    overview.error
-      ? `状態の確認を再試行しています。${overview.error.message}`
-      : "",
-    result.error?.message,
-    entry?.stale
-      ? entry.available
-        ? "原文が更新されています。保存時の解説を表示します。"
-        : "原文が更新されています。再試行できます。"
-      : "",
-    data?.source_error,
-    data?.configuration_error,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  // One paragraph; the most urgent kind sets how it is announced.
+  const notices: [StatusKind, string | undefined][] = [
+    [stageKind(entry?.state.state), entry?.state.stage],
+    ["error", entry?.state.error],
+    [
+      "error",
+      entry?.state.state === "failed"
+        ? entry.state.review_issues?.slice(0, 5).join("\n")
+        : "",
+    ],
+    ["partial", entry?.warning],
+    ["error", lastError],
+    [
+      "error",
+      overview.error
+        ? `状態の確認を再試行しています。${overview.error.message}`
+        : "",
+    ],
+    ["error", result.error?.message],
+    [
+      "stale",
+      entry?.stale
+        ? entry.available
+          ? "原文が更新されています。保存時の解説を表示します。"
+          : "原文が更新されています。再試行できます。"
+        : "",
+    ],
+    ["error", data?.source_error ?? undefined],
+    ["setup", data?.configuration_error ?? undefined],
+  ];
+  const shown = notices.filter(([, text]) => text);
+  const status = shown.map(([, text]) => text).join("\n");
   const controls = (
     <Button
       id="explainOpen"
@@ -356,7 +395,12 @@ export function useExplanation(job: Job, current: number | null) {
         if (e.key === "Escape") close();
       }}
     >
-      <StatusMessage id="explanationStatus">{status}</StatusMessage>
+      <StatusMessage
+        id="explanationStatus"
+        kind={mostUrgent(shown.map(([kind]) => kind))}
+      >
+        {status}
+      </StatusMessage>
       <div id="explanationActions">
         <Button
           id="explainRetry"
@@ -395,8 +439,8 @@ export function useExplanation(job: Job, current: number | null) {
           href={withBase(`/api/jobs/${job.id}/explanations/${entry.id}?download=${format}`)}
         >
           {format === "markdown"
-            ? "解説を保存（Markdown）"
-            : "解説と根拠を保存（JSON）"}
+            ? "解説を書き出す（Markdown）"
+            : "解説と根拠を書き出す（JSON）"}
         </ActionLink>
       ))
     : null;

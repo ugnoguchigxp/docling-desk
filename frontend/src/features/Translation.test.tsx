@@ -6,6 +6,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -672,4 +673,159 @@ it("stops polling after a status error and lets the user retry explicitly", asyn
   ).toBeVisible();
   expect(view.fetchMock.mock.calls.length).toBe(calls + 1);
   view.cache.clear();
+});
+
+function overviewWith(
+  en: Partial<TranslationOverview["units"][0]["languages"]["en"]>,
+) {
+  return {
+    profile: {},
+    unlocated_count: 0,
+    configuration_error: null,
+    units: [
+      {
+        id: "page-1",
+        number: 1,
+        kind: "page",
+        mode: "panel",
+        segments_count: 1,
+        excluded_count: 0,
+        languages: {
+          en: {
+            state: "untranslated",
+            available: false,
+            stale: false,
+            error: null,
+            result_created_at: null,
+            ...en,
+          },
+          ja: {
+            state: "untranslated",
+            available: false,
+            stale: false,
+            error: null,
+            result_created_at: null,
+          },
+        },
+      },
+    ],
+  };
+}
+async function showStatus(overview: unknown) {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockImplementation(async () => new Response(JSON.stringify(overview))),
+  );
+  const job = { id: "j", filename: "a.pdf", state: "success", pages: 1 } as Job;
+  function Panel() {
+    const translation = useTranslation(job, 1, "en", () => {});
+    return (
+      <>
+        {translation.controls}
+        {translation.content}
+        {translation.dialog}
+      </>
+    );
+  }
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <Panel />
+    </QueryClientProvider>,
+  );
+  await waitFor(() =>
+    expect(document.getElementById("translationStatus")).toBeVisible(),
+  );
+  return document.getElementById("translationStatus")!;
+}
+
+it("shows a waiting translation as progress, without offering to start over", async () => {
+  const status = await showStatus(
+    overviewWith({
+      state: "waiting",
+      wait_reason: "rate_limit",
+      next_attempt_at: new Date(Date.now() + 30_000).toISOString(),
+    }),
+  );
+  expect(status).toHaveAttribute("role", "status");
+  expect(status).toHaveAttribute("data-kind", "pending");
+  expect(status).toHaveTextContent("レート制限のため約");
+  expect(screen.queryByRole("button", { name: "翻訳をやり直す" })).toBeNull();
+});
+
+it("tells a stored failure apart from an interruption and offers a new translation for both", async () => {
+  const failed = await showStatus(
+    overviewWith({ state: "failed", error: "上限に達しました。" }),
+  );
+  expect(failed).toHaveAttribute("role", "alert");
+  expect(failed).toHaveAttribute("data-kind", "error");
+  expect(failed).toHaveTextContent("上限に達しました。");
+  await userEvent.click(screen.getByRole("button", { name: "翻訳をやり直す" }));
+  await waitFor(() =>
+    expect(document.getElementById("translationDialog")).toHaveAttribute(
+      "open",
+    ),
+  );
+  cleanup();
+
+  const interrupted = await showStatus(overviewWith({ state: "interrupted" }));
+  expect(interrupted).toHaveAttribute("role", "status");
+  expect(interrupted).toHaveAttribute("data-kind", "partial");
+  expect(screen.getByRole("button", { name: "翻訳をやり直す" })).toBeVisible();
+});
+
+it("an outdated saved translation is reported as stale, not as an error", async () => {
+  const status = await showStatus(
+    overviewWith({ state: "completed", available: true, stale: true }),
+  );
+  expect(status).toHaveAttribute("data-kind", "stale");
+  expect(status).toHaveAttribute("role", "status");
+  expect(status).toHaveTextContent("原文が更新されています");
+});
+
+it("does not open the dialog for a page the person left while the list was loading", async () => {
+  const overview = overviewWith({});
+  let release!: () => void;
+  let calls = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => {
+      if (++calls > 1) await new Promise<void>((r) => (release = r));
+      return new Response(JSON.stringify(overview));
+    }),
+  );
+  const job = { id: "j", filename: "a.pdf", state: "success", pages: 2 } as Job;
+  function Panel() {
+    const [page, setPage] = useState(1);
+    const translation = useTranslation(job, page, "original", () => {});
+    return (
+      <>
+        <button onClick={() => setPage(2)}>次のページ</button>
+        {translation.controls}
+        {translation.dialog}
+      </>
+    );
+  }
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <Panel />
+    </QueryClientProvider>,
+  );
+  await waitFor(() => expect(calls).toBe(1));
+  await userEvent.click(screen.getByRole("button", { name: "翻訳" }));
+  await waitFor(() => expect(calls).toBe(2));
+  await userEvent.click(screen.getByRole("button", { name: "次のページ" }));
+  await act(async () => release());
+  expect(document.getElementById("translationDialog")).not.toHaveAttribute(
+    "open",
+  );
 });

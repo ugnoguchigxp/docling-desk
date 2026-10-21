@@ -5,12 +5,12 @@
   max-height: none;
   padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-dialog);
   color: inherit;
   overflow: hidden;
 }
 #printPreviewDialog::backdrop {
-  background: #213a4866;
+  background: var(--scrim);
 }
 #printPreviewDialog[open] {
   display: flex;
@@ -23,7 +23,7 @@
 .print-filename {
   margin: 8px 0 14px;
   font-size: 12px;
-  color: #647681;
+  color: var(--ink-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -57,7 +57,7 @@
 .print-settings p {
   font-size: 12px;
   line-height: 1.65;
-  color: #647681;
+  color: var(--ink-muted);
 }
 .print-settings .primary {
   width: 100%;

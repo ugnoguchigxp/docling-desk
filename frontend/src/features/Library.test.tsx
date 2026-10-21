@@ -12,7 +12,8 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { Folder, Job, Library as Snapshot } from "../lib/types";
-import { chain, folderPath, Library } from "./Library";
+import { Library } from "./Library";
+import { chain, folderPath } from "./library/folders";
 
 const dialogMethods = ["showModal", "close"] as const;
 const originalDialogMethods = dialogMethods.map((name) =>
@@ -256,7 +257,8 @@ function rowByName(name: string) {
 
 function openItemMenu(name: string) {
   const summary = document.querySelector(`summary[aria-label="${name}の操作"]`);
-  if (!(summary instanceof HTMLElement)) throw new Error(`missing menu for ${name}`);
+  if (!(summary instanceof HTMLElement))
+    throw new Error(`missing menu for ${name}`);
   fireEvent.click(summary);
   const details = summary.closest("details");
   if (details) details.open = true;
@@ -352,10 +354,9 @@ it("builds folder chains and display paths", () => {
     "c",
   ]);
   expect(
-    chain(
-      [{ id: "m", name: "M", parent_id: "gone", created: 1 }],
-      "m",
-    ).map((folder) => folder.id),
+    chain([{ id: "m", name: "M", parent_id: "gone", created: 1 }], "m").map(
+      (folder) => folder.id,
+    ),
   ).toEqual(["m"]);
   const loop = [
     { id: "e", name: "E", parent_id: "f", created: 1 },
@@ -363,12 +364,16 @@ it("builds folder chains and display paths", () => {
   ];
   expect(chain(loop, "e").map((folder) => folder.id)).toEqual(["f", "e"]);
   expect(folderPath(folders, null)).toBe("資料一覧");
-  expect(folderPath(folders, "c")).toBe("資料一覧 / アルファ / ベータ / ガンマ");
+  expect(folderPath(folders, "c")).toBe(
+    "資料一覧 / アルファ / ベータ / ガンマ",
+  );
   expect(folderPath(folders, "loop")).toBe("資料一覧 / 自己");
 });
 
 it("renders folders and files, then filters, sorts, and empties the list", async () => {
-  const { user, onUpload, onJob } = setup({ navigation: <a href="#nav">移動</a> });
+  const { user, onUpload, onJob } = setup({
+    navigation: <a href="#nav">移動</a>,
+  });
   expect(screen.getByRole("link", { name: "移動" })).toBeInTheDocument();
   expect(document.getElementById("library")).not.toHaveAttribute("hidden");
   expect(document.getElementById("message")).toHaveAttribute("hidden");
@@ -396,7 +401,9 @@ it("renders folders and files, then filters, sorts, and empties the list", async
   expect(rowByName("README")).toHaveTextContent("README");
   expect(document.getElementById("libraryEmpty")).toHaveAttribute("hidden");
 
-  const search = screen.getByRole("searchbox", { name: "このフォルダー内を検索" });
+  const search = screen.getByRole("searchbox", {
+    name: "このフォルダー内を検索",
+  });
   await user.type(search, "  SCAN ");
   expect(order()).toEqual(["scan.pdf"]);
   expect(document.getElementById("fileCount")).toHaveTextContent(
@@ -436,7 +443,9 @@ it("renders folders and files, then filters, sorts, and empties the list", async
   const sort = screen.getByRole("combobox", { name: "並べ替え" });
   await user.selectOptions(sort, "oldest");
   expect(order().indexOf("オメガ")).toBeLessThan(order().indexOf("アルファ"));
-  expect(order().indexOf("older.pdf")).toBeLessThan(order().indexOf("scan.pdf"));
+  expect(order().indexOf("older.pdf")).toBeLessThan(
+    order().indexOf("scan.pdf"),
+  );
   await user.selectOptions(sort, "name");
   expect(order().indexOf("アルファ")).toBeLessThan(order().indexOf("オメガ"));
   expect(order().indexOf("alpha-tie.pdf")).toBeLessThan(
@@ -447,12 +456,18 @@ it("renders folders and files, then filters, sorts, and empties the list", async
   await user.type(search, "アルファ");
   fireEvent.click(rowByName("アルファ"));
   expect(search).toHaveValue("");
-  expect(screen.getByRole("button", { name: "ベータを開く" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "ベータを開く" }),
+  ).toBeInTheDocument();
   expect(onJob).not.toHaveBeenCalled();
 
   fireEvent.click(rowByName("ベータ"));
-  expect(screen.getByRole("button", { name: "ガンマを開く" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "deck.pptxを開く" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "ガンマを開く" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "deck.pptxを開く" }),
+  ).toBeInTheDocument();
   fireEvent.click(rowByName("ガンマ"));
   expect(screen.getByText("このフォルダーは空です。")).toBeInTheDocument();
   expect(document.getElementById("emptyAdd")).not.toHaveAttribute("hidden");
@@ -465,7 +480,9 @@ it("renders folders and files, then filters, sorts, and empties the list", async
       name: "資料一覧",
     }),
   );
-  expect(screen.getByRole("button", { name: "scan.pdfを開く" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "scan.pdfを開く" }),
+  ).toBeInTheDocument();
   expect(
     screen.getByRole("checkbox", { name: "scan.pdfを選択" }),
   ).not.toBeChecked();
@@ -505,12 +522,16 @@ it("selects rows and downloads a single original file", async () => {
   expect(onJob).not.toHaveBeenCalled();
   expect(rowByName("scan.pdf")).toHaveClass("selected");
   expect(selectAll).toBePartiallyChecked();
-  expect(document.getElementById("selectionCount")).toHaveTextContent("1件選択");
+  expect(document.getElementById("selectionCount")).toHaveTextContent(
+    "1件選択",
+  );
   expect(document.getElementById("selectionRename")).toBeEnabled();
   expect(document.getElementById("selectionDownload")).toBeEnabled();
 
   await user.click(screen.getByRole("checkbox", { name: "アルファを選択" }));
-  expect(document.getElementById("selectionCount")).toHaveTextContent("2件選択");
+  expect(document.getElementById("selectionCount")).toHaveTextContent(
+    "2件選択",
+  );
   expect(document.getElementById("selectionRename")).toBeDisabled();
   expect(document.getElementById("selectionDownload")).toBeDisabled();
   const folderClicks: string[] = [];
@@ -595,31 +616,46 @@ it("selects rows and downloads a single original file", async () => {
   expect(hrefs[0]).toContain("/files/pdf1/original.pdf?download=true");
   expect(
     within(rowByName("scan.pdf")).getByRole("link", { name: "原本を保存" }),
-  ).toHaveAttribute("href", expect.stringContaining("original.pdf?download=true"));
+  ).toHaveAttribute(
+    "href",
+    expect.stringContaining("original.pdf?download=true"),
+  );
   expect(
-    within(rowByName("converted.bin")).getByRole("link", { name: "原本を保存" }),
-  ).toHaveAttribute("href", expect.stringContaining("original.docx?download=true"));
+    within(rowByName("converted.bin")).getByRole("link", {
+      name: "原本を保存",
+    }),
+  ).toHaveAttribute(
+    "href",
+    expect.stringContaining("original.docx?download=true"),
+  );
   expect(within(rowByName("アルファ")).queryByRole("link")).toBeNull();
 
-  await user.click(openItemMenu("notes.txt").getByRole("button", { name: "開く" }));
+  await user.click(
+    openItemMenu("notes.txt").getByRole("button", { name: "開く" }),
+  );
   expect(onJob).toHaveBeenCalledWith(expect.objectContaining({ id: "txt1" }));
 });
 
 it("creates, renames, moves, copies, and deletes from the toolbar and menus", async () => {
   const { user, onJob } = setup();
-  fireEvent.submit(document.getElementById("libraryForm")!);
+  // A closed dialog holds no form, so nothing can be submitted from it.
+  expect(document.getElementById("libraryForm")).toBeNull();
   expect(requests).toHaveLength(0);
 
   await user.click(screen.getByRole("button", { name: "新しいフォルダー" }));
   const dialog = document.getElementById("libraryDialog") as HTMLDialogElement;
   expect(dialog).toHaveAttribute("open");
-  expect(screen.getByRole("heading", { name: "新しいフォルダー" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "新しいフォルダー" }),
+  ).toBeInTheDocument();
   expect(document.getElementById("operationDescription")).toHaveTextContent(
     "作成先：資料一覧",
   );
   expect(document.getElementById("operationName")).toHaveValue("");
   expect(document.getElementById("operationName")).toBeRequired();
-  expect(document.getElementById("destinationBrowser")).toHaveAttribute("hidden");
+  expect(document.getElementById("destinationBrowser")).toHaveAttribute(
+    "hidden",
+  );
   const form = document.getElementById("libraryForm") as HTMLFormElement;
   expect(form.checkValidity()).toBe(false);
   const invalid = vi.fn();
@@ -627,7 +663,10 @@ it("creates, renames, moves, copies, and deletes from the toolbar and menus", as
   form.requestSubmit();
   expect(invalid).toHaveBeenCalled();
   expect(requests).toHaveLength(0);
-  await user.type(document.getElementById("operationName") as HTMLInputElement, "新規");
+  await user.type(
+    document.getElementById("operationName") as HTMLInputElement,
+    "新規",
+  );
   await user.click(screen.getByRole("button", { name: "作成" }));
   await waitFor(() =>
     expect(screen.getByText("フォルダーを作成しました。")).toBeInTheDocument(),
@@ -638,12 +677,17 @@ it("creates, renames, moves, copies, and deletes from the toolbar and menus", as
   });
   expect(dialog).not.toHaveAttribute("open");
 
-  await user.click(openItemMenu("アルファ").getByRole("button", { name: "開く" }));
+  await user.click(
+    openItemMenu("アルファ").getByRole("button", { name: "開く" }),
+  );
   await user.click(screen.getByRole("button", { name: "新しいフォルダー" }));
   expect(document.getElementById("operationDescription")).toHaveTextContent(
     "作成先：資料一覧 / アルファ",
   );
-  await user.type(document.getElementById("operationName") as HTMLInputElement, "子");
+  await user.type(
+    document.getElementById("operationName") as HTMLInputElement,
+    "子",
+  );
   await user.click(screen.getByRole("button", { name: "作成" }));
   await waitFor(() => expect(requests).toHaveLength(2));
   expect(requests[1]).toEqual({
@@ -656,9 +700,13 @@ it("creates, renames, moves, copies, and deletes from the toolbar and menus", as
     }),
   );
 
-  await user.click(screen.getByRole("checkbox", { name: "converted.binを選択" }));
+  await user.click(
+    screen.getByRole("checkbox", { name: "converted.binを選択" }),
+  );
   await user.click(document.getElementById("selectionRename")!);
-  expect(screen.getByRole("heading", { name: "名前を変更" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "名前を変更" }),
+  ).toBeInTheDocument();
   expect(document.getElementById("operationDescription")).toHaveTextContent(
     "converted.bin",
   );
@@ -666,7 +714,11 @@ it("creates, renames, moves, copies, and deletes from the toolbar and menus", as
   expect(name).toHaveValue("converted.bin");
   await user.clear(name);
   await user.type(name, "renamed.bin");
-  await user.click(screen.getByRole("button", { name: "保存" }));
+  // The submit button repeats the dialog's own verb (it was a bare "保存").
+  expect(document.getElementById("submitOperation")).toHaveTextContent(
+    "名前を変更",
+  );
+  await user.click(document.getElementById("submitOperation")!);
   await waitFor(() =>
     expect(screen.getByText("名前を変更しました。")).toBeInTheDocument(),
   );
@@ -681,8 +733,12 @@ it("creates, renames, moves, copies, and deletes from the toolbar and menus", as
 
   await user.click(screen.getByRole("checkbox", { name: "scan.pdfを選択" }));
   await user.click(document.getElementById("selectionMove")!);
-  expect(screen.getByRole("heading", { name: "移動先を選択" })).toBeInTheDocument();
-  expect(document.getElementById("operationNameLabel")).toHaveAttribute("hidden");
+  expect(
+    screen.getByRole("heading", { name: "移動先を選択" }),
+  ).toBeInTheDocument();
+  expect(document.getElementById("operationNameLabel")).toHaveAttribute(
+    "hidden",
+  );
   expect(document.getElementById("operationName")).not.toBeRequired();
   expect(document.getElementById("destinationHint")).toHaveTextContent(
     "フォルダーを開いて保存先を選んでください。",
@@ -717,7 +773,9 @@ it("creates, renames, moves, copies, and deletes from the toolbar and menus", as
     "このフォルダーに下位フォルダーはありません。",
   );
   await user.click(screen.getByRole("button", { name: "ここに移動" }));
-  await waitFor(() => expect(screen.getByText("移動しました。")).toBeInTheDocument());
+  await waitFor(() =>
+    expect(screen.getByText("移動しました。")).toBeInTheDocument(),
+  );
   expect(requests.at(-1)).toMatchObject({
     body: {
       action: "move",
@@ -736,10 +794,16 @@ it("creates, renames, moves, copies, and deletes from the toolbar and menus", as
   await user.click(screen.getByRole("button", { name: "キャンセル" }));
   expect(dialog).not.toHaveAttribute("open");
 
-  await user.click(openItemMenu("plain.text").getByRole("button", { name: "コピー先" }));
-  expect(screen.getByRole("heading", { name: "コピー先を選択" })).toBeInTheDocument();
+  await user.click(
+    openItemMenu("plain.text").getByRole("button", { name: "コピー先" }),
+  );
+  expect(
+    screen.getByRole("heading", { name: "コピー先を選択" }),
+  ).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "ここにコピー" }));
-  await waitFor(() => expect(screen.getByText("コピーしました。")).toBeInTheDocument());
+  await waitFor(() =>
+    expect(screen.getByText("コピーしました。")).toBeInTheDocument(),
+  );
   expect(requests.at(-1)).toMatchObject({
     body: {
       action: "copy",
@@ -750,18 +814,30 @@ it("creates, renames, moves, copies, and deletes from the toolbar and menus", as
 
   await user.click(screen.getByRole("checkbox", { name: "READMEを選択" }));
   await user.click(document.getElementById("selectionDelete")!);
-  await waitFor(() => expect(screen.getByText("削除しました。")).toBeInTheDocument());
+  await waitFor(() =>
+    expect(screen.getByText("「README」を削除しました。")).toBeInTheDocument(),
+  );
   expect(requests.at(-1)).toMatchObject({
     body: { action: "delete", items: [{ kind: "file", id: "readme" }] },
   });
   expect(onJob).not.toHaveBeenCalled();
 
-  await user.click(openItemMenu("draft.docx").getByRole("button", { name: "名前を変更" }));
+  await user.click(
+    openItemMenu("draft.docx").getByRole("button", { name: "名前を変更" }),
+  );
   expect(document.getElementById("operationName")).toHaveValue("draft.docx");
   await user.click(screen.getByRole("button", { name: "閉じる" }));
-  await user.click(openItemMenu("draft.docx").getByRole("button", { name: "削除" }));
+  await user.click(
+    openItemMenu("draft.docx").getByRole("button", { name: "削除" }),
+  );
   await waitFor(() =>
-    expect(requests.filter((request) => request.body && (request.body as { action?: string }).action === "delete")).toHaveLength(2),
+    expect(
+      requests.filter(
+        (request) =>
+          request.body &&
+          (request.body as { action?: string }).action === "delete",
+      ),
+    ).toHaveLength(2),
   );
 });
 
@@ -769,7 +845,10 @@ it("keeps dialog and inline errors visible until the next successful close", asy
   installFetch(() => json({ detail: "同名です" }, 409));
   const { user } = setup();
   await user.click(screen.getByRole("button", { name: "新しいフォルダー" }));
-  await user.type(document.getElementById("operationName") as HTMLInputElement, "新規");
+  await user.type(
+    document.getElementById("operationName") as HTMLInputElement,
+    "新規",
+  );
   await user.click(screen.getByRole("button", { name: "作成" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("同名です");
   expect(document.getElementById("libraryDialog")).toHaveAttribute("open");
@@ -809,7 +888,9 @@ it("moves items by dragging them onto folders and breadcrumbs", async () => {
 
   fireEvent.dragStart(alpha, { dataTransfer: moving });
   fireEvent.drop(omega, { dataTransfer: moving });
-  await waitFor(() => expect(screen.getByText("移動しました。")).toBeInTheDocument());
+  await waitFor(() =>
+    expect(screen.getByText("移動しました。")).toBeInTheDocument(),
+  );
   expect(requests.at(-1)).toMatchObject({
     body: {
       action: "move",
@@ -890,7 +971,10 @@ it("blocks overlapping work while an operation is still running", async () => {
     dataTransfer: moving,
   });
   await user.click(screen.getByRole("button", { name: "新しいフォルダー" }));
-  await user.type(document.getElementById("operationName") as HTMLInputElement, "新規");
+  await user.type(
+    document.getElementById("operationName") as HTMLInputElement,
+    "新規",
+  );
   await user.click(screen.getByRole("button", { name: "作成" }));
   await waitFor(() => expect(requests).toHaveLength(1));
   expect(document.getElementById("submitOperation")).toBeDisabled();
@@ -903,28 +987,38 @@ it("blocks overlapping work while an operation is still running", async () => {
   const blocked = new Event("dragstart", { bubbles: true, cancelable: true });
   Object.defineProperty(blocked, "dataTransfer", { value: transfer() });
   act(() => {
-    screen.getByRole("button", { name: "notes.txtを開く" }).dispatchEvent(blocked);
+    screen
+      .getByRole("button", { name: "notes.txtを開く" })
+      .dispatchEvent(blocked);
   });
   expect(blocked.defaultPrevented).toBe(true);
   fireEvent.click(rowByName("notes.txt"));
   fireEvent.click(rowByName("アルファ"));
   expect(onJob).not.toHaveBeenCalled();
-  expect(screen.getByRole("button", { name: "scan.pdfを開く" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "scan.pdfを開く" }),
+  ).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "新しいフォルダー" }));
   expect(requests).toHaveLength(1);
-  await user.click(openItemMenu("plain.text").getByRole("button", { name: "削除" }));
+  await user.click(
+    openItemMenu("plain.text").getByRole("button", { name: "削除" }),
+  );
   expect(requests).toHaveLength(1);
 
   const dialog = document.getElementById("libraryDialog") as HTMLDialogElement;
   act(() => {
     dialog.dispatchEvent(new Event("cancel", { cancelable: true }));
   });
-  expect(screen.getByRole("heading", { name: "新しいフォルダー" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "新しいフォルダー" }),
+  ).toBeInTheDocument();
   act(() => {
     dialog.dispatchEvent(new Event("close"));
   });
-  expect(screen.getByRole("heading", { name: "新しいフォルダー" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "新しいフォルダー" }),
+  ).toBeInTheDocument();
 
   gate.resolve(json());
   await waitFor(() =>
@@ -1189,4 +1283,272 @@ it("labels Excalidraw files, filters them, and refuses to copy them", async () =
   expect(menu.getByRole("button", { name: "コピー先" })).toBeDisabled();
   fireEvent.click(menu.getByRole("button", { name: "コピー先" }));
   expect(document.getElementById("libraryDialog")).not.toHaveAttribute("open");
+});
+
+function cardByName(name: string) {
+  const card = screen
+    .getByRole("button", { name: `${name}を開く` })
+    .closest("li");
+  if (!card) throw new Error(`missing card for ${name}`);
+  return card;
+}
+
+function openCardMenu(name: string) {
+  const card = cardByName(name);
+  const summary = card.querySelector("summary");
+  if (!(summary instanceof HTMLElement))
+    throw new Error(`missing menu for ${name}`);
+  fireEvent.click(summary);
+  const details = summary.closest("details");
+  if (details) details.open = true;
+  return within(card);
+}
+
+it("deletes a parent folder as one item and keeps the selection when it fails", async () => {
+  installFetch(() => json({ detail: "削除できません" }, 500));
+  const { user } = setup();
+  await user.click(screen.getByRole("checkbox", { name: "アルファを選択" }));
+  await user.click(document.getElementById("selectionDelete")!);
+  const failed = await screen.findByText("削除できません");
+  expect(failed).toHaveAttribute("data-kind", "error");
+  expect(failed).toHaveAttribute("role", "alert");
+  // Children are not expanded into the request; the server handles descendants.
+  expect(requests).toEqual([
+    {
+      url: "/api/library/operations",
+      body: { action: "delete", items: [{ kind: "folder", id: "a" }] },
+    },
+  ]);
+  expect(
+    screen.getByRole("checkbox", { name: "アルファを選択" }),
+  ).toBeChecked();
+  expect(document.getElementById("selectionCount")).toHaveTextContent(
+    "1件選択",
+  );
+
+  installFetch();
+  await user.click(document.getElementById("selectionDelete")!);
+  const done = await screen.findByText("「アルファ」を削除しました。");
+  expect(done).not.toHaveAttribute("data-kind", "error");
+  expect(done).toHaveAttribute("role", "status");
+  expect(document.getElementById("selectionToolbar")).toHaveAttribute("hidden");
+  expect(
+    screen.getByRole("checkbox", { name: "アルファを選択" }),
+  ).not.toBeChecked();
+});
+
+it("keeps the target, selection and destination when the view changes during a move", async () => {
+  const { user } = setup();
+  await user.click(screen.getByRole("checkbox", { name: "scan.pdfを選択" }));
+  await user.click(document.getElementById("selectionMove")!);
+  const destinations = () =>
+    within(document.getElementById("destinationFolders")!);
+  await user.click(destinations().getByRole("button", { name: "アルファ" }));
+  await user.click(destinations().getByRole("button", { name: "ベータ" }));
+
+  await user.click(screen.getByRole("button", { name: "ギャラリー" }));
+  expect(
+    screen.getByRole("list", { name: "保存済みの資料" }),
+  ).toBeInTheDocument();
+  expect(document.getElementById("libraryDialog")).toHaveAttribute("open");
+  expect(document.getElementById("operationDescription")).toHaveTextContent(
+    "scan.pdf",
+  );
+  expect(document.getElementById("destinationBreadcrumbs")).toHaveTextContent(
+    "ベータ",
+  );
+  expect(
+    screen.getByRole("checkbox", { name: "scan.pdfを選択" }),
+  ).toBeChecked();
+  expect(cardByName("scan.pdf")).toHaveClass("selected");
+
+  await user.click(screen.getByRole("button", { name: "ここに移動" }));
+  await waitFor(() =>
+    expect(screen.getByText("移動しました。")).toBeInTheDocument(),
+  );
+  expect(requests).toEqual([
+    {
+      url: "/api/library/operations",
+      body: {
+        action: "move",
+        items: [{ kind: "file", id: "pdf1" }],
+        name: "",
+        destination: "b",
+        parent: null,
+      },
+    },
+  ]);
+  expect(
+    screen.getByRole("checkbox", { name: "scan.pdfを選択" }),
+  ).not.toBeChecked();
+});
+
+it("applies the same menu, copy refusal and busy rules in the gallery", async () => {
+  const data: Snapshot = { folders, jobs: [...jobs, diagramJob] };
+  const gate = deferred<Response>();
+  const { user } = renderLibrary(data);
+  await user.click(screen.getByRole("button", { name: "ギャラリー" }));
+
+  // A folder that holds a diagram cannot be copied, from the card menu or the toolbar.
+  const alpha = openCardMenu("アルファ");
+  expect(alpha.getByRole("button", { name: "コピー先" })).toBeDisabled();
+  expect(alpha.getByRole("button", { name: "コピー先" })).toHaveAttribute(
+    "title",
+    "図表の複製には対応していません。",
+  );
+  fireEvent.click(alpha.getByRole("button", { name: "コピー先" }));
+  expect(document.getElementById("libraryDialog")).not.toHaveAttribute("open");
+  await user.click(screen.getByRole("checkbox", { name: "アルファを選択" }));
+  expect(document.getElementById("selectionCopy")).toBeDisabled();
+  await user.click(screen.getByRole("checkbox", { name: "アルファを選択" }));
+  expect(
+    openCardMenu("オメガ").getByRole("button", { name: "コピー先" }),
+  ).toBeEnabled();
+
+  // While an operation runs, the cards neither open, select nor start another one.
+  installFetch(() => gate.promise);
+  await user.click(
+    openCardMenu("scan.pdf").getByRole("button", { name: "削除" }),
+  );
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0].body).toEqual({
+    action: "delete",
+    items: [{ kind: "file", id: "pdf1" }],
+  });
+  expect(
+    screen.getByRole("checkbox", { name: "notes.txtを選択" }),
+  ).toBeDisabled();
+  expect(screen.getByRole("button", { name: "アルファを開く" })).toBeDisabled();
+  fireEvent.click(
+    openCardMenu("notes.txt").getByRole("button", { name: "削除" }),
+  );
+  fireEvent.click(
+    openCardMenu("notes.txt").getByRole("button", { name: "名前を変更" }),
+  );
+  expect(requests).toHaveLength(1);
+  expect(document.getElementById("libraryDialog")).not.toHaveAttribute("open");
+  gate.resolve(json());
+  expect(
+    await screen.findByText("「scan.pdf」を削除しました。"),
+  ).toBeInTheDocument();
+});
+
+it("keeps the typed name and the chosen destination after a failed operation", async () => {
+  installFetch(() => json({ detail: "同名の資料があります" }, 409));
+  const { user } = setup();
+  await user.click(
+    openItemMenu("scan.pdf").getByRole("button", { name: "名前を変更" }),
+  );
+  const name = document.getElementById("operationName") as HTMLInputElement;
+  expect(name).toHaveValue("scan.pdf");
+  await user.clear(name);
+  await user.type(name, "renamed.pdf");
+  await user.click(document.getElementById("submitOperation")!);
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "同名の資料があります",
+  );
+  expect(name).toHaveValue("renamed.pdf");
+  expect(document.getElementById("libraryDialog")).toHaveAttribute("open");
+
+  installFetch();
+  await user.click(document.getElementById("submitOperation")!);
+  await waitFor(() =>
+    expect(screen.getByText("名前を変更しました。")).toBeInTheDocument(),
+  );
+  expect(requests.at(-1)?.body).toMatchObject({
+    action: "rename",
+    items: [{ kind: "file", id: "pdf1" }],
+    name: "renamed.pdf",
+  });
+
+  installFetch(() => json({ detail: "移動できません" }, 500));
+  await user.click(
+    openItemMenu("notes.txt").getByRole("button", { name: "移動先" }),
+  );
+  await user.click(
+    within(document.getElementById("destinationFolders")!).getByRole("button", {
+      name: "アルファ",
+    }),
+  );
+  await user.click(screen.getByRole("button", { name: "ここに移動" }));
+  expect(await screen.findByText("移動できません")).toBeInTheDocument();
+  expect(document.getElementById("destinationBreadcrumbs")).toHaveTextContent(
+    "アルファ",
+  );
+  expect(screen.getByRole("button", { name: "ここに移動" })).toBeEnabled();
+  // Closing and reopening starts from the folder being shown, not from the old input.
+  await user.click(screen.getByRole("button", { name: "キャンセル" }));
+  await user.click(
+    openItemMenu("notes.txt").getByRole("button", { name: "移動先" }),
+  );
+  expect(
+    document.getElementById("destinationBreadcrumbs"),
+  ).not.toHaveTextContent("アルファ");
+  expect(document.getElementById("operationError")).toHaveAttribute("hidden");
+});
+
+it("clears the selection and search text when the folder changes but keeps type and sort", async () => {
+  const { user } = setup();
+  await user.selectOptions(
+    screen.getByRole("combobox", { name: "並べ替え" }),
+    "name",
+  );
+  await user.type(screen.getByRole("searchbox"), "アルファ");
+  await user.click(screen.getByRole("checkbox", { name: "アルファを選択" }));
+  expect(document.getElementById("selectionCount")).toHaveTextContent(
+    "1件選択",
+  );
+  await user.click(screen.getByRole("button", { name: "アルファを開く" }));
+  expect(screen.getByRole("searchbox")).toHaveValue("");
+  expect(screen.getByRole("combobox", { name: "並べ替え" })).toHaveValue(
+    "name",
+  );
+  await user.click(
+    within(document.getElementById("breadcrumbs")!).getByRole("button", {
+      name: "資料一覧",
+    }),
+  );
+  expect(document.getElementById("selectionToolbar")).toHaveAttribute("hidden");
+  expect(
+    screen.getByRole("checkbox", { name: "アルファを選択" }),
+  ).not.toBeChecked();
+});
+
+it("does not open the diagram dialog while another operation is running", async () => {
+  const gate = deferred<Response>();
+  installFetch(() => gate.promise);
+  const { user } = setup();
+  await user.click(
+    openItemMenu("scan.pdf").getByRole("button", { name: "削除" }),
+  );
+  await waitFor(() => expect(requests).toHaveLength(1));
+  await user.click(screen.getByRole("button", { name: "図表を作成" }));
+  expect(document.getElementById("diagramDialog")).not.toHaveAttribute("open");
+  // While it runs, the screen says so instead of staying silent.
+  expect(screen.getByText("処理しています…")).toHaveAttribute(
+    "data-kind",
+    "running",
+  );
+  gate.resolve(json());
+  expect(
+    await screen.findByText("「scan.pdf」を削除しました。"),
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "図表を作成" }));
+  expect(document.getElementById("diagramDialog")).toHaveAttribute("open");
+});
+
+it("tells the user the diagram exists when the list cannot be refreshed after creating it", async () => {
+  installFetch((url) =>
+    url.startsWith("/api/diagrams/")
+      ? json({}, 201)
+      : json({ detail: "x" }, 500),
+  );
+  const { user, onJob } = renderLibrary(libraryData);
+  await user.click(screen.getByRole("button", { name: "図表を作成" }));
+  await user.click(document.getElementById("submitDiagram")!);
+  expect(
+    await screen.findByText("図表を作成しました。一覧から開いてください。"),
+  ).toBeInTheDocument();
+  expect(onJob).not.toHaveBeenCalled();
+  expect(document.getElementById("diagramDialog")).not.toHaveAttribute("open");
 });

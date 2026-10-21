@@ -18,9 +18,11 @@ import {
   SelectField,
   SidePanel,
   StatusMessage,
+  type StatusKind,
   Tabs,
   TextField,
   Toolbar,
+  mostUrgent,
 } from "./ui";
 describe("shared controls", () => {
   it("defaults to a non-submitting button and forwards disabled and accessible names", () => {
@@ -284,5 +286,82 @@ describe("dialogs, menus, and popups", () => {
       "data-drop",
       "root",
     );
+  });
+});
+
+describe("status contract", () => {
+  it("stays a plain status paragraph without a kind, and an explicit role wins", () => {
+    render(
+      <>
+        <StatusMessage>完了</StatusMessage>
+        <StatusMessage kind="error" role="status">
+          指定
+        </StatusMessage>
+      </>,
+    );
+    expect(screen.getByText("完了")).not.toHaveAttribute("data-kind");
+    expect(screen.getByText("完了")).toHaveAttribute("role", "status");
+    expect(screen.getByText("指定")).toHaveAttribute("role", "status");
+  });
+  it("interrupts only for an error; every other state is announced politely", () => {
+    const kinds: StatusKind[] = [
+      "loading",
+      "empty",
+      "setup",
+      "pending",
+      "running",
+      "partial",
+      "stale",
+      "unsaved",
+    ];
+    render(
+      <>
+        {kinds.map((kind) => (
+          <StatusMessage key={kind} kind={kind}>
+            {kind}
+          </StatusMessage>
+        ))}
+        <StatusMessage kind="error">error</StatusMessage>
+      </>,
+    );
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByRole("alert")).toHaveTextContent("error");
+    expect(screen.getAllByRole("status")).toHaveLength(kinds.length);
+    for (const kind of kinds)
+      expect(screen.getByText(kind)).toHaveAttribute("data-kind", kind);
+  });
+  it("reads the detail with the message but keeps recovery actions out of the live region", () => {
+    const retry = vi.fn();
+    const { rerender } = render(
+      <StatusMessage
+        kind="stale"
+        detail="原文が更新されました"
+        recovery={[{ label: "読み直す", onClick: retry }]}
+      >
+        古い版です
+      </StatusMessage>,
+    );
+    const live = screen.getByRole("status");
+    expect(live).toHaveTextContent("古い版です 原文が更新されました");
+    const button = screen.getByRole("button", { name: "読み直す" });
+    expect(live).not.toContainElement(button);
+    fireEvent.click(button);
+    expect(retry).toHaveBeenCalledTimes(1);
+    rerender(
+      <StatusMessage
+        kind="stale"
+        hidden
+        recovery={[{ label: "読み直す", onClick: retry }]}
+      >
+        {""}
+      </StatusMessage>,
+    );
+    expect(screen.queryByRole("button", { name: "読み直す" })).toBeNull();
+  });
+  it("lets the most urgent of several messages set how they are announced", () => {
+    expect(mostUrgent([])).toBeUndefined();
+    expect(mostUrgent(["running", "pending"])).toBe("pending");
+    expect(mostUrgent(["partial", "running", "stale"])).toBe("stale");
+    expect(mostUrgent(["stale", "error", "setup"])).toBe("error");
   });
 });

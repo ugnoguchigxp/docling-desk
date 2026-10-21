@@ -1,0 +1,41 @@
+.feature-status {
+  width: min(640px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+}
+.feature-status-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+.feature-status-item {
+  padding: 10px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.feature-status-item h3 small {
+  color: var(--ink-subtle);
+  font-weight: 400;
+}
+.feature-status-item p {
+  margin: 4px 0;
+  color: var(--ink-muted);
+  line-height: 1.6;
+}
+/* Guidance (an optional feature that is not set up) stays neutral; only
+   something the person has to fix for the feature to work is tinted. */
+.feature-status-item [data-kind="setup"][data-need="action"] {
+  color: var(--warning-ink);
+}
+.feature-status-item [data-kind="error"] {
+  color: var(--danger);
+}
+.feature-status-steps {
+  margin: 4px 0 0;
+  padding-left: 20px;
+  line-height: 1.7;
+}
+.feature-status-note {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-subtle);
+}

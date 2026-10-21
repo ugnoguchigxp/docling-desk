@@ -1,7 +1,15 @@
 import { fileUrl, request } from "../lib/api";
 import * as contracts from "../lib/contracts";
-import { isDocument } from "../lib/formats";
+import {
+  isDocument,
+  isDocx,
+  isPdf,
+  isPptx,
+  isXlsx,
+  originalName,
+} from "../lib/formats";
 import { withBase } from "../lib/base";
+import { isHttpError, requestText, withDetail } from "../lib/http";
 import {
   isLightweightPreview,
   type Job,
@@ -10,12 +18,17 @@ import {
 } from "../lib/types";
 
 async function readText(url: string, signal: AbortSignal) {
-  const response = await fetch(withBase(url), { signal, cache: "no-store" });
-  if (!response.ok)
-    throw new Error(
-      `印刷用の文書を読み込めませんでした（HTTP ${response.status}）。`,
-    );
-  return response.text();
+  try {
+    return (await requestText(url, { signal })).text;
+  } catch (error) {
+    // A status line only: the 4xx/5xx body of a proxy page is not shown.
+    throw isHttpError(error) && error.status > 0
+      ? withDetail(
+          error,
+          `印刷用の文書を読み込めませんでした（HTTP ${error.status}）。`,
+        )
+      : error;
+  }
 }
 
 export interface PrintUnit {
@@ -43,7 +56,7 @@ export async function printUnits(
   signal: AbortSignal,
 ): Promise<PrintUnit[]> {
   const base = `/view/${encodeURIComponent(job.id)}`;
-  const name = (job.original_filename || job.filename).toLowerCase();
+  const name = originalName(job);
   const extracted = () => [
     { number: 1, url: `${base}/extracted`, extracted: true },
   ];
@@ -53,10 +66,10 @@ export async function printUnits(
     return [
       {
         number: 1,
-        url: `${base}/${name.endsWith(".docx") ? "word" : "document"}`,
+        url: `${base}/${isDocx(name) ? "word" : "document"}`,
       },
     ];
-  if (name.endsWith(".pptx")) {
+  if (isPptx(name)) {
     const lightweight = isLightweightPreview(job);
     if (!job.slide_layout && !lightweight) return extracted();
     const data = await request<Slides>(
@@ -82,7 +95,7 @@ export async function printUnits(
         height: s.height,
       }));
   }
-  if (name.endsWith(".pdf")) {
+  if (isPdf(name)) {
     const raw = await readText(`${base}/pdf`, signal);
     const doc = new DOMParser().parseFromString(raw, "text/html");
     const units = [...doc.querySelectorAll<HTMLElement>(".pdf-page")].map(
@@ -106,7 +119,7 @@ export async function printUnits(
       throw new Error("PDFのページ情報を読み込めませんでした。");
     return units;
   }
-  if (name.endsWith(".xlsx") && job.pages > 0)
+  if (isXlsx(name) && job.pages > 0)
     return Array.from({ length: job.pages }, (_, i) => ({
       number: i + 1,
       url: `${base}/sheets/${i + 1}`,

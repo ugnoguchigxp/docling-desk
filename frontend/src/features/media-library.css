@@ -28,9 +28,9 @@
 }
 .library-view-bar button[aria-pressed="true"],
 .library-layout-toggle button[aria-pressed="true"] {
-  background: #e8f3f5;
+  background: var(--surface-selected);
   color: var(--accent);
-  border-color: #b6d3da;
+  border-color: var(--accent-line);
 }
 .library-layout-toggle {
   display: flex;
@@ -43,7 +43,7 @@
   min-width: 0;
   max-width: 100%;
   font-size: 12px;
-  color: #536d7b;
+  color: var(--ink-muted);
 }
 .image-folder-filter select {
   flex: 1;
@@ -63,7 +63,7 @@
 }
 .library-gallery > li {
   min-width: 0;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 7px;
   position: relative;
@@ -100,7 +100,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f8fafb;
+  background: var(--surface-subtle);
   margin-bottom: 6px;
 }
 .gallery-thumbnail img {
@@ -111,19 +111,19 @@
 .gallery-thumbnail > .icon {
   width: 52px;
   height: 52px;
-  color: #7196a5;
+  color: var(--ink-muted);
 }
 .gallery-file-kind {
   font-size: 18px;
-  color: #668492;
+  color: var(--ink-muted);
 }
 .gallery-name {
   overflow-wrap: anywhere;
-  color: #243744;
+  color: var(--ink);
 }
 .gallery-meta {
   font-size: 11px;
-  color: #6d818e;
+  color: var(--ink-muted);
   overflow-wrap: anywhere;
 }
 dialog.image-details-dialog {
@@ -137,7 +137,7 @@ dialog.image-details-dialog {
   box-sizing: border-box;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
 }
 dialog.image-details-dialog[open] {
   display: grid;
@@ -165,7 +165,7 @@ dialog.image-details-dialog[open] {
   gap: 12px;
   align-items: center;
   justify-content: center;
-  background: #f4f7fa;
+  background: var(--surface-subtle);
   padding: 20px;
   min-width: 0;
   min-height: 0;
@@ -208,7 +208,7 @@ dialog.image-details-dialog[open] {
 }
 .image-details-preview > span {
   font-size: 12px;
-  color: #617c8c;
+  color: var(--ink-muted);
   flex-shrink: 0;
 }
 .image-details-fields {
@@ -241,7 +241,7 @@ dialog.image-details-dialog[open] {
 .image-details-fields label {
   display: grid;
   gap: 5px;
-  color: #496575;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 .image-details-fields input,
@@ -271,7 +271,7 @@ dialog.image-details-dialog[open] {
 }
 .image-field-hint {
   font-size: 11px;
-  color: #718693;
+  color: var(--ink-muted);
 }
 .image-details-fields dl {
   display: grid;
@@ -283,7 +283,7 @@ dialog.image-details-dialog[open] {
   border-top: 1px solid var(--line);
 }
 .image-details-fields dt {
-  color: #6b818e;
+  color: var(--ink-muted);
 }
 .image-details-fields dd {
   margin: 0;

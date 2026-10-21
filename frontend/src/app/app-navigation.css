@@ -1,0 +1,142 @@
+.mode-menu {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  flex: none;
+  align-items: stretch;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  box-shadow: inset 0 1px 2px rgba(20, 40, 70, 0.18);
+}
+.mode-menu::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(20, 40, 70, 0.3);
+  transition: transform 0.18s ease;
+}
+.mode-menu[data-mode="wiki"]::before {
+  transform: translateX(100%);
+}
+.mode-menu button.mode-menu-option {
+  position: relative;
+  z-index: 1;
+  white-space: nowrap;
+  padding: 5px 16px;
+  font-size: 12px;
+  border-color: transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-muted);
+}
+.mode-menu button.mode-menu-option:hover {
+  background: transparent;
+  color: var(--accent);
+}
+.mode-menu button.mode-menu-option[aria-current="page"] {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mode-menu::before {
+    transition: none;
+  }
+}
+.global-search {
+  position: relative;
+  flex: none;
+  min-width: 0;
+  margin-inline: auto 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  color: var(--ink-muted);
+  background: var(--surface-subtle);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.global-rag {
+  margin-right: auto;
+}
+.viewer-toolbar .global-rag {
+  margin-right: 0;
+}
+.viewer-toolbar .global-search {
+  flex: none;
+  margin-inline: 0 4px;
+}
+.global-search span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.global-search kbd {
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+}
+.viewer-toolbar .global-search span,
+.viewer-toolbar .global-search kbd {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+@media (max-width: 1000px) {
+  .global-search {
+    flex: none;
+    margin-inline: 0;
+  }
+  .global-search span,
+  .global-search kbd {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+.global-rag {
+  color: var(--accent);
+  border-color: var(--line-strong);
+  background: var(--surface-selected);
+}
+.viewer-toolbar .mode-menu button.mode-menu-option {
+  padding: 4px 9px;
+  font-size: 11px;
+}
+@media (max-width: 1000px) {
+  .viewer-toolbar .mode-menu button.mode-menu-option {
+    padding: 4px 6px;
+  }
+}
+@media print {
+  .mode-menu,
+  .global-search,
+  .global-rag {
+    display: none;
+  }
+}
+.global-resume {
+  flex: none;
+  white-space: nowrap;
+}
+.viewer-toolbar .global-resume {
+  padding: 4px 9px;
+  font-size: 11px;
+}

@@ -1,5 +1,5 @@
 import { errorText } from "../../lib/api";
-import { DiagramRequestError } from "../../lib/diagrams";
+import { HttpError } from "../../lib/http";
 
 export interface Problem {
   /** `conflict` means someone else changed the server state. */
@@ -18,15 +18,14 @@ export const time = (date: Date) => date.toLocaleTimeString("ja-JP");
 
 /** The server will never accept this content as is (too large / invalid). */
 export const isPermanent = (error: unknown) =>
-  error instanceof DiagramRequestError &&
-  (error.status === 413 || error.status === 422);
+  error instanceof HttpError && (error.status === 413 || error.status === 422);
 
 export function classify(
   error: unknown,
   action: "save" | "draft" | "restore",
 ): Problem {
   const again = action === "restore" ? "restore" : "save";
-  if (!(error instanceof DiagramRequestError))
+  if (!(error instanceof HttpError))
     return {
       kind: "failure",
       message: errorText(error),

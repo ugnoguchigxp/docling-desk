@@ -44,6 +44,17 @@ async function readScene(page: Page, id: string): Promise<Scene> {
   return (await response.json()) as Scene;
 }
 
+// Excalidraw reuses the "excalidraw" class on portals and library icons, some
+// of them hidden, so a page-wide `.excalidraw` locator is not the editor. The
+// editing region is the Excalidraw root that DiagramCanvas renders directly
+// inside the editor section; the drawing surface is its interactive canvas.
+const editorRoot = (page: Page) =>
+  page.locator(
+    'section[aria-label="図表エディター"] .diagram-canvas > .excalidraw',
+  );
+const editorCanvas = (page: Page) =>
+  editorRoot(page).locator("canvas.interactive");
+
 const live = (scene: Scene) => scene.elements.filter((e) => !e.isDeleted);
 
 async function createDiagram(page: Page, name: string) {
@@ -54,7 +65,7 @@ async function createDiagram(page: Page, name: string) {
   await page.locator("#submitDiagram").click();
   await expect(page.locator("#diagramDialog")).toBeHidden();
   await expect(page.locator("#filename")).toHaveText(`${name}.excalidraw`);
-  await expect(page.locator(".excalidraw").first()).toBeVisible();
+  await expect(editorRoot(page)).toBeVisible();
   return openedId(page);
 }
 
@@ -64,7 +75,7 @@ test("create a diagram, draw a rectangle with text, save, reload, and keep the c
   const id = await createDiagram(page, "e2e 構成図");
   expect(live(await readScene(page, id))).toEqual([]);
 
-  const canvas = page.locator("canvas.interactive").first();
+  const canvas = editorCanvas(page);
   await expect(canvas).toBeVisible();
   const box = await canvas.boundingBox();
   if (!box) throw new Error("the Excalidraw canvas has no layout");
@@ -95,12 +106,12 @@ test("create a diagram, draw a rectangle with text, save, reload, and keep the c
 
   await page.reload();
   await expect(page.locator("#filename")).toHaveText("e2e 構成図.excalidraw");
-  await expect(page.locator(".excalidraw").first()).toBeVisible();
+  await expect(editorRoot(page)).toBeVisible();
   const reloaded = live(await readScene(page, id));
   expect(reloaded.filter((e) => e.type === "rectangle")).toHaveLength(1);
   expect(reloaded.find((e) => e.type === "text")?.text).toBe("Hello 図表");
   // The saved text is rendered again by the canvas, not only stored.
-  await expect(page.locator("canvas.interactive").first()).toBeVisible();
+  await expect(editorCanvas(page)).toBeVisible();
 });
 
 test("import a .excalidraw file and download the original", async ({
@@ -119,7 +130,7 @@ test("import a .excalidraw file and download the original", async ({
   await expect(row).toContainText("図表");
   await page.getByLabel("imported.excalidrawを開く", { exact: true }).click();
   await expect(page.locator("#filename")).toHaveText("imported.excalidraw");
-  await expect(page.locator(".excalidraw").first()).toBeVisible();
+  await expect(editorRoot(page)).toBeVisible();
   const id = openedId(page);
   expect(live(await readScene(page, id)).map((e) => e.type)).toEqual([
     "rectangle",

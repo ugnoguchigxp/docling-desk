@@ -1,4 +1,4 @@
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useState } from "react";
 import {
   act,
   cleanup,
@@ -57,6 +57,9 @@ vi.mock("../diagram/DiagramCanvas", () => {
   }) {
     // A layout effect: the initial report must precede anything a test does
     // once the canvas is in the DOM (a passive effect may still be pending).
+    const [broken, setBroken] = useState(false);
+    // A runtime render error of the canvas, which the feature boundary catches.
+    if (broken) throw new Error("canvas render error");
     useLayoutEffect(() => {
       // Excalidraw reports its restored initial state once after mount.
       props.onChange(`norm:${props.initialScene}`);
@@ -67,6 +70,7 @@ vi.mock("../diagram/DiagramCanvas", () => {
         <button onClick={() => props.onChange(`edit-${++edits.n}`)}>
           edit
         </button>
+        <button onClick={() => setBroken(true)}>crash</button>
       </div>
     );
   }
@@ -74,7 +78,7 @@ vi.mock("../diagram/DiagramCanvas", () => {
 });
 
 import { DiagramEditor } from "./DiagramEditor";
-import { DiagramRequestError } from "../lib/diagrams";
+import { HttpError } from "../lib/http";
 
 const REAL = await vi.importActual<typeof import("../diagram/draft-timing")>(
   "../diagram/draft-timing",
@@ -171,12 +175,20 @@ test("opens the current revision with the original download link", async () => {
     "href",
     `/api/diagrams/${job.id}/content?download=true`,
   );
+  // "原本を保存" fetches the saved version; "保存" makes a new one. Each says so.
+  expect(document.getElementById("originalDownload")).toHaveAttribute(
+    "title",
+    "保存済みの最新版（版 1）を取得します。保存していない変更は含まれません。",
+  );
+  expect(saveButton()).toHaveAttribute(
+    "title",
+    "保存していない変更はありません",
+  );
+  expect(saveButton()).toHaveClass("primary");
 });
 
 test("reports a load failure and can retry", async () => {
-  api.getDiagram.mockRejectedValueOnce(
-    new DiagramRequestError(500, "壊れています"),
-  );
+  api.getDiagram.mockRejectedValueOnce(new HttpError(500, "壊れています"));
   render(<DiagramEditor job={job} />);
   expect(await screen.findByRole("alert")).toHaveTextContent("壊れています");
   fireEvent.click(screen.getByRole("button", { name: "再読み込み" }));
@@ -188,7 +200,10 @@ test("saves a revision with the base ETag and reports the change", async () => {
   api.saveRevision.mockResolvedValue(saved());
   await open(onChanged);
   edit();
-  expect(screen.getByText(/未保存の変更があります/)).toBeInTheDocument();
+  expect(screen.getByText(/未保存の変更があります/)).toHaveAttribute(
+    "data-kind",
+    "unsaved",
+  );
   fireEvent.click(saveButton());
   await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
   expect(api.saveRevision).toHaveBeenCalledWith(
@@ -203,7 +218,7 @@ test("saves a revision with the base ETag and reports the change", async () => {
 
 test("keeps the input and reuses the idempotency key when a save is retried", async () => {
   api.saveRevision
-    .mockRejectedValueOnce(new DiagramRequestError(0, "接続できません"))
+    .mockRejectedValueOnce(new HttpError(0, "接続できません"))
     .mockResolvedValueOnce(saved());
   await open();
   edit();
@@ -211,7 +226,10 @@ test("keeps the input and reuses the idempotency key when a save is retried", as
   const alert = await screen.findByRole("alert");
   expect(alert).toHaveTextContent("通信できませんでした");
   expect(alert).toHaveTextContent("編集中の内容はこの画面に残っています");
-  expect(screen.getByText(/保存できていません/)).toBeInTheDocument();
+  expect(screen.getByText(/保存できていません/)).toHaveAttribute(
+    "data-kind",
+    "unsaved",
+  );
   fireEvent.click(screen.getByRole("button", { name: "再試行" }));
   await waitFor(() => expect(api.saveRevision).toHaveBeenCalledTimes(2));
   const [first, second] = api.saveRevision.mock.calls;
@@ -222,7 +240,7 @@ test("keeps the input and reuses the idempotency key when a save is retried", as
 
 test("replays an unconfirmed save with its own key before saving newer content", async () => {
   api.saveRevision
-    .mockRejectedValueOnce(new DiagramRequestError(0, "切断"))
+    .mockRejectedValueOnce(new HttpError(0, "切断"))
     .mockResolvedValueOnce(saved(2))
     .mockResolvedValueOnce(saved(3));
   await open();
@@ -245,7 +263,7 @@ test("replays an unconfirmed save with its own key before saving newer content",
 
 test("a 412 after a lost response is recognized when the current revision is what we sent", async () => {
   const sha = createHash("sha256").update("edit-1").digest("hex");
-  api.saveRevision.mockRejectedValue(new DiagramRequestError(412, "古い"));
+  api.saveRevision.mockRejectedValue(new HttpError(412, "古い"));
   api.getDiagram
     .mockResolvedValueOnce({ info: info(), etag: '"r-r1"' })
     .mockResolvedValue({
@@ -267,7 +285,7 @@ test("a 412 after a lost response is recognized when the current revision is wha
 });
 
 test("a 412 whose current revision differs stays a conflict", async () => {
-  api.saveRevision.mockRejectedValue(new DiagramRequestError(412, "古い"));
+  api.saveRevision.mockRejectedValue(new HttpError(412, "古い"));
   api.getDiagram.mockResolvedValue({
     info: info({ revision_id: "r2", etag: '"r-r2"', sha256: "other" }),
     etag: '"r-r2"',
@@ -281,9 +299,7 @@ test("a 412 whose current revision differs stays a conflict", async () => {
 });
 
 test("a 412 keeps the input, offers the options and can continue editing", async () => {
-  api.saveRevision.mockRejectedValue(
-    new DiagramRequestError(412, "古い版です"),
-  );
+  api.saveRevision.mockRejectedValue(new HttpError(412, "古い版です"));
   await open();
   edit();
   fireEvent.click(saveButton());
@@ -293,7 +309,7 @@ test("a 412 keeps the input, offers the options and can continue editing", async
     screen.getByRole("button", { name: /最新版を読み込む/ }),
   ).toBeVisible();
   expect(
-    screen.getByRole("button", { name: /\.excalidrawで保存/ }),
+    screen.getByRole("button", { name: /\.excalidrawで書き出す/ }),
   ).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "このまま編集を続ける" }));
   expect(screen.queryByRole("button", { name: /最新版を読み込む/ })).toBeNull();
@@ -302,7 +318,7 @@ test("a 412 keeps the input, offers the options and can continue editing", async
 });
 
 test("reloading the latest version replaces the canvas and drops the draft", async () => {
-  api.saveRevision.mockRejectedValue(new DiagramRequestError(412, "古い"));
+  api.saveRevision.mockRejectedValue(new HttpError(412, "古い"));
   api.createDraft.mockResolvedValue({
     draft: {
       id: "dr",
@@ -335,7 +351,7 @@ test("reloading the latest version replaces the canvas and drops the draft", asy
 
 test("a 409 from a replayed key is not treated as a version conflict", async () => {
   api.saveRevision
-    .mockRejectedValueOnce(new DiagramRequestError(409, "内容が異なります"))
+    .mockRejectedValueOnce(new HttpError(409, "内容が異なります"))
     .mockResolvedValueOnce(saved());
   await open();
   edit();
@@ -592,7 +608,7 @@ function resumeDraft() {
 
 test("a draft update 412 is recovered when the stored draft is what we sent", async () => {
   resumeDraft();
-  api.updateDraft.mockRejectedValueOnce(new DiagramRequestError(412, "古い"));
+  api.updateDraft.mockRejectedValueOnce(new HttpError(412, "古い"));
   api.getDraftContent.mockResolvedValueOnce({
     scene: "edit-1",
     etag: '"d-dr-4"',
@@ -612,8 +628,8 @@ test("a draft update 412 is recovered when the stored draft is what we sent", as
 test("a draft update 412 is recovered when an earlier unconfirmed upload advanced the draft", async () => {
   resumeDraft();
   api.updateDraft
-    .mockRejectedValueOnce(new DiagramRequestError(0, "切断"))
-    .mockRejectedValueOnce(new DiagramRequestError(412, "古い"))
+    .mockRejectedValueOnce(new HttpError(0, "切断"))
+    .mockRejectedValueOnce(new HttpError(412, "古い"))
     .mockResolvedValueOnce(dr(5));
   api.getDraftContent.mockResolvedValueOnce({
     scene: "edit-1",
@@ -638,7 +654,7 @@ test("a draft update 412 is recovered when an earlier unconfirmed upload advance
 
 test("a draft that is really newer on the server is a conflict", async () => {
   resumeDraft();
-  api.updateDraft.mockRejectedValue(new DiagramRequestError(412, "古い"));
+  api.updateDraft.mockRejectedValue(new HttpError(412, "古い"));
   api.getDraftContent.mockResolvedValueOnce({
     scene: "someone-else",
     etag: '"d-dr-9"',
@@ -652,6 +668,57 @@ test("a draft that is really newer on the server is a conflict", async () => {
   expect(api.commitDraft).not.toHaveBeenCalled();
 });
 
+test("a canvas that failed to render reopens on the current scene without uploading older content", async () => {
+  const draft = (n: number) => ({
+    draft: { id: "dr", base_revision: "r1", updated: n } as never,
+    etag: `"d-dr-${n}"`,
+  });
+  api.createDraft.mockResolvedValue(draft(1));
+  api.updateDraft.mockResolvedValue(draft(2));
+  const noise = vi.spyOn(console, "error").mockImplementation(() => {});
+  realTiming();
+  render(<DiagramEditor job={job} />);
+  await screen.findByTestId("canvas");
+  vi.useFakeTimers();
+  edit();
+  await act(() => vi.advanceTimersByTimeAsync(DRAFT_IDLE_MS));
+  expect(api.createDraft).toHaveBeenCalledWith(job.id, "edit-1", '"r-r1"');
+  edit();
+
+  fireEvent.click(screen.getByRole("button", { name: "crash" }));
+  expect(screen.queryByTestId("canvas")).not.toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "直前までの編集内容から開き直します",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "もう一度読み込む" }));
+  await act(() => vi.advanceTimersByTimeAsync(0));
+  // Reopened on the edit, not on the revision that was first loaded.
+  expect(screen.getByTestId("canvas")).toHaveAttribute("data-scene", "edit-2");
+  expect(screen.getByText(/未保存の変更があります/)).toBeInTheDocument();
+
+  // Only the scene being edited is ever uploaded.
+  await act(() => vi.advanceTimersByTimeAsync(DRAFT_INTERVAL_MS * 2));
+  expect(api.createDraft).toHaveBeenCalledTimes(1);
+  expect(api.updateDraft).toHaveBeenCalledTimes(1);
+  expect(api.updateDraft).toHaveBeenCalledWith(
+    job.id,
+    "dr",
+    "edit-2",
+    '"d-dr-1"',
+  );
+
+  // Edits after the retry are treated as edits again.
+  edit();
+  await act(() => vi.advanceTimersByTimeAsync(DRAFT_INTERVAL_MS));
+  expect(api.updateDraft).toHaveBeenLastCalledWith(
+    job.id,
+    "dr",
+    "edit-3",
+    '"d-dr-2"',
+  );
+  noise.mockRestore();
+});
+
 async function autosaveFirstDraft() {
   realTiming();
   render(<DiagramEditor job={job} />);
@@ -663,7 +730,7 @@ async function autosaveFirstDraft() {
 
 test("an unknown draft on the server is adopted when it has the same base", async () => {
   api.createDraft.mockRejectedValue(
-    new DiagramRequestError(409, "下書きがあります", {
+    new HttpError(409, "下書きがあります", {
       detail: { draft_id: "old" },
     }),
   );
@@ -687,7 +754,7 @@ test("an unknown draft on the server is adopted when it has the same base", asyn
 test("an unknown draft based on another revision is discarded and replaced", async () => {
   api.createDraft
     .mockRejectedValueOnce(
-      new DiagramRequestError(409, `下書き ${"c".repeat(32)} があります`),
+      new HttpError(409, `下書き ${"c".repeat(32)} があります`),
     )
     .mockResolvedValueOnce(dr(1));
   api.getDraft.mockResolvedValue({
@@ -755,7 +822,7 @@ test("a failed restore leaves the draft alone", async () => {
     info: info({ revision_id: "r2", revision_number: 2, etag: '"r-r2"' }),
     etag: '"r-r2"',
   });
-  api.restoreRevision.mockRejectedValue(new DiagramRequestError(412, "古い"));
+  api.restoreRevision.mockRejectedValue(new HttpError(412, "古い"));
   vi.spyOn(window, "confirm").mockReturnValue(true);
   await open();
   fireEvent.click(screen.getByRole("button", { name: "版の履歴" }));
@@ -775,7 +842,7 @@ test("keeps the restored revision when its content cannot be loaded", async () =
   });
   api.getContent
     .mockResolvedValueOnce({ scene: "scene-2", etag: "" })
-    .mockRejectedValueOnce(new DiagramRequestError(0, "切断"));
+    .mockRejectedValueOnce(new HttpError(0, "切断"));
   vi.spyOn(window, "confirm").mockReturnValue(true);
   const onChanged = vi.fn();
   await open(onChanged);
@@ -830,7 +897,7 @@ test("reloading waits for an upload that is in flight before discarding the draf
 });
 
 test("input that could not be saved survives leaving the editor", async () => {
-  api.saveRevision.mockRejectedValue(new DiagramRequestError(412, "古い"));
+  api.saveRevision.mockRejectedValue(new HttpError(412, "古い"));
   const first = await open();
   edit();
   fireEvent.click(saveButton());
@@ -871,10 +938,7 @@ test("the stashed input can be discarded", async () => {
 
 test("a 422 shows the server detail", async () => {
   api.saveRevision.mockRejectedValue(
-    new DiagramRequestError(
-      422,
-      "要素 abc の種類 embeddable は使用できません。",
-    ),
+    new HttpError(422, "要素 abc の種類 embeddable は使用できません。"),
   );
   await open();
   edit();
@@ -886,10 +950,7 @@ test("a 422 shows the server detail", async () => {
 
 test("a permanently refused draft is not retried until the scene changes", async () => {
   api.createDraft.mockRejectedValue(
-    new DiagramRequestError(
-      422,
-      "要素 abc の種類 embeddable は使用できません。",
-    ),
+    new HttpError(422, "要素 abc の種類 embeddable は使用できません。"),
   );
   await autosaveFirstDraft();
   expect(api.createDraft).toHaveBeenCalledTimes(1);
@@ -926,8 +987,8 @@ test("an obsolete pending commit is dropped when the server did not apply it", a
   resumeDraft();
   api.updateDraft.mockResolvedValueOnce(dr(4)).mockResolvedValueOnce(dr(5));
   api.commitDraft
-    .mockRejectedValueOnce(new DiagramRequestError(0, "切断"))
-    .mockRejectedValueOnce(new DiagramRequestError(412, "古い"))
+    .mockRejectedValueOnce(new HttpError(0, "切断"))
+    .mockRejectedValueOnce(new HttpError(412, "古い"))
     .mockResolvedValueOnce(saved());
   await open();
   edit();
@@ -945,7 +1006,7 @@ test("an obsolete pending commit is dropped when the server did not apply it", a
   );
 });
 
-async function failRestore(error: DiagramRequestError) {
+async function failRestore(error: HttpError) {
   api.getDiagram.mockResolvedValue({
     info: info({ revision_id: "r2", revision_number: 2, etag: '"r-r2"' }),
     etag: '"r-r2"',
@@ -963,7 +1024,7 @@ test("retrying a failed restore repeats the restore with the same key", async ()
     info: info({ revision_id: "r3", revision_number: 3, etag: '"r-r3"' }),
     etag: '"r-r3"',
   });
-  await failRestore(new DiagramRequestError(0, "切断"));
+  await failRestore(new HttpError(0, "切断"));
   api.getContent.mockResolvedValueOnce({ scene: "restored", etag: "" });
   fireEvent.click(screen.getByRole("button", { name: "再試行" }));
   await waitFor(() => expect(api.restoreRevision).toHaveBeenCalledTimes(2));
@@ -983,7 +1044,7 @@ test("a restore key is not reused once the base ETag changed or the key was refu
     info: info({ revision_id: "r3", revision_number: 3, etag: '"r-r3"' }),
     etag: '"r-r3"',
   });
-  await failRestore(new DiagramRequestError(409, "内容が異なります"));
+  await failRestore(new HttpError(409, "内容が異なります"));
   expect(screen.getByRole("alert")).toHaveTextContent("復元の再送内容");
   fireEvent.click(screen.getByRole("button", { name: "再試行" }));
   await waitFor(() => expect(api.restoreRevision).toHaveBeenCalledTimes(2));
@@ -995,7 +1056,7 @@ test("a restore key is not reused once the base ETag changed or the key was refu
 test("a draft that moved on is re-read before it is discarded", async () => {
   resumeDraft();
   api.discardDraft
-    .mockRejectedValueOnce(new DiagramRequestError(412, "古い"))
+    .mockRejectedValueOnce(new HttpError(412, "古い"))
     .mockResolvedValue(undefined);
   api.getDraft.mockResolvedValue(dr(6));
   vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -1008,7 +1069,7 @@ test("a draft that moved on is re-read before it is discarded", async () => {
 
 test("when the draft cannot be discarded the latest version is not loaded", async () => {
   resumeDraft();
-  api.discardDraft.mockRejectedValue(new DiagramRequestError(412, "古い"));
+  api.discardDraft.mockRejectedValue(new HttpError(412, "古い"));
   api.getDraft.mockResolvedValue(dr(6));
   vi.spyOn(window, "confirm").mockReturnValue(true);
   await open();
@@ -1024,12 +1085,12 @@ test("when the draft cannot be discarded the latest version is not loaded", asyn
 });
 
 test("a failed reload is shown and the editor keeps what is open", async () => {
-  api.saveRevision.mockRejectedValue(new DiagramRequestError(412, "古い"));
+  api.saveRevision.mockRejectedValue(new HttpError(412, "古い"));
   await open();
   edit();
   fireEvent.click(saveButton());
   await screen.findByRole("alert");
-  api.getDiagram.mockRejectedValueOnce(new DiagramRequestError(500, "障害"));
+  api.getDiagram.mockRejectedValueOnce(new HttpError(500, "障害"));
   fireEvent.click(screen.getByRole("button", { name: /最新版を読み込む/ }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "最新の内容を読み込めませんでした",

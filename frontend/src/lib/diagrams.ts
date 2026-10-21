@@ -1,5 +1,4 @@
-import { withBase } from "./base";
-import { leaveForLogin } from "./api";
+import { HttpError, discard, etagOf, readJson, readText, send } from "./http";
 import { object } from "./value";
 
 export const SCENE_TYPE = "application/vnd.excalidraw+json";
@@ -52,25 +51,13 @@ export interface DraftResponse {
   etag: string;
 }
 
-/** HTTP failure. `status` is 0 when no response arrived (network failure). */
-export class DiagramRequestError extends Error {
-  readonly status: number;
-  readonly detail: string;
-  readonly body: unknown;
-  constructor(status: number, detail: string, body: unknown = null) {
-    super(detail);
-    this.name = "DiagramRequestError";
-    this.status = status;
-    this.detail = detail;
-    this.body = body;
-  }
-}
+/** Migration adapter: diagram call sites now use `HttpError` directly. */
+export const DiagramRequestError = HttpError;
 
 const hex32 = /[0-9a-f]{32}/;
 /** The existing draft id carried by a 409 from draft creation, when present. */
 export function existingDraftId(error: unknown): string | null {
-  if (!(error instanceof DiagramRequestError) || error.status !== 409)
-    return null;
+  if (!(error instanceof HttpError) || error.status !== 409) return null;
   const detail = object(error.body) ? error.body.detail : null;
   if (object(detail) && typeof detail.draft_id === "string")
     return detail.draft_id;
@@ -156,82 +143,26 @@ function decodeRevision(value: unknown): RevisionInfo | null {
   };
 }
 
-function detailOf(status: number, body: unknown): string {
-  if (object(body)) {
-    if (typeof body.detail === "string") return body.detail;
-    if (Array.isArray(body.detail))
-      return body.detail
-        .map((issue) =>
-          object(issue) && typeof issue.msg === "string"
-            ? issue.msg.replace(/^Value error, /, "")
-            : "入力内容を確認してください。",
-        )
-        .join("\n");
-  }
-  return `HTTP ${status}`;
-}
-
-interface Call {
-  method?: string;
-  headers?: Record<string, string>;
-  body?: string;
-  signal?: AbortSignal;
-}
-
-async function send(url: string, call: Call = {}): Promise<Response> {
-  let response: Response;
-  try {
-    response = await fetch(withBase(url), {
-      cache: "no-store",
-      method: call.method ?? "GET",
-      headers: call.headers,
-      body: call.body,
-      signal: call.signal,
-    });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError")
-      throw error;
-    throw new DiagramRequestError(
-      0,
-      "サーバーに接続できませんでした。通信を確認してください。",
-    );
-  }
-  if (response.ok) return response;
-  const body: unknown = await response.json().catch(() => null);
-  if (response.status === 401) leaveForLogin(body);
-  throw new DiagramRequestError(
-    response.status,
-    detailOf(response.status, body),
-    body,
-  );
-}
-
-async function json(response: Response): Promise<unknown> {
-  return response.json().catch(() => {
-    throw new DiagramRequestError(
-      response.status,
-      "応答を読み込めませんでした。",
-    );
-  });
-}
 const malformed = (response: Response) =>
-  new DiagramRequestError(response.status, "応答の形式が正しくありません。");
+  new HttpError(
+    response.status,
+    "応答の形式が正しくありません。",
+    null,
+    response.headers,
+  );
 
 async function infoOf(response: Response): Promise<InfoResponse> {
-  const info = decodeInfo(await json(response));
+  const info = decodeInfo(await readJson(response));
   if (!info) throw malformed(response);
-  return { info, etag: response.headers.get("ETag") ?? info.etag };
+  return { info, etag: etagOf(response) ?? info.etag };
 }
 async function draftOf(response: Response): Promise<DraftResponse> {
-  const draft = decodeDraft(await json(response));
+  const draft = decodeDraft(await readJson(response));
   if (!draft) throw malformed(response);
-  return { draft, etag: response.headers.get("ETag") ?? draft.etag };
+  return { draft, etag: etagOf(response) ?? draft.etag };
 }
 async function sceneOf(response: Response): Promise<SceneResponse> {
-  return {
-    scene: await response.text(),
-    etag: response.headers.get("ETag") ?? "",
-  };
+  return { scene: await readText(response), etag: etagOf(response) ?? "" };
 }
 
 const base = (id: string) => `/api/diagrams/${encodeURIComponent(id)}`;
@@ -318,7 +249,7 @@ export async function listRevisions(
   const response = await send(`${base(id)}/revisions${q ? `?${q}` : ""}`, {
     signal,
   });
-  const value = await json(response);
+  const value = await readJson(response);
   if (!object(value) || !Array.isArray(value.items)) throw malformed(response);
   const items = value.items.map(decodeRevision);
   if (items.some((item) => !item)) throw malformed(response);
@@ -425,11 +356,13 @@ export async function discardDraft(
   draftEtag: string,
   signal?: AbortSignal,
 ): Promise<void> {
-  await send(`${base(id)}/drafts/${encodeURIComponent(draftId)}`, {
-    method: "DELETE",
-    headers: { "If-Match": draftEtag },
-    signal,
-  });
+  await discard(
+    await send(`${base(id)}/drafts/${encodeURIComponent(draftId)}`, {
+      method: "DELETE",
+      headers: { "If-Match": draftEtag },
+      signal,
+    }),
+  );
 }
 /** Stored result of an earlier create/save/restore/commit. */
 export async function getOperation(
@@ -441,7 +374,7 @@ export async function getOperation(
     `${base(id)}/operations/${encodeURIComponent(operationId)}`,
     { signal },
   );
-  const info = decodeInfo(await json(response));
+  const info = decodeInfo(await readJson(response));
   if (!info) throw malformed(response);
   return info;
 }

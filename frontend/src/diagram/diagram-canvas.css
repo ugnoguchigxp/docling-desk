@@ -10,5 +10,5 @@
 }
 .diagram-canvas-error {
   margin: 16px;
-  color: #a12c2c;
+  color: var(--danger);
 }

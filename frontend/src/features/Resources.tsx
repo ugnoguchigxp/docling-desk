@@ -10,6 +10,7 @@ import {
   StatusMessage,
 } from "../components/ui";
 import { fileUrl, request } from "../lib/api";
+import { isHttpError, requestText, withDetail } from "../lib/http";
 import { isDone, type Element, type Job, type RagPolicy } from "../lib/types";
 export function Structure({ job, visible }: { job: Job; visible: boolean }) {
   const source = useViewerSource();
@@ -59,10 +60,15 @@ export function Rag({ job, visible }: { job: Job; visible: boolean }) {
           { signal },
           contracts.policy,
         ),
-        fetch(source.url(fileUrl(job.id, files[mode])), { signal }),
+        requestText(source.url(fileUrl(job.id, files[mode])), { signal }).catch(
+          (error: unknown) => {
+            throw isHttpError(error) && error.status > 0
+              ? withDetail(error, "RAG出力を読み込めませんでした。")
+              : error;
+          },
+        ),
       ]);
-      if (!response.ok) throw new Error("RAG出力を読み込めませんでした。");
-      const chunks = (await response.text())
+      const chunks = response.text
         .trim()
         .split("\n")
         .filter(Boolean)

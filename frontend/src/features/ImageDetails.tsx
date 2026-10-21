@@ -8,8 +8,11 @@ import {
   IconButton,
   StatusMessage,
   TextField,
+  type StatusKind,
 } from "../components/ui";
 import { errorText, originalUrl, request } from "../lib/api";
+import { queryKeys } from "../lib/query-keys";
+import { isHttpError } from "../lib/http";
 import { withBase } from "../lib/base";
 import { assetId, imageMarkdown, type MediaAsset } from "../lib/media";
 import type { Job } from "../lib/types";
@@ -52,7 +55,7 @@ export function ImageDetails({
           onReload={() => setReload((n) => n + 1)}
         />
       ) : (
-        <StatusMessage>
+        <StatusMessage kind={query.error ? "error" : "loading"}>
           {query.error ? errorText(query.error) : "画像情報を読み込んでいます…"}
         </StatusMessage>
       )}
@@ -86,6 +89,7 @@ function ImageFields({
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [conflict, setConflict] = useState(false),
+    [kind, setKind] = useState<StatusKind>(),
     [imageError, setImageError] = useState(false),
     [zoom, setZoom] = useState<number | null>(null),
     [viewport, setViewport] = useState({ width: 0, height: 0 }),
@@ -117,13 +121,15 @@ function ImageFields({
   const markdown = imageMarkdown(values.default_alt, asset.reference);
   function change(key: keyof typeof values, value: string) {
     setValues((previous) => ({ ...previous, [key]: value }));
-    setMessage("");
+    // The conflict stays on screen with its way out until it is resolved.
+    if (!conflict) setMessage("");
   }
   async function save() {
     if (saving.current) return;
     saving.current = true;
     setBusy(true);
     setMessage("");
+    setKind(undefined);
     try {
       const next = await request<MediaAsset>(
         `/api/v1/media/${asset.asset_id}`,
@@ -145,10 +151,16 @@ function ImageFields({
       setCurrent(next);
       setConflict(false);
       setMessage("保存しました。");
-      await cache.invalidateQueries({ queryKey: ["library"] });
+      setKind(undefined);
+      await cache.invalidateQueries({ queryKey: queryKeys.library });
     } catch (error) {
       setMessage(errorText(error));
-      setConflict(true);
+      // 412 (ETag mismatch) / 428 (If-Match missing): the info this form was
+      // based on is out of date. 409 is a duplicate name, and anything else
+      // is a plain failure: both leave the typed values saveable as they are.
+      const changed = isHttpError(error, 412) || isHttpError(error, 428);
+      setConflict(changed);
+      setKind(changed ? "stale" : "error");
     } finally {
       saving.current = false;
       setBusy(false);
@@ -158,10 +170,12 @@ function ImageFields({
     try {
       await navigator.clipboard.writeText(markdown);
       setMessage("Markdownをコピーしました。");
+      setKind(undefined);
     } catch {
       copied.current?.focus();
       copied.current?.select();
       setMessage("選択中のMarkdownをコピーしてください。");
+      setKind(undefined);
     }
   }
   return (
@@ -337,8 +351,17 @@ function ImageFields({
             {busy ? "保存中…" : "属性を保存"}
           </Button>
         </form>
-        <StatusMessage hidden={!message}>{message}</StatusMessage>
-        {conflict && <Button onClick={onReload}>最新情報を読み直す</Button>}
+        <StatusMessage
+          hidden={!message}
+          kind={kind}
+          recovery={
+            conflict
+              ? [{ label: "最新情報を読み直す", onClick: onReload }]
+              : undefined
+          }
+        >
+          {message}
+        </StatusMessage>
         <dl>
           <dt>原本名</dt>
           <dd>{asset.original_filename}</dd>

@@ -10,7 +10,7 @@ import {
 } from "../components/ui";
 import { errorText } from "../lib/api";
 import { withBase } from "../lib/base";
-import { isDocument } from "../lib/formats";
+import { isDocument, isPdf, isPptx, originalName } from "../lib/formats";
 import { isLightweightPreview, type Job, type Language } from "../lib/types";
 import {
   printUnits,
@@ -64,8 +64,8 @@ export function PrintPreview({
   const fixed =
     !!job.preview &&
     !extracted &&
-    /\.(pdf|pptx)$/i.test(job.original_filename || job.filename);
-  const whole = extracted || isDocument(job.original_filename || job.filename);
+    (isPdf(originalName(job)) || isPptx(originalName(job)));
+  const whole = extracted || isDocument(originalName(job));
   const [scope, setScope] = useState(
       isLightweightPreview(job) ? "current" : "all",
     ),
@@ -386,7 +386,7 @@ export function PrintPreview({
           </Button>
           {error ? (
             <>
-              <StatusMessage role="alert">{error}</StatusMessage>
+              <StatusMessage kind="error">{error}</StatusMessage>
               <Button
                 onClick={() => {
                   setRetry((n) => n + 1);
@@ -396,7 +396,7 @@ export function PrintPreview({
               </Button>
             </>
           ) : (
-            <StatusMessage>
+            <StatusMessage kind={ready ? undefined : "loading"}>
               {ready
                 ? "印刷の準備ができました。"
                 : "印刷用の文書を読み込んでいます…"}

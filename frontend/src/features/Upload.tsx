@@ -8,9 +8,20 @@ import {
   StatusMessage,
   TextField,
   SelectField,
+  type StatusKind,
 } from "../components/ui";
 import { errorText, object, request } from "../lib/api";
+import { queryKeys } from "../lib/query-keys";
+import { isHttpError } from "../lib/http";
 import { isSupported, supportedAccept, supportedLabel } from "../lib/formats";
+/**
+ * No response arrived: the server may have stored the file. The request is not
+ * repeated; the list is reloaded and the person decides.
+ */
+export const uploadFailure = (name: string, error: unknown) =>
+  isHttpError(error, 0)
+    ? `${name}：サーバーからの応答を確認できませんでした。受け付けられている場合があるため、資料一覧を確認してから、必要なときだけ追加し直してください。`
+    : `${name}：${errorText(error)}`;
 export function useUpload(
   destination: string | null,
   path: string,
@@ -22,6 +33,7 @@ export function useUpload(
     [opened, setOpened] = useState(false),
     [busy, setBusy] = useState(false),
     [dialogMessage, setDialogMessage] = useState(""),
+    [dialogKind, setDialogKind] = useState<StatusKind>(),
     [drop, setDrop] = useState(false),
     fixed = useRef({ destination, path }),
     lock = useRef(false),
@@ -35,6 +47,7 @@ export function useUpload(
   const open = () => {
     fixed.current = { destination, path };
     setDialogMessage("");
+    setDialogKind(undefined);
     setOpened(true);
   };
   const send = useCallback(
@@ -58,8 +71,10 @@ export function useUpload(
       try {
         for (const [index, file] of files.entries()) {
           const status = `アップロード中… ${index + 1} / ${files.length}件`;
-          if (fromDialog) setDialogMessage(status);
-          else onMessage(status);
+          if (fromDialog) {
+            setDialogMessage(status);
+            setDialogKind("running");
+          } else onMessage(status);
           if (!isSupported(file.name)) {
             failures.push(`${file.name}：${supportedLabel}を選んでください。`);
             continue;
@@ -76,10 +91,10 @@ export function useUpload(
             await request("/api/upload", { method: "POST", body });
             added++;
           } catch (e) {
-            failures.push(`${file.name}：${errorText(e)}`);
+            failures.push(uploadFailure(file.name, e));
           }
         }
-        await cache.invalidateQueries({ queryKey: ["library"] });
+        await cache.invalidateQueries({ queryKey: queryKeys.library });
         const result = [
           added
             ? `${added}件の資料を追加しました。画像・図はそのまま閲覧でき、文書の抽出状況は資料一覧で確認できます。`
@@ -88,8 +103,10 @@ export function useUpload(
         ].join("\n");
         onMessage(result);
         if (fromDialog) {
-          if (failures.length) setDialogMessage(result);
-          else {
+          if (failures.length) {
+            setDialogMessage(result);
+            setDialogKind(added ? "partial" : "error");
+          } else {
             setOpened(false);
             form.current?.reset();
           }
@@ -339,7 +356,11 @@ export function useUpload(
             単独の画像ファイルは保存のみ行い、OCR・本文抽出は行いません。
             Excalidraw（.excalidraw）は図表として取り込み、そのまま編集できます。
           </p>
-          <StatusMessage id="uploadMessage" hidden={!dialogMessage}>
+          <StatusMessage
+            id="uploadMessage"
+            kind={dialogKind}
+            hidden={!dialogMessage}
+          >
             {dialogMessage}
           </StatusMessage>
           <Button className="primary" type="submit" disabled={busy}>

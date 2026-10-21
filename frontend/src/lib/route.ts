@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { withBase } from "./base";
 import type { View } from "./types";
 export const views: View[] = ["preview", "tables", "structure", "rag"];
 export interface Route {
@@ -45,6 +46,101 @@ export function readRoute(): Route {
       : undefined,
   };
 }
+/**
+ * What a reference (a search hit, a citation, a related-document link, a link
+ * in an article) points at. It names the source only: the document or article
+ * id and the position inside it. Which revision the person sees is decided by
+ * the server when the source opens, never by this value.
+ */
+export type SourceTarget =
+  | { kind: "wiki"; source: string; section?: string | null }
+  | { kind: "document"; job: string; unit?: number | null };
+
+/** The route that opens `target`, keeping the rest of `route` as it is. */
+export function targetRoute(route: Route, target: SourceTarget): Route {
+  return target.kind === "wiki"
+    ? {
+        ...route,
+        mode: "wiki",
+        source: target.source,
+        section: target.section || null,
+      }
+    : {
+        ...route,
+        mode: "library",
+        job: target.job || null,
+        view: "preview",
+        unit: target.unit || null,
+      };
+}
+
+/** The same place as a real link, for new tab / copy link. Public format. */
+export function targetUrl(target: SourceTarget) {
+  const params = new URLSearchParams({
+    mode: target.kind === "wiki" ? "wiki" : "library",
+  });
+  if (target.kind === "wiki") {
+    params.set("source", target.source);
+    if (target.section) params.set("section", target.section);
+  } else {
+    params.set("job", target.job);
+    params.set("view", "preview");
+    params.set("unit", String(target.unit || 1));
+  }
+  return withBase(`/?${params}`);
+}
+
+/** The source a route is showing, or null on a list / empty Wiki. */
+export function targetOf(route: Route): SourceTarget | null {
+  if (route.mode === "wiki")
+    return route.source
+      ? { kind: "wiki", source: route.source, section: route.section }
+      : null;
+  return route.job
+    ? { kind: "document", job: route.job, unit: route.unit }
+    : null;
+}
+
+/** True when both name the same article or document, wherever inside it. */
+export function sameSource(a: SourceTarget | null, b: SourceTarget | null) {
+  if (!a || !b || a.kind !== b.kind) return false;
+  return a.kind === "wiki"
+    ? a.source === (b as typeof a).source
+    : a.job === (b as typeof a).job;
+}
+
+/**
+ * The reference an in-app link (`/?mode=wiki&source=..`, `/?job=..`) stands
+ * for, or null when the link is not an app address or names no source. Only
+ * the same origin and the app's own path count; the query is read, not run.
+ */
+export function linkTarget(href: string, base: Location): SourceTarget | null {
+  let url: URL;
+  try {
+    url = new URL(href, base.href);
+  } catch {
+    return null;
+  }
+  if (
+    url.origin !== base.origin ||
+    !["/", withBase("/")].includes(url.pathname)
+  )
+    return null;
+  const source = url.searchParams.get("source"),
+    job = url.searchParams.get("job");
+  if (url.searchParams.get("mode") === "wiki")
+    return source
+      ? { kind: "wiki", source, section: url.searchParams.get("section") }
+      : null;
+  return job
+    ? {
+        kind: "document",
+        job,
+        unit: Number(url.searchParams.get("unit")) || null,
+      }
+    : null;
+}
+
 export function useRoute() {
   const [route, setRoute] = useState(readRoute);
   useEffect(() => {

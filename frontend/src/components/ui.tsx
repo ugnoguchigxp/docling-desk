@@ -1,3 +1,4 @@
+import "./app-tokens.css";
 import "./ui.css";
 import {
   Fragment,
@@ -57,11 +58,84 @@ export function Toolbar({
 }: ComponentProps<"div"> & { as?: "div" | "header" }) {
   return as === "header" ? <header {...props} /> : <div {...props} />;
 }
-export function StatusMessage({ children, ...props }: ComponentProps<"p">) {
-  return (
-    <p role="status" {...props}>
+/**
+ * What a message means to the person reading it. Features map their own data
+ * (server states, query errors) to a kind; this component knows no API.
+ * Only `error` interrupts (role="alert"); every other kind is a polite status,
+ * so a state that is merely in progress or incomplete is never announced as a
+ * failure.
+ */
+export type StatusKind =
+  | "loading" // fetching what is shown
+  | "empty" // nothing to show yet
+  | "setup" // a prerequisite is not configured
+  | "pending" // accepted or queued, not started
+  | "running" // in progress
+  | "partial" // done, with parts missing or skipped
+  | "error" // failed
+  | "stale" // an older version is shown or saved
+  | "unsaved"; // input exists only on this screen
+const urgency: StatusKind[] = [
+  "loading",
+  "empty",
+  "running",
+  "pending",
+  "partial",
+  "unsaved",
+  "setup",
+  "stale",
+  "error",
+];
+/** The kind that should speak for several messages shown as one. */
+export const mostUrgent = (kinds: StatusKind[]): StatusKind | undefined =>
+  kinds.reduce<StatusKind | undefined>(
+    (top, kind) =>
+      !top || urgency.indexOf(kind) > urgency.indexOf(top) ? kind : top,
+    undefined,
+  );
+export interface Recovery {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}
+/**
+ * Without `kind` this is the plain status paragraph. `detail` is secondary
+ * text read together with the message; `recovery` lists the actions that can
+ * be taken now (they are not part of the live region).
+ */
+export function StatusMessage({
+  kind,
+  detail,
+  recovery,
+  children,
+  ...props
+}: ComponentProps<"p"> & {
+  kind?: StatusKind;
+  detail?: ReactNode;
+  recovery?: Recovery[];
+}) {
+  const message = (
+    <p role={kind === "error" ? "alert" : "status"} data-kind={kind} {...props}>
       {children}
+      {detail ? <small className="status-detail"> {detail}</small> : null}
     </p>
+  );
+  if (!recovery?.length) return message;
+  return (
+    <>
+      {message}
+      <span className="status-recovery" hidden={props.hidden}>
+        {recovery.map((action) => (
+          <Button
+            key={action.label}
+            disabled={action.disabled}
+            onClick={action.onClick}
+          >
+            {action.label}
+          </Button>
+        ))}
+      </span>
+    </>
   );
 }
 export function ContentCard({

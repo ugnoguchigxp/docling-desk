@@ -47,7 +47,7 @@ body,
   align-items: center;
   gap: 12px;
   padding: 6px 12px;
-  border-top: 1px solid #ddd;
+  border-top: 1px solid var(--line);
   flex: none;
   font-size: 12px;
 }

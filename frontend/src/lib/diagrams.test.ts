@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-const login = vi.hoisted(() => ({ leaveForLogin: vi.fn() }));
-vi.mock("./api", () => login);
-
 import {
-  DiagramRequestError,
   commitDraft,
   createDiagram,
   createDraft,
@@ -19,6 +15,7 @@ import {
   sha256Hex,
   updateDraft,
 } from "./diagrams";
+import { HttpError } from "./http";
 
 const info = {
   id: "a".repeat(32),
@@ -103,10 +100,10 @@ test("saves a revision with If-Match, the raw scene bytes and the same key on re
   }
 });
 
-test("maps failures to DiagramRequestError with the Japanese detail", async () => {
+test("maps failures to HttpError with the Japanese detail", async () => {
   reply({ detail: "他の場所で更新されました。" }, 412);
   const error = await getDiagram(info.id).catch((e: unknown) => e);
-  expect(error).toBeInstanceOf(DiagramRequestError);
+  expect(error).toBeInstanceOf(HttpError);
   expect(error).toMatchObject({
     status: 412,
     detail: "他の場所で更新されました。",
@@ -215,17 +212,15 @@ test("lists revisions and restores one", async () => {
 test("finds an existing draft id in a 409", async () => {
   expect(
     existingDraftId(
-      new DiagramRequestError(409, "下書きがあります", {
+      new HttpError(409, "下書きがあります", {
         detail: { draft_id: "dd" },
       }),
     ),
   ).toBe("dd");
   expect(
-    existingDraftId(
-      new DiagramRequestError(409, `下書き ${"b".repeat(32)} があります`),
-    ),
+    existingDraftId(new HttpError(409, `下書き ${"b".repeat(32)} があります`)),
   ).toBe("b".repeat(32));
-  expect(existingDraftId(new DiagramRequestError(412, "x"))).toBeNull();
+  expect(existingDraftId(new HttpError(412, "x"))).toBeNull();
 });
 
 test("sha256Hex hashes the UTF-8 bytes like the server does", async () => {
@@ -234,18 +229,4 @@ test("sha256Hex hashes the UTF-8 bytes like the server does", async () => {
   );
   vi.stubGlobal("crypto", {});
   expect(await sha256Hex("abc")).toBeNull();
-});
-
-test("a 401 hands the body to the shared login redirect", async () => {
-  const body = { login_url: "/login", detail: "ログインが必要です。" };
-  reply(body, 401);
-  await expect(getDiagram(info.id)).rejects.toMatchObject({
-    status: 401,
-    detail: "ログインが必要です。",
-  });
-  expect(login.leaveForLogin).toHaveBeenCalledWith(body);
-  login.leaveForLogin.mockClear();
-  reply({ detail: "x" }, 403);
-  await expect(getDiagram(info.id)).rejects.toMatchObject({ status: 403 });
-  expect(login.leaveForLogin).not.toHaveBeenCalled();
 });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { RawEditor, sourceEdit } from "./RawEditor";
+import "../components/app-tokens.css";
 import "./style.css";
 
 type Metadata = {

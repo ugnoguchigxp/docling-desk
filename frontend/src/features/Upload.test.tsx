@@ -317,7 +317,12 @@ it("keeps the dialog open when every file is rejected", async () => {
   const result = String(onMessage.mock.calls.at(-1)?.[0]);
   expect(result).toContain("資料を追加できませんでした。");
   expect(result).toContain("bad.pdf：容量不足");
-  expect(result).toContain("offline.pdf：offline");
+  // No response: it may have been accepted, so the person is sent to the list
+  // instead of being told to repeat the upload.
+  expect(result).toContain(
+    "offline.pdf：サーバーからの応答を確認できませんでした。受け付けられている場合があるため、資料一覧を確認",
+  );
+  expect(result).toContain("bad.pdf：容量不足");
   expect(result).toContain("notes.exe：");
   expect(result).toContain("picture.bmp：");
   expect(result).toContain("huge.pdf：上限50 MiBを超えています。");
@@ -326,6 +331,7 @@ it("keeps the dialog open when every file is rejected", async () => {
   expect(document.getElementById("uploadMessage")).toHaveTextContent(
     "資料を追加できませんでした。",
   );
+  expect(screen.getByRole("alert")).toHaveAttribute("data-kind", "error");
   await user.click(screen.getByRole("button", { name: "閉じる" }));
   expect(document.getElementById("uploadDialog")).not.toHaveAttribute("open");
 });
@@ -714,4 +720,29 @@ it("enables dragging when the caller omits the enabled flag", async () => {
     .mocked(fetch)
     .mock.calls.find(([url]) => url === "/api/upload");
   expect(recordUpload(uploadCall?.[1])?.folder).toBe("folder-default");
+});
+
+it("reports a batch with one rejected file as partial, not as a failure", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/ocr") return json({ azure_available: false });
+      if (url === "/api/upload")
+        return recordUpload(init)?.name === "bad.pdf"
+          ? json({ detail: "容量不足" }, 413)
+          : json({});
+      return json({});
+    }),
+  );
+  const { user } = renderUpload();
+  await user.click(screen.getByRole("button", { name: "アップロードを開く" }));
+  const input = document.querySelector("#upload input[type=file]");
+  if (!(input instanceof HTMLInputElement))
+    throw new Error("missing file field");
+  assignFiles(input, [file("ok.pdf"), file("bad.pdf")]);
+  submitUpload();
+  const message = await screen.findByText(/1件の資料を追加しました/);
+  expect(message).toHaveAttribute("data-kind", "partial");
+  expect(message).toHaveAttribute("role", "status");
+  expect(message).toHaveTextContent("bad.pdf：容量不足");
 });

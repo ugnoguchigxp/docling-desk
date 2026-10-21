@@ -341,6 +341,15 @@ export function useSlides(
     <>
       <StatusMessage
         id="previewStatus"
+        kind={
+          data.error
+            ? "error"
+            : data.isPending
+              ? "loading"
+              : lightweight
+                ? "empty"
+                : "partial"
+        }
         hidden={
           !enabled ||
           (!data.isPending && !data.error && !(!active && !!data.data))

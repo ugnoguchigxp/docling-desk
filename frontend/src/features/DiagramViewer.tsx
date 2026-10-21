@@ -15,12 +15,14 @@ import "./Viewer.css";
 export function DiagramViewer({
   job,
   onBack,
+  backLabel = "資料一覧へ戻る",
   message,
   navigation,
   initialUnit,
 }: {
   job: Job;
   onBack: () => void;
+  backLabel?: string;
   message: string;
   navigation?: ReactNode;
   initialUnit?: number | null;
@@ -37,7 +39,7 @@ export function DiagramViewer({
         <IconButton
           id="backToFiles"
           icon="back"
-          label="資料一覧へ戻る"
+          label={backLabel}
           onClick={onBack}
         />
         <span id="filename" title={job.filename}>

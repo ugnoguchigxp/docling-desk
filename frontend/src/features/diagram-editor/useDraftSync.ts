@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { DRAFT_IDLE_MS, DRAFT_INTERVAL_MS } from "../../diagram/draft-timing";
 import {
-  DiagramRequestError,
   createDraft,
   discardDraft,
   existingDraftId,
@@ -10,6 +9,7 @@ import {
   updateDraft,
   type DraftInfo,
 } from "../../lib/diagrams";
+import { HttpError } from "../../lib/http";
 import { classify, isPermanent, time } from "./problems";
 import type { DraftState, Session, Ui } from "./session";
 import { clearStash, writeStash } from "./stash";
@@ -23,13 +23,12 @@ type Sent = DraftInfo & { etag: string };
  */
 export async function discardOwnDraft(id: string, draft: DraftState) {
   const gone = (error: unknown) =>
-    error instanceof DiagramRequestError && error.status === 404;
+    error instanceof HttpError && error.status === 404;
   try {
     await discardDraft(id, draft.id, draft.etag);
   } catch (error) {
     if (gone(error)) return;
-    if (!(error instanceof DiagramRequestError) || error.status !== 412)
-      throw error;
+    if (!(error instanceof HttpError) || error.status !== 412) throw error;
     try {
       const fresh = await getDraft(id, draft.id);
       await discardDraft(id, draft.id, fresh.etag);
@@ -42,6 +41,8 @@ export async function discardOwnDraft(id: string, draft: DraftState) {
 /** Autosave of the editing scene into the server-side draft. */
 export function useDraftSync(s: Session, ui: Ui) {
   const scheduleRef = useRef<() => void>(() => undefined);
+  /** Canvas generation that was reopened on the current scene after an error. */
+  const restarted = useRef<number | null>(null);
 
   const sendDraft = useCallback(
     async (scene: string): Promise<Sent> => {
@@ -61,7 +62,7 @@ export function useDraftSync(s: Session, ui: Ui) {
           // A 412 may only mean an earlier upload whose response was lost
           // already advanced the draft: when the stored draft is what we sent,
           // continue from its ETag instead of reporting a conflict.
-          if (!(error instanceof DiagramRequestError) || error.status !== 412)
+          if (!(error instanceof HttpError) || error.status !== 412)
             throw error;
           const stored = await getDraftContent(s.id, existing.id).catch(
             () => null,
@@ -171,9 +172,30 @@ export function useDraftSync(s: Session, ui: Ui) {
   };
   const schedule = useCallback(() => scheduleRef.current(), []);
 
+  /**
+   * The canvas failed to render and is mounted again. Returns the scene to open
+   * it with: the one being edited, not the one the editor was opened with. The
+   * remounted canvas reports its restored state once; that report is not an
+   * edit and must neither replace the scene nor schedule a draft upload.
+   * Returns null while the canvas never reported (the opened scene still is
+   * the right one).
+   */
+  const restartCanvas = useCallback((): string | null => {
+    if (s.current == null) return null;
+    s.generation += 1;
+    s.seenFirst = false;
+    restarted.current = s.generation;
+    return s.current;
+  }, [s]);
+
   /** The canvas reported a new scene. */
   const onSceneChange = useCallback(
     (scene: string) => {
+      if (!s.seenFirst && restarted.current === s.generation) {
+        restarted.current = null;
+        s.seenFirst = true;
+        return;
+      }
       s.current = scene;
       if (scene !== s.halted) s.halted = null;
       if (!s.seenFirst) {
@@ -218,5 +240,5 @@ export function useDraftSync(s: Session, ui: Ui) {
     };
   }, [s, flushDraft]);
 
-  return { uploadDraft, flushDraft, schedule, onSceneChange };
+  return { uploadDraft, flushDraft, schedule, onSceneChange, restartCanvas };
 }

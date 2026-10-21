@@ -1,4 +1,5 @@
 import type { ImageInfo, ImageMetadata, Job } from "./types";
+import { isPdf, isPptx, originalName } from "./formats";
 import { withBase } from "./base";
 
 export interface MediaAsset extends ImageInfo, ImageMetadata {
@@ -31,10 +32,8 @@ export function imageMarkdown(alt: string, reference: string) {
 export function thumbnailUrl(job: Job) {
   if (job.image) return withBase(`/api/v1/media/${assetId(job.id)}/thumbnail`);
   if (!job.preview || !["success", "partial"].includes(job.state)) return null;
-  const name = job.original_filename || job.filename;
-  if (/\.pdf$/i.test(name))
-    return withBase(`/api/jobs/${job.id}/pdf/pages/1/thumbnail`);
-  if (/\.pptx$/i.test(name))
-    return withBase(`/api/jobs/${job.id}/slides/1/thumbnail`);
+  const name = originalName(job);
+  if (isPdf(name)) return withBase(`/api/jobs/${job.id}/pdf/pages/1/thumbnail`);
+  if (isPptx(name)) return withBase(`/api/jobs/${job.id}/slides/1/thumbnail`);
   return null;
 }

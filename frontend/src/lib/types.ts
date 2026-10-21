@@ -1,3 +1,4 @@
+import { isPptx, originalName } from "./formats";
 export type View = "preview" | "tables" | "structure" | "rag";
 export type Language = "original" | "en" | "ja";
 export type Kind = "page" | "slide" | "sheet" | "document";
@@ -186,7 +187,13 @@ export interface ExplanationValue {
     tables: Table[];
   };
   local_search: { queries: string[]; evidence: Evidence[] };
-  web_search: { queries: string[]; evidence: Evidence[]; status: string };
+  web_search: {
+    queries: string[];
+    evidence: Evidence[];
+    status: string;
+    /** Why a query was not sent (error_code only; no query text is shown). */
+    observations?: { error_code?: string }[];
+  };
   explanation: {
     sections: {
       title: string;
@@ -225,7 +232,7 @@ export const isDone = (job?: Job | null) =>
 export const isLightweightPreview = (
   job: Pick<Job, "filename" | "original_filename" | "preview">,
 ) =>
-  /\.pptx$/i.test(job.original_filename || job.filename) &&
+  isPptx(originalName(job)) &&
   /^progressive-preview\/revision-\d+\.html$/.test(job.preview || "");
 export const itemKey = (item: ItemRef) => `${item.kind}:${item.id}`;
 export const itemName = (item: Item) =>

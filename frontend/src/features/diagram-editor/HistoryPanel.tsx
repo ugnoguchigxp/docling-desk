@@ -100,7 +100,7 @@ export function HistoryPanel({
           </li>
         ))}
       </ol>
-      {loading && <StatusMessage>読み込み中…</StatusMessage>}
+      {loading && <StatusMessage kind="loading">読み込み中…</StatusMessage>}
       {next != null && !loading && (
         <Button onClick={() => void show(next)}>さらに読み込む</Button>
       )}

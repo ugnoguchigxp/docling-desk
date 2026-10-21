@@ -1,17 +1,16 @@
 import {
   Suspense,
-  lazy,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { FeatureBoundary, lazyFeature } from "../components/FeatureBoundary";
 import { ActionLink, Button, StatusMessage } from "../components/ui";
 import { withBase } from "../lib/base";
 import { errorText } from "../lib/api";
 import {
-  DiagramRequestError,
   SCENE_TYPE,
   diagramContentUrl,
   getContent,
@@ -19,6 +18,7 @@ import {
   getDraftContent,
   type DiagramInfo,
 } from "../lib/diagrams";
+import { HttpError } from "../lib/http";
 import type { Job } from "../lib/types";
 import { HistoryPanel } from "./diagram-editor/HistoryPanel";
 import { ProblemBanner, StashBanner } from "./diagram-editor/ProblemBanner";
@@ -29,7 +29,7 @@ import { useDiagramSave } from "./diagram-editor/useDiagramSave";
 import { discardOwnDraft, useDraftSync } from "./diagram-editor/useDraftSync";
 import "./diagram-editor.css";
 
-const DiagramCanvas = lazy(() => import("../diagram/DiagramCanvas"));
+const DiagramCanvas = lazyFeature(() => import("../diagram/DiagramCanvas"));
 
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -158,7 +158,7 @@ export function DiagramEditor({
               etag: content.etag || fresh.draft.etag,
             };
           } catch (error) {
-            if (!(error instanceof DiagramRequestError) || error.status !== 404)
+            if (!(error instanceof HttpError) || error.status !== 404)
               throw error;
           }
         }
@@ -216,7 +216,10 @@ export function DiagramEditor({
     return () => abort.abort();
   }, [load]);
 
-  const { uploadDraft, schedule, onSceneChange } = useDraftSync(s, ui);
+  const { uploadDraft, schedule, onSceneChange, restartCanvas } = useDraftSync(
+    s,
+    ui,
+  );
   const adoptFresh = useCallback(
     (next: DiagramInfo, scene: string) => adopt(next, scene),
     [adopt],
@@ -325,7 +328,7 @@ export function DiagramEditor({
   if (phase === "loading" && !info)
     return (
       <section className="diagram-editor" aria-label="図表エディター">
-        <StatusMessage className="diagram-editor-state">
+        <StatusMessage kind="loading" className="diagram-editor-state">
           図表を読み込み中…
         </StatusMessage>
       </section>
@@ -367,7 +370,13 @@ export function DiagramEditor({
         <strong className="diagram-editor-name" title={info?.name}>
           {info?.name ?? job.filename}
         </strong>
-        <span className="diagram-editor-status" role="status">
+        <span
+          className="diagram-editor-status"
+          role="status"
+          data-kind={
+            busy ? "running" : problem || dirty ? "unsaved" : undefined
+          }
+        >
           {status}
           {info && ` · 版 ${info.revision_number}`}
         </span>
@@ -379,11 +388,16 @@ export function DiagramEditor({
             className="primary"
             onClick={() => void save()}
             disabled={!!busy || needsReload || (!dirty && !problem)}
+            title={
+              !dirty && !problem
+                ? "保存していない変更はありません"
+                : "変更を新しい版として保存します。版の履歴から以前の版に戻せます。"
+            }
           >
             保存
           </Button>
           {hasDraft && (
-            <Button onClick={discard} disabled={!!busy}>
+            <Button className="danger" onClick={discard} disabled={!!busy}>
               下書きを破棄
             </Button>
           )}
@@ -414,6 +428,7 @@ export function DiagramEditor({
             href={withBase(diagramContentUrl(id, { download: true }))}
             id="originalDownload"
             className="diagram-editor-original"
+            title={`保存済みの最新版${info ? `（版 ${info.revision_number}）` : ""}を取得します。保存していない変更は含まれません。`}
           >
             原本を保存
           </ActionLink>
@@ -448,26 +463,45 @@ export function DiagramEditor({
       )}
       <div className="diagram-editor-body">
         <div className="diagram-editor-canvas">
-          <Suspense
-            fallback={
-              <StatusMessage className="diagram-editor-state">
-                図表エディターを読み込み中…
+          <FeatureBoundary
+            onRetry={() => {
+              DiagramCanvas.reset();
+              // Reopen on what is being edited, not on what was first loaded.
+              const scene = restartCanvas();
+              if (scene != null) setInitialScene(scene);
+              setGeneration(s.generation);
+            }}
+            fallback={(retry) => (
+              <StatusMessage
+                kind="error"
+                className="diagram-editor-state"
+                recovery={[{ label: "もう一度読み込む", onClick: retry }]}
+              >
+                図表エディターを表示できませんでした。保存済みの内容は変わりません。もう一度読み込むと、直前までの編集内容から開き直します。
               </StatusMessage>
-            }
+            )}
           >
-            <DiagramCanvas
-              key={generation}
-              initialScene={initialScene}
-              // A canvas that was replaced may still flush a last change.
-              onChange={(scene) => {
-                if (generation === s.generation) onSceneChange(scene);
-              }}
-              onError={(message) =>
-                ui.raise({ kind: "failure", message, retry: false })
+            <Suspense
+              fallback={
+                <StatusMessage kind="loading" className="diagram-editor-state">
+                  図表エディターを読み込み中…
+                </StatusMessage>
               }
-              onNotice={setNotice}
-            />
-          </Suspense>
+            >
+              <DiagramCanvas
+                key={generation}
+                initialScene={initialScene}
+                // A canvas that was replaced may still flush a last change.
+                onChange={(scene) => {
+                  if (generation === s.generation) onSceneChange(scene);
+                }}
+                onError={(message) =>
+                  ui.raise({ kind: "failure", message, retry: false })
+                }
+                onNotice={setNotice}
+              />
+            </Suspense>
+          </FeatureBoundary>
         </div>
         {historyOpen && (
           <HistoryPanel

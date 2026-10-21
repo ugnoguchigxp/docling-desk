@@ -614,8 +614,13 @@ describe("DocumentViewer", () => {
       "表の画面を読み込めませんでした。",
     );
     expect(
-      screen.getByRole("button", { name: "再読み込み" }),
+      screen.getByRole("button", { name: "もう一度読み込む" }),
     ).toBeInTheDocument();
+    // Retrying remounts only the tables panel; the rest of the viewer stays.
+    tablesControl.mode = "ok";
+    fireEvent.click(screen.getByRole("button", { name: "もう一度読み込む" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(document.getElementById("tables")).not.toBeNull();
   });
 
   it("does not restore removed disclosure banners for partial documents", () => {

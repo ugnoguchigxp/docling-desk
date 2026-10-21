@@ -1,7 +1,7 @@
 :root {
   font-family: system-ui, sans-serif;
-  color: #24312d;
-  background: #f4f6f3;
+  color: var(--ink);
+  background: var(--surface-app);
 }
 body {
   margin: 0;
@@ -10,16 +10,16 @@ main {
   max-width: 900px;
   margin: 32px auto;
   padding: 28px;
-  background: white;
-  border: 1px solid #d9e1da;
-  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-dialog);
 }
 h1 {
   font-size: 26px;
 }
 header p,
 small {
-  color: #58675e;
+  color: var(--ink-muted);
 }
 label {
   display: block;
@@ -31,8 +31,8 @@ textarea {
   width: 100%;
   padding: 12px;
   font: inherit;
-  border: 1px solid #9ba99e;
-  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
 }
 textarea {
   min-height: 360px;
@@ -41,16 +41,23 @@ textarea {
 button {
   font: inherit;
   padding: 8px 13px;
-  border: 1px solid #879d8e;
-  border-radius: 6px;
-  background: #edf4ee;
-  color: #243b2d;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface-subtle);
+  color: var(--ink);
   cursor: pointer;
   margin: 4px;
+}
+button:hover {
+  background: var(--surface-hover);
 }
 button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+:is(button, input, textarea, a, [contenteditable]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 nav {
   display: flex;
@@ -61,8 +68,8 @@ nav {
   padding: 16px 0;
 }
 .editable-block {
-  border: 1px solid #d6dfd7;
-  border-radius: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
   margin: 12px 0;
   padding: 12px;
 }
@@ -75,10 +82,14 @@ nav {
   min-height: 24px;
   padding: 6px;
 }
+.editable-block [contenteditable]:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 0;
+}
 .protected-block {
   padding: 12px;
-  border-left: 3px solid #aeb9b0;
-  background: #f5f7f4;
+  border-left: 3px solid var(--line-strong);
+  background: var(--surface-subtle);
   margin: 12px 0;
 }
 .protected-block pre {
@@ -86,22 +97,29 @@ nav {
   overflow-wrap: anywhere;
 }
 aside {
-  background: #fff0e4;
+  background: var(--warning-surface);
+  border: 1px solid var(--warning-line);
   padding: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
 }
 .connection-code {
   font-size: 36px;
   letter-spacing: 4px;
   display: block;
   padding: 24px;
-  background: #edf4ee;
+  background: var(--surface-subtle);
 }
 [role="status"] {
   padding: 12px;
-  background: #eaf2eb;
-  border-radius: 6px;
+  background: var(--surface-selected);
+  border-radius: var(--radius-control);
+}
+p[role="alert"] {
+  padding: 12px;
+  color: var(--danger);
+  background: var(--danger-surface);
+  border-radius: var(--radius-control);
 }
 a {
-  color: #245d40;
+  color: var(--accent);
 }

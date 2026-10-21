@@ -86,12 +86,14 @@ test("opens print preview and restores focus to the document menu", () => {
   expect(menu.open).toBe(false);
   fireEvent.click(screen.getByRole("button", { name: "プリントプレビュー" }));
   fireEvent.click(screen.getByRole("button", { name: "unit" }));
-  expect(screen.getByRole("button", { name: "close print 3" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "close print 3" }),
+  ).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "close print 3" }));
   expect(summary).toHaveFocus();
   fireEvent.click(screen.getByRole("button", { name: "viewer language" }));
   expect(onLanguage).toHaveBeenCalledWith("en");
-  expect(screen.getByRole("link", { name: "原文ドキュメントをダウンロード" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "原本を保存" })).toHaveAttribute(
     "href",
     expect.stringContaining("original.pptx"),
   );
@@ -116,10 +118,12 @@ test("disables printing until a failed document has a preview", () => {
       initialUnit={null}
     />,
   );
-  expect(screen.getByRole("button", { name: "プリントプレビュー" })).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "プリントプレビュー" }),
+  ).toBeDisabled();
 });
 
-test("renders the Excalidraw editor for standalone diagrams, not the extraction viewer", () => {
+test("renders the Excalidraw editor for standalone diagrams, not the extraction viewer", async () => {
   const client = new QueryClient();
   const invalidate = vi.spyOn(client, "invalidateQueries");
   const onBack = vi.fn();
@@ -146,7 +150,9 @@ test("renders the Excalidraw editor for standalone diagrams, not the extraction 
       />
     </QueryClientProvider>,
   );
-  expect(screen.getByTestId("diagram-editor")).toHaveTextContent("scene");
+  expect(await screen.findByTestId("diagram-editor")).toHaveTextContent(
+    "scene",
+  );
   expect(screen.getByText("図.excalidraw")).toBeInTheDocument();
   expect(screen.getByText("nav")).toBeInTheDocument();
   expect(screen.getByRole("status")).toHaveTextContent("競合しました");

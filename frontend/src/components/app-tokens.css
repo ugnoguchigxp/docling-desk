@@ -1,0 +1,79 @@
+/*
+ * App-wide values by purpose (R02). Screens name what a value is for
+ * (--line, --surface-selected, --danger) instead of repeating a color.
+ *
+ * Loaded by `components/ui.tsx` (the app and the embed entry, which both use
+ * the shared components) and by `editor/WikiPlateEditor.tsx` (the standalone
+ * editor). `--accent` and `--line` are also defined in `static/style.css`,
+ * which the legacy page still loads on its own; `app-tokens.test.ts` keeps the
+ * two in step.
+ *
+ * Not here: the inside of an original document (its own CSS is left alone),
+ * and the inside of Plate and Excalidraw. Plate is themed through the
+ * variables at the end of this file; Excalidraw through its own props.
+ */
+:root {
+  /* Text */
+  --ink: #243744;
+  --ink-muted: #536279;
+  --ink-subtle: #8a9aa5;
+  --ink-on-accent: #fff;
+
+  /* Surfaces */
+  --surface: #fff;
+  --surface-app: #f7f9fb;
+  --surface-subtle: #f5f8fa;
+  --surface-hover: #edf2f5;
+  --surface-hover-soft: #f4f8fa;
+  --surface-selected: #e8f3f5;
+
+  /* Lines */
+  --line: #e0e6eb;
+  --line-soft: #eef1f4;
+  --line-strong: #d7dde5;
+  --accent-line: #79b3be;
+
+  /* Accent: primary action, current location, selection text */
+  --accent: #14677a;
+  --accent-strong: #0e5667;
+
+  /* Focus is visible on every surface and never the same as selection */
+  --focus-ring: #3797aa;
+
+  /* Feedback: failure, caution (stale, partial) */
+  --danger: #a12c2c;
+  --danger-surface: #fff3ed;
+  --danger-line: #e6b8b8;
+  --warning-surface: #fff9ec;
+  --warning-line: #e8d7b1;
+  --warning-ink: #785214;
+
+  /* Depth */
+  --scrim: #213a4845;
+  --shadow-menu: 0 6px 24px #263e4d1c;
+  --shadow-dialog: 0 16px 80px #173c492a;
+
+  /* Shape and size of controls and bars */
+  --radius-control: 5px;
+  --radius-panel: 8px;
+  --radius-dialog: 10px;
+  --control-height: 30px;
+  --control-height-compact: 28px;
+  --toolbar-height: 44px;
+  --header-height: 58px;
+
+  /* Stacking, lowest first: a menu opens above the bar that holds it, and a
+     drop overlay covers everything. */
+  --z-toolbar: 10;
+  --z-message: 11;
+  --z-menu: 20;
+  --z-menu-item: 25;
+  --z-overlay: 1000;
+
+  /* Plate's public theme variables (read by `@theme inline` in
+     `editor/wiki-plate.css`): the editor follows the app instead of keeping
+     colors of its own. */
+  --plate-background: var(--surface);
+  --plate-foreground: var(--ink);
+  --plate-primary: var(--accent);
+}

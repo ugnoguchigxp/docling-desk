@@ -46,12 +46,16 @@ export function ProblemBanner({
           )}
           {problem.kind === "conflict" ? (
             <>
-              <Button onClick={onReloadLatest} disabled={busy}>
+              <Button
+                className="danger"
+                onClick={onReloadLatest}
+                disabled={busy}
+              >
                 最新版を読み込む（編集中の内容は破棄）
               </Button>
               <Button onClick={onAcknowledge}>このまま編集を続ける</Button>
               <Button onClick={onSaveCopy}>
-                編集中の内容を.excalidrawで保存
+                編集中の内容を.excalidrawで書き出す
               </Button>
             </>
           ) : (
@@ -80,7 +84,9 @@ export function StashBanner({
       </p>
       <div className="diagram-editor-options">
         <Button onClick={onOpen}>その内容を開く</Button>
-        <Button onClick={onDrop}>破棄する</Button>
+        <Button className="danger" onClick={onDrop}>
+          破棄する
+        </Button>
       </div>
     </div>
   );

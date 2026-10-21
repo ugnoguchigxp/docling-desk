@@ -291,9 +291,7 @@ for (const [format, id] of [
     await page.getByLabel("文書メニュー", { exact: true }).click();
     await expect(page.locator("#saveMenu")).toHaveAttribute("open", "");
     await expect(page.locator("#saveMenu .menu-panel > *")).toHaveCount(2);
-    await expect(page.locator("#originalDownload")).toHaveText(
-      "原文ドキュメントをダウンロード",
-    );
+    await expect(page.locator("#originalDownload")).toHaveText("原本を保存");
     const [download] = await Promise.all([
       page.waitForEvent("download"),
       page.locator("#originalDownload").click(),

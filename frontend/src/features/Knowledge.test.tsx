@@ -11,7 +11,11 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Route } from "../lib/route";
-import { KnowledgeSearch, ModeMenu, Wiki } from "./Knowledge";
+import { KnowledgeSearch, Wiki } from "./Knowledge";
+
+vi.mock("../editor/WikiPlate", () => ({
+  WikiPlate: () => <div aria-label="本文ブロック" contentEditable />,
+}));
 
 const dialogMethods = ["showModal", "close"] as const;
 const originalDialogMethods = dialogMethods.map((name) =>
@@ -84,7 +88,8 @@ afterEach(() => {
   clients.splice(0).forEach((query) => query.clear());
   dialogMethods.forEach((name, index) => {
     const original = originalDialogMethods[index];
-    if (original) Object.defineProperty(HTMLDialogElement.prototype, name, original);
+    if (original)
+      Object.defineProperty(HTMLDialogElement.prototype, name, original);
     else Reflect.deleteProperty(HTMLDialogElement.prototype, name);
   });
   if (originalScrollIntoView)
@@ -188,11 +193,13 @@ function renderWiki(initial: { route: Route; hidden: boolean }) {
     hidden: initial.hidden,
     route: { ...initial.route },
   };
+  const onReference = vi.fn();
   const ui = () => (
     <QueryClientProvider client={query}>
       <Wiki
         route={state.route}
         navigate={navigate}
+        onReference={onReference}
         navigation={<span>画面メニュー</span>}
         hidden={state.hidden}
       />
@@ -202,6 +209,7 @@ function renderWiki(initial: { route: Route; hidden: boolean }) {
   return {
     ...view,
     navigate,
+    onReference,
     query,
     state,
     set(next: { route?: Route; hidden?: boolean }) {
@@ -213,29 +221,35 @@ function renderWiki(initial: { route: Route; hidden: boolean }) {
 }
 
 function renderSearch(initial: { open: boolean; route: Route }) {
-  const navigate = vi.fn();
+  const onReference = vi.fn();
   const onClose = vi.fn();
   const query = queryClient();
-  const state = { open: initial.open, route: { ...initial.route } };
+  const state = {
+    open: initial.open,
+    resume: false,
+    route: { ...initial.route },
+  };
   const ui = () => (
     <QueryClientProvider client={query}>
       <KnowledgeSearch
         open={state.open}
+        resume={state.resume}
         onClose={onClose}
         route={state.route}
-        navigate={navigate}
+        onReference={onReference}
       />
     </QueryClientProvider>
   );
   const view = render(ui());
   return {
     ...view,
-    navigate,
+    onReference,
     onClose,
     query,
     state,
-    set(next: { open?: boolean; route?: Route }) {
+    set(next: { open?: boolean; resume?: boolean; route?: Route }) {
       if (next.open !== undefined) state.open = next.open;
+      if (next.resume !== undefined) state.resume = next.resume;
       if (next.route) state.route = next.route;
       view.rerender(ui());
     },
@@ -248,19 +262,22 @@ function wikiRegion() {
 
 function importDialog() {
   const node = document.getElementById("wikiImport");
-  if (!(node instanceof HTMLDialogElement)) throw new Error("missing import dialog");
+  if (!(node instanceof HTMLDialogElement))
+    throw new Error("missing import dialog");
   return node;
 }
 
 function deleteDialog() {
   const node = document.querySelector('[aria-labelledby="wikiDeleteTitle"]');
-  if (!(node instanceof HTMLDialogElement)) throw new Error("missing delete dialog");
+  if (!(node instanceof HTMLDialogElement))
+    throw new Error("missing delete dialog");
   return node;
 }
 
 function searchDialog() {
   const node = document.getElementById("knowledgeSearch");
-  if (!(node instanceof HTMLDialogElement)) throw new Error("missing search dialog");
+  if (!(node instanceof HTMLDialogElement))
+    throw new Error("missing search dialog");
   return node;
 }
 
@@ -348,7 +365,9 @@ const csvArticle = {
   fallback_original: null,
 };
 
-function installWiki(articles: Record<string, object> = { ja: jaArticle, csv: csvArticle }) {
+function installWiki(
+  articles: Record<string, object> = { ja: jaArticle, csv: csvArticle },
+) {
   const imports: FormData[] = [];
   let catalog: { articles: object[]; namespaces: string[] } = {
     articles: summaries,
@@ -356,19 +375,23 @@ function installWiki(articles: Record<string, object> = { ja: jaArticle, csv: cs
   };
   let catalogStatus = 200;
   const articleStatus: Record<string, number> = {};
-  let importReply: () => Response | Promise<Response> = () => json({ articles: [] });
-  let deleteReply: (id: string) => Response | Promise<Response> = () => json({});
+  let importReply: () => Response | Promise<Response> = () =>
+    json({ articles: [] });
+  let deleteReply: (id: string) => Response | Promise<Response> = () =>
+    json({});
   handle = (input, init) => {
     const url = requestUrl(input);
     const method = methodOf(init);
     if (url.endsWith("/api/wiki/catalog") && method === "GET") {
-      if (catalogStatus !== 200) return problem("一覧を取得できません", catalogStatus);
+      if (catalogStatus !== 200)
+        return problem("一覧を取得できません", catalogStatus);
       return json(catalog);
     }
     const match = url.match(/\/api\/wiki\/sources\/([^/]+)$/);
     if (match && method === "GET") {
       const id = decodeURIComponent(match[1]);
-      if (articleStatus[id]) return problem("記事を読めません", articleStatus[id]);
+      if (articleStatus[id])
+        return problem("記事を読めません", articleStatus[id]);
       const article = articles[id];
       if (!article) return problem("記事を読めません", 404);
       return json(article);
@@ -526,42 +549,6 @@ function installKnowledge() {
   };
 }
 
-describe("ModeMenu", () => {
-  it("marks the active mode and opens search", async () => {
-    const onMode = vi.fn();
-    const onSearch = vi.fn();
-    const onRag = vi.fn();
-    const user = userEvent.setup();
-    const view = render(
-      <ModeMenu mode="library" onMode={onMode} onSearch={onSearch} onRag={onRag} />,
-    );
-    expect(screen.getByRole("button", { name: "資料一覧" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(screen.getByRole("button", { name: "Wiki" })).not.toHaveAttribute(
-      "aria-current",
-    );
-    await user.click(screen.getByRole("button", { name: "Wiki" }));
-    expect(onMode).toHaveBeenCalledWith("wiki");
-    await user.click(screen.getByRole("button", { name: "資料一覧" }));
-    expect(onMode).toHaveBeenCalledWith("library");
-    view.rerender(<ModeMenu mode="wiki" onMode={onMode} onSearch={onSearch} />);
-    expect(screen.getByRole("button", { name: "Wiki" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(screen.getByRole("button", { name: "資料一覧" })).not.toHaveAttribute(
-      "aria-current",
-    );
-    await user.click(screen.getByRole("button", { name: "本文を検索" }));
-    expect(onSearch).toHaveBeenCalledOnce();
-    view.rerender(<ModeMenu mode="wiki" onMode={onMode} onSearch={onSearch} onRag={onRag} />);
-    await user.click(screen.getByRole("button", { name: "RAG" }));
-    expect(onRag).toHaveBeenCalledOnce();
-  });
-});
-
 describe("Wiki", () => {
   it("stays idle while hidden and shows an empty catalog", async () => {
     const gate = deferred();
@@ -599,11 +586,60 @@ describe("Wiki", () => {
       hidden: false,
     });
     expect(await screen.findByText("一覧を取得できません")).toBeInTheDocument();
-    expect(await screen.findByText("記事を読めません")).toBeInTheDocument();
+    // 404: named as gone, not as a failure to retry (R05).
     expect(
-      screen.getByText("記事がありません。新しく作成するか、Markdownファイルを取り込んでください。"),
+      await screen.findByText("この記事は見つかりません。"),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Markdownで知識をまとめる")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "記事がありません。新しく作成するか、Markdownファイルを取り込んでください。",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Markdownで知識をまとめる"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("an article that cannot be read is an alert with a way to read it again", async () => {
+    const api = installWiki();
+    api.articleStatus.ja = 500;
+    const user = userEvent.setup();
+    renderWiki({ route: makeRoute({ source: "ja" }), hidden: false });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("記事を読めません");
+    expect(alert).toHaveAttribute("data-kind", "error");
+    delete api.articleStatus.ja;
+    await user.click(screen.getByRole("button", { name: "再読み込み" }));
+    expect(
+      await screen.findByRole("heading", { name: "見出し" }),
+    ).toBeVisible();
+    expect(screen.queryByText("記事を読めません")).not.toBeInTheDocument();
+  });
+
+  it("names a deleted or forbidden article and shows nothing in its place", async () => {
+    const api = installWiki();
+    api.articleStatus.ja = 404;
+    const view = renderWiki({
+      route: makeRoute({ source: "ja" }),
+      hidden: false,
+    });
+    const gone = await screen.findByText("この記事は見つかりません。");
+    expect(gone.closest("p")).toHaveAttribute("data-kind", "stale");
+    expect(gone.closest("p")).toHaveTextContent(
+      /別の記事を代わりに表示することはしません/,
+    );
+    expect(screen.queryByRole("button", { name: "再読み込み" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "見出し" })).toBeNull();
+    expect(view.navigate).not.toHaveBeenCalled();
+
+    api.articleStatus.ja = 403;
+    view.query.clear();
+    view.set({ route: makeRoute({ source: "ja", section: "x" }) });
+    expect(
+      await screen.findByText("この記事を閲覧する権限がありません。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "再読み込み" })).toBeNull();
+    expect(view.navigate).not.toHaveBeenCalled();
   });
 
   it("filters articles and follows headings, languages, and related documents", async () => {
@@ -616,20 +652,28 @@ describe("Wiki", () => {
       job: "job-x",
     });
     const view = renderWiki({ route: base, hidden: false });
-    expect(await screen.findByRole("heading", { name: "見出し" })).toHaveFocus();
+    expect(
+      await screen.findByRole("heading", { name: "見出し" }),
+    ).toHaveFocus();
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
-    expect(document.querySelector(".wiki-body h2")).toHaveAttribute("tabindex", "-1");
-    expect(document.title).toBe("導入 · Docling Desk");
-    expect(screen.getByText("日本語訳は未公開です。原文を表示しています。")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Markdownを保存" })).toHaveAttribute(
-      "href",
-      "/api/wiki/sources/ja/markdown",
+    expect(document.querySelector(".wiki-body h2")).toHaveAttribute(
+      "tabindex",
+      "-1",
     );
+    expect(document.title).toBe("導入 · Docling Desk");
+    expect(
+      screen.getByText("日本語訳は未公開です。原文を表示しています。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "原本を保存（Markdown）" }),
+    ).toHaveAttribute("href", "/api/wiki/sources/ja/markdown");
     expect(screen.getByRole("button", { name: /^導入/ })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("option", { name: "ja（未翻訳）" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "ja（未翻訳）" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("option", { name: "intro.en.md（要確認）" }),
     ).toBeInTheDocument();
@@ -639,34 +683,62 @@ describe("Wiki", () => {
       screen.getByRole("searchbox", { name: "Wikiの記事名を絞り込む" }),
       "intro",
     );
-    expect(screen.queryByRole("button", { name: /別表/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /別表/ }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Intro" })).toBeInTheDocument();
-    await user.clear(screen.getByRole("searchbox", { name: "Wikiの記事名を絞り込む" }));
+    await user.clear(
+      screen.getByRole("searchbox", { name: "Wikiの記事名を絞り込む" }),
+    );
     await user.type(
       screen.getByRole("searchbox", { name: "Wikiの記事名を絞り込む" }),
       "___none___",
     );
     expect(
-      screen.getByText("記事がありません。新しく作成するか、Markdownファイルを取り込んでください。"),
+      screen.getByText(
+        "記事がありません。新しく作成するか、Markdownファイルを取り込んでください。",
+      ),
     ).toBeInTheDocument();
-    await user.clear(screen.getByRole("searchbox", { name: "Wikiの記事名を絞り込む" }));
-    await user.selectOptions(screen.getByRole("combobox", { name: "Wikiの分類" }), "Other");
+    await user.clear(
+      screen.getByRole("searchbox", { name: "Wikiの記事名を絞り込む" }),
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Wikiの分類" }),
+      "Other",
+    );
     expect(screen.getByRole("button", { name: /別表/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^導入/ })).not.toBeInTheDocument();
-    await user.selectOptions(screen.getByRole("combobox", { name: "Wikiの分類" }), "");
+    expect(
+      screen.queryByRole("button", { name: /^導入/ }),
+    ).not.toBeInTheDocument();
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Wikiの分類" }),
+      "",
+    );
     expect(screen.getByRole("button", { name: /^導入/ })).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByRole("combobox", { name: "記事の言語" }), "en");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "記事の言語" }),
+      "en",
+    );
     expect(view.navigate).toHaveBeenCalledWith(
       makeRoute({ ...base, source: "en", section: null }),
     );
     await user.click(screen.getByRole("button", { name: "関連資料：元資料" }));
-    expect(view.navigate).toHaveBeenCalledWith(
-      makeRoute({ ...base, mode: "library", job: "job-1", view: "preview", unit: 3 }),
+    // A related document is a reference: the screen shell opens it and keeps
+    // the way back, so the Wiki reports the target, not a ready-made route.
+    expect(view.onReference).toHaveBeenCalledWith({
+      kind: "document",
+      job: "job-1",
+      unit: 3,
+    });
+    expect(view.navigate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ mode: "library" }),
     );
     const outline = screen.getByRole("navigation", { name: "記事の目次" });
     await user.click(within(outline).getByRole("link", { name: "詳細" }));
-    expect(view.navigate).toHaveBeenCalledWith(makeRoute({ ...base, section: "detail" }));
+    expect(view.navigate).toHaveBeenCalledWith(
+      makeRoute({ ...base, section: "detail" }),
+    );
 
     const body = document.querySelector(".wiki-body");
     if (!(body instanceof HTMLElement)) throw new Error("missing body");
@@ -691,43 +763,35 @@ describe("Wiki", () => {
     fireEvent.click(body.querySelector("a:not([href])")!);
     expect(view.navigate).not.toHaveBeenCalled();
 
+    // Modified clicks, new tabs, disabled and external links open nothing here.
+    expect(view.onReference).toHaveBeenCalledTimes(1);
     clickLink("hash");
-    expect(view.navigate).toHaveBeenCalledWith(makeRoute({ ...base, section: "intro" }));
+    expect(view.navigate).toHaveBeenCalledWith(
+      makeRoute({ ...base, section: "intro" }),
+    );
     clickLink("top");
-    expect(view.navigate).toHaveBeenCalledWith(makeRoute({ ...base, section: null }));
+    expect(view.navigate).toHaveBeenCalledWith(
+      makeRoute({ ...base, section: null }),
+    );
     clickLink("wiki");
-    expect(view.navigate).toHaveBeenCalledWith(
-      makeRoute({
-        ...base,
-        mode: "wiki",
-        source: "en",
-        section: "s2",
-        job: null,
-        unit: null,
-      }),
-    );
+    expect(view.onReference).toHaveBeenLastCalledWith({
+      kind: "wiki",
+      source: "en",
+      section: "s2",
+    });
     clickLink("library");
-    expect(view.navigate).toHaveBeenCalledWith(
-      makeRoute({
-        ...base,
-        mode: "library",
-        source: null,
-        section: null,
-        job: "job-9",
-        unit: 4,
-      }),
-    );
+    expect(view.onReference).toHaveBeenLastCalledWith({
+      kind: "document",
+      job: "job-9",
+      unit: 4,
+    });
     clickLink("nounit");
-    expect(view.navigate).toHaveBeenCalledWith(
-      makeRoute({
-        ...base,
-        mode: "library",
-        source: null,
-        section: null,
-        job: "j0",
-        unit: null,
-      }),
-    );
+    expect(view.onReference).toHaveBeenLastCalledWith({
+      kind: "document",
+      job: "j0",
+      unit: null,
+    });
+    expect(view.navigate).not.toHaveBeenCalled();
 
     scrollIntoView.mockClear();
     scrollTo.mockClear();
@@ -746,25 +810,24 @@ describe("Wiki", () => {
       makeRoute({ ...base, source: "csv", section: null }),
     );
     view.set({ route: makeRoute({ ...base, source: "csv", section: null }) });
-    expect(await screen.findByRole("link", { name: "CSVを保存" })).toHaveAttribute(
-      "href",
-      "/api/wiki/sources/csv/markdown",
-    );
-    expect(screen.queryByRole("combobox", { name: "記事の言語" })).not.toBeInTheDocument();
-    expect(screen.queryByText("日本語訳は未公開です。原文を表示しています。")).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "原本を保存（CSV）" }),
+    ).toHaveAttribute("href", "/api/wiki/sources/csv/markdown");
+    expect(
+      screen.queryByRole("combobox", { name: "記事の言語" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("日本語訳は未公開です。原文を表示しています。"),
+    ).not.toBeInTheDocument();
     view.navigate.mockClear();
-    await user.click(screen.getByRole("button", { name: "関連資料：空の資料" }));
-    expect(view.navigate).toHaveBeenCalledWith(
-      makeRoute({
-        ...base,
-        mode: "library",
-        source: "csv",
-        section: null,
-        job: null,
-        view: "preview",
-        unit: 1,
-      }),
+    await user.click(
+      screen.getByRole("button", { name: "関連資料：空の資料" }),
     );
+    expect(view.onReference).toHaveBeenLastCalledWith({
+      kind: "document",
+      job: "",
+      unit: 1,
+    });
   });
 
   it("deletes the open article and closes the confirmation", async () => {
@@ -772,14 +835,29 @@ describe("Wiki", () => {
     const user = userEvent.setup();
     const base = makeRoute({ source: "ja", section: "intro" });
     const view = renderWiki({ route: base, hidden: false });
-    expect(await screen.findByRole("heading", { name: "見出し" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "削除する", hidden: true }));
+    expect(
+      await screen.findByRole("heading", { name: "見出し" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "削除する", hidden: true }),
+    );
     expect(fetchMock).not.toHaveBeenCalledWith(
       expect.stringMatching(/\/api\/wiki\/sources\/ja$/),
       expect.objectContaining({ method: "DELETE" }),
     );
 
+    // Danger placement: the entry and the confirmation are the danger style,
+    // and the dialog names the article it will delete.
+    expect(screen.getByRole("button", { name: "記事を削除" })).toHaveClass(
+      "danger",
+    );
     await user.click(screen.getByRole("button", { name: "記事を削除" }));
+    expect(deleteDialog()).toHaveTextContent(
+      /「[^」]+」をWikiと検索対象から削除します。/,
+    );
+    expect(
+      within(deleteDialog()).getByRole("button", { name: "削除する" }),
+    ).toHaveClass("danger");
     await user.click(areaButton(deleteDialog(), ".dialog-heading", "閉じる"));
     await waitFor(() => expect(deleteDialog().open).toBe(false));
     await user.click(screen.getByRole("button", { name: "記事を削除" }));
@@ -795,16 +873,24 @@ describe("Wiki", () => {
     const denied = deferred();
     api.deleteReply = () => denied.promise;
     await user.click(screen.getByRole("button", { name: "記事を削除" }));
-    const remove = within(deleteDialog()).getByRole("button", { name: "削除する" });
+    const remove = within(deleteDialog()).getByRole("button", {
+      name: "削除する",
+    });
     await user.click(remove);
     fireEvent.click(remove);
     await settle(denied.resolve, problem("削除できません"));
-    expect((await screen.findAllByText("削除できません")).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("削除できません")).length,
+    ).toBeGreaterThan(0);
     expect(deleteDialog().open).toBe(true);
 
     api.deleteReply = () => json({});
-    await user.click(within(deleteDialog()).getByRole("button", { name: "削除する" }));
-    expect((await screen.findAllByText("記事を削除しました。")).length).toBeGreaterThan(0);
+    await user.click(
+      within(deleteDialog()).getByRole("button", { name: "削除する" }),
+    );
+    expect(
+      (await screen.findAllByText("記事を削除しました。")).length,
+    ).toBeGreaterThan(0);
     expect(view.navigate).toHaveBeenCalledWith(
       makeRoute({ ...base, source: null, section: null }),
     );
@@ -816,10 +902,14 @@ describe("Wiki", () => {
     api.catalog = { articles: [], namespaces: [] };
     const user = userEvent.setup();
     const view = renderWiki({ route: makeRoute(), hidden: false });
-    expect(await screen.findByText("Markdownで知識をまとめる")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Markdownで知識をまとめる"),
+    ).toBeInTheDocument();
     const region = wikiRegion();
     const ignored = new Event("dragover", { bubbles: true, cancelable: true });
-    Object.assign(ignored, { dataTransfer: { types: ["text/plain"], files: [] } });
+    Object.assign(ignored, {
+      dataTransfer: { types: ["text/plain"], files: [] },
+    });
     fireEvent(region, ignored);
     expect(ignored.defaultPrevented).toBe(false);
     const allowed = new Event("dragover", { bubbles: true, cancelable: true });
@@ -834,8 +924,12 @@ describe("Wiki", () => {
       ).length,
     ).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole("button", { name: "Markdownを取り込む" }));
-    expect(screen.queryAllByText(/WikiにはMarkdown記事またはCSV目次/)).toHaveLength(0);
+    await user.click(
+      screen.getByRole("button", { name: "Markdownを取り込む" }),
+    );
+    expect(
+      screen.queryAllByText(/WikiにはMarkdown記事またはCSV目次/),
+    ).toHaveLength(0);
     expect(importDialog().open).toBe(true);
     expect(screen.getByLabelText("Wikiのフォルダー")).toHaveAttribute(
       "webkitdirectory",
@@ -848,32 +942,52 @@ describe("Wiki", () => {
 
     await user.click(areaButton(importDialog(), ".dialog-heading", "閉じる"));
     await waitFor(() => expect(importDialog().open).toBe(false));
-    await user.click(screen.getByRole("button", { name: "Markdownを取り込む" }));
+    await user.click(
+      screen.getByRole("button", { name: "Markdownを取り込む" }),
+    );
     await user.click(areaButton(importDialog(), ".dialog-actions", "閉じる"));
     await waitFor(() => expect(importDialog().open).toBe(false));
-    await user.click(screen.getByRole("button", { name: "Markdownを取り込む" }));
+    await user.click(
+      screen.getByRole("button", { name: "Markdownを取り込む" }),
+    );
     fireEvent(
       importDialog(),
       new Event("cancel", { bubbles: true, cancelable: true }),
     );
     await waitFor(() => expect(importDialog().open).toBe(false));
 
-    await user.click(screen.getByRole("button", { name: "Markdownを取り込む" }));
-    chooseFiles(screen.getByLabelText("WikiのMarkdownファイル"), [file("notes.txt")]);
+    await user.click(
+      screen.getByRole("button", { name: "Markdownを取り込む" }),
+    );
+    chooseFiles(screen.getByLabelText("WikiのMarkdownファイル"), [
+      file("notes.txt"),
+    ]);
     expect(screen.getByText("1件を選択")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "取り込む" })).toBeDisabled();
     fireEvent.submit(importDialog().querySelector("form")!);
     expect(api.imports).toHaveLength(0);
 
-    emitTransfer(region, "drop", ["Files"], [file("chapter.md"), file("photo.png")]);
+    emitTransfer(
+      region,
+      "drop",
+      ["Files"],
+      [file("chapter.md"), file("photo.png")],
+    );
     expect(
       screen.getAllByText(
         "Markdown記事・CSV目次・manifest以外の資料は取り込み対象から除外しました。",
       ).length,
     ).toBeGreaterThan(0);
     expect(screen.getByText("1件を選択")).toBeInTheDocument();
-    emitTransfer(region, "drop", ["Files"], [file("only.md"), file("pages.jsonl")]);
-    expect(screen.queryAllByText(/取り込み対象から除外しました/)).toHaveLength(0);
+    emitTransfer(
+      region,
+      "drop",
+      ["Files"],
+      [file("only.md"), file("pages.jsonl")],
+    );
+    expect(screen.queryAllByText(/取り込み対象から除外しました/)).toHaveLength(
+      0,
+    );
 
     await user.upload(screen.getByLabelText("Wikiのフォルダー"), [
       file("keep.md"),
@@ -892,7 +1006,10 @@ describe("Wiki", () => {
     ]);
     expect(screen.getByText("5件を選択")).toBeInTheDocument();
     await user.clear(screen.getByRole("textbox", { name: "分類名" }));
-    await user.type(screen.getByRole("textbox", { name: "分類名" }), "Handbook");
+    await user.type(
+      screen.getByRole("textbox", { name: "分類名" }),
+      "Handbook",
+    );
 
     const gate = deferred();
     api.importReply = () => gate.promise;
@@ -918,9 +1035,9 @@ describe("Wiki", () => {
         ],
       }),
     );
-    expect((await screen.findAllByText("1件の記事を取り込みました。")).length).toBeGreaterThan(
-      0,
-    );
+    expect(
+      (await screen.findAllByText("1件の記事を取り込みました。")).length,
+    ).toBeGreaterThan(0);
     expect(view.navigate).toHaveBeenCalledWith(
       makeRoute({ mode: "wiki", source: "new", section: null }),
     );
@@ -941,20 +1058,30 @@ describe("Wiki", () => {
     );
 
     view.navigate.mockClear();
-    await user.click(screen.getByRole("button", { name: "Markdownを取り込む" }));
-    chooseFiles(screen.getByLabelText("WikiのMarkdownファイル"), [file("empty.md")]);
+    await user.click(
+      screen.getByRole("button", { name: "Markdownを取り込む" }),
+    );
+    chooseFiles(screen.getByLabelText("WikiのMarkdownファイル"), [
+      file("empty.md"),
+    ]);
     api.importReply = () => json({ articles: [] });
     await user.click(screen.getByRole("button", { name: "取り込む" }));
-    expect((await screen.findAllByText("0件の記事を取り込みました。")).length).toBeGreaterThan(
-      0,
-    );
+    expect(
+      (await screen.findAllByText("0件の記事を取り込みました。")).length,
+    ).toBeGreaterThan(0);
     expect(view.navigate).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "Markdownを取り込む" }));
-    chooseFiles(screen.getByLabelText("WikiのMarkdownファイル"), [file("bad.md")]);
+    await user.click(
+      screen.getByRole("button", { name: "Markdownを取り込む" }),
+    );
+    chooseFiles(screen.getByLabelText("WikiのMarkdownファイル"), [
+      file("bad.md"),
+    ]);
     api.importReply = () => problem("取り込めません");
     await user.click(screen.getByRole("button", { name: "取り込む" }));
-    expect((await screen.findAllByText("取り込めません")).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("取り込めません")).length,
+    ).toBeGreaterThan(0);
     expect(importDialog().open).toBe(true);
   });
 
@@ -963,9 +1090,15 @@ describe("Wiki", () => {
     const user = userEvent.setup();
     const base = makeRoute({ source: "ja" });
     const view = renderWiki({ route: base, hidden: false });
-    expect(await screen.findByRole("heading", { name: "見出し" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Markdownを取り込む" }));
-    chooseFiles(screen.getByLabelText("WikiのMarkdownファイル"), [file("late.md")]);
+    expect(
+      await screen.findByRole("heading", { name: "見出し" }),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Markdownを取り込む" }),
+    );
+    chooseFiles(screen.getByLabelText("WikiのMarkdownファイル"), [
+      file("late.md"),
+    ]);
     const imported = deferred();
     api.importReply = () => imported.promise;
     await user.click(screen.getByRole("button", { name: "取り込む" }));
@@ -974,23 +1107,164 @@ describe("Wiki", () => {
       imported.resolve,
       json({
         articles: [
-          { id: "late", title: "遅い", namespace: "Wiki", path: "late.md", revision: "1" },
+          {
+            id: "late",
+            title: "遅い",
+            namespace: "Wiki",
+            path: "late.md",
+            revision: "1",
+          },
         ],
       }),
     );
     expect(view.navigate).not.toHaveBeenCalled();
-    expect(screen.queryAllByText("1件の記事を取り込みました。")).toHaveLength(0);
+    expect(screen.queryAllByText("1件の記事を取り込みました。")).toHaveLength(
+      0,
+    );
 
-    expect(await screen.findByRole("link", { name: "CSVを保存" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "原本を保存（CSV）" }),
+    ).toBeInTheDocument();
     const removed = deferred();
     api.deleteReply = () => removed.promise;
     await user.click(screen.getByRole("button", { name: "記事を削除" }));
-    await user.click(within(deleteDialog()).getByRole("button", { name: "削除する" }));
+    await user.click(
+      within(deleteDialog()).getByRole("button", { name: "削除する" }),
+    );
     view.set({ hidden: true });
     await settle(removed.resolve, problem("stale-delete"));
     expect(view.navigate).not.toHaveBeenCalled();
     expect(document.body.textContent).not.toContain("stale-delete");
     expect(document.body.textContent).not.toContain("記事を削除しました。");
+  });
+
+  it("does not send the same delete again while one is running after the reader moved on", async () => {
+    const api = installWiki();
+    const user = userEvent.setup();
+    const view = renderWiki({
+      route: makeRoute({ source: "ja" }),
+      hidden: false,
+    });
+    expect(
+      await screen.findByRole("heading", { name: "見出し" }),
+    ).toBeInTheDocument();
+    const removed = deferred();
+    api.deleteReply = () => removed.promise;
+    await user.click(screen.getByRole("button", { name: "記事を削除" }));
+    await user.click(
+      within(deleteDialog()).getByRole("button", { name: "削除する" }),
+    );
+    view.set({ route: makeRoute({ source: "csv" }) });
+    expect(
+      await screen.findByRole("link", { name: "原本を保存（CSV）" }),
+    ).toBeInTheDocument();
+    const deletes = () =>
+      fetchMock.mock.calls.filter(([, init]) => init?.method === "DELETE");
+    await user.click(screen.getByRole("button", { name: "記事を削除" }));
+    const again = within(deleteDialog()).getByRole("button", {
+      name: "削除する",
+    });
+    expect(again).toBeDisabled();
+    fireEvent.click(again);
+    expect(deletes()).toHaveLength(1);
+
+    // The first request settles late: nothing is shown for it, the lock opens.
+    await settle(removed.resolve, json({}));
+    expect(view.navigate).not.toHaveBeenCalled();
+    api.deleteReply = () => json({});
+    await user.click(
+      within(deleteDialog()).getByRole("button", { name: "削除する" }),
+    );
+    await waitFor(() => expect(deletes()).toHaveLength(2));
+    expect(String(deletes()[1][0])).toMatch(/\/api\/wiki\/sources\/csv$/);
+  });
+
+  it("shows only the not-found notice when an open article turns out to be gone", async () => {
+    const api = installWiki();
+    const view = renderWiki({
+      route: makeRoute({ source: "ja" }),
+      hidden: false,
+    });
+    expect(
+      await screen.findByRole("heading", { name: "見出し" }),
+    ).toBeInTheDocument();
+    api.articleStatus.ja = 410;
+    await act(() =>
+      view.query.invalidateQueries({ queryKey: ["wiki-article"] }),
+    );
+    expect(
+      await screen.findByText("この記事は見つかりません。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "見出し" })).toBeNull();
+  });
+
+  describe("an editor save that finishes later", () => {
+    async function startSave() {
+      const api = installWiki();
+      const base = handle;
+      const saving = deferred();
+      let savedId = "";
+      handle = (input, init) => {
+        const match = requestUrl(input).match(/\/api\/wiki\/sources\/([^/]+)$/);
+        if (match && methodOf(init) === "PUT") {
+          savedId = decodeURIComponent(match[1]);
+          return saving.promise;
+        }
+        return base(input, init);
+      };
+      const user = userEvent.setup();
+      const view = renderWiki({ route: makeRoute(), hidden: false });
+      await user.click(
+        await screen.findByRole("button", { name: "新しい記事を作成" }),
+      );
+      fireEvent.change(await screen.findByLabelText("記事タイトル"), {
+        target: { value: "新しい記事" },
+      });
+      fireEvent.change(screen.getByLabelText("記事パス"), {
+        target: { value: "new.md" },
+      });
+      await user.click(screen.getByRole("button", { name: "Wikiに保存" }));
+      await waitFor(() => expect(savedId).not.toBe(""));
+      const finish = () =>
+        settle(
+          saving.resolve,
+          json({ ...jaArticle, id: savedId, title: "新しい記事" }),
+        );
+      return { api, view, finish, id: () => savedId };
+    }
+
+    it("opens the saved article when the person is still reading the Wiki", async () => {
+      const { view, finish, id } = await startSave();
+      await finish();
+      await waitFor(() =>
+        expect(view.navigate).toHaveBeenCalledWith(
+          expect.objectContaining({ mode: "wiki", source: id() }),
+        ),
+      );
+      expect(
+        screen.getAllByText("Wikiに保存しました。").length,
+      ).toBeGreaterThan(0);
+    });
+
+    it("does not pull the person back from another screen, but refreshes the catalog", async () => {
+      const { view, finish } = await startSave();
+      const before = fetchMock.mock.calls.filter(([url]) =>
+        String(url).endsWith("/api/wiki/catalog"),
+      ).length;
+      view.set({ hidden: true });
+      await finish();
+      expect(view.navigate).not.toHaveBeenCalled();
+      expect(document.body.textContent).not.toContain("Wikiに保存しました。");
+      // The hidden Wiki does not poll; only the save's own invalidation asks.
+      view.set({ hidden: false });
+      await waitFor(() =>
+        expect(
+          fetchMock.mock.calls.filter(([url]) =>
+            String(url).endsWith("/api/wiki/catalog"),
+          ).length,
+        ).toBeGreaterThan(before),
+      );
+    });
   });
 });
 
@@ -999,9 +1273,7 @@ describe("KnowledgeSearch", () => {
     const api = installKnowledge();
     const user = userEvent.setup();
     const view = renderSearch({ open: true, route: makeRoute() });
-    expect(
-      screen.getByRole("button", { name: "RAG" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "RAG" })).toBeDisabled();
     await user.type(
       screen.getByRole("searchbox", { name: "検索文" }),
       "キーワード",
@@ -1037,9 +1309,11 @@ describe("KnowledgeSearch", () => {
       "/?mode=library&job=job-2&view=preview&unit=5",
     );
     await user.click(citation);
-    expect(view.navigate).toHaveBeenCalledWith(
-      expect.objectContaining({ job: "job-2", unit: 5 }),
-    );
+    expect(view.onReference).toHaveBeenCalledWith({
+      kind: "document",
+      job: "job-2",
+      unit: 5,
+    });
     api.publish(
       view.query,
       task({ id: "rag1", output: { results: [], stale: true } }),
@@ -1365,41 +1639,31 @@ describe("KnowledgeSearch", () => {
       folder_id: null,
     });
 
-    view.navigate.mockClear();
+    view.onReference.mockClear();
     view.onClose.mockClear();
     await user.click(screen.getByRole("link", { name: /Wiki · 導入/ }));
     expect(view.onClose).toHaveBeenCalled();
-    expect(view.navigate).toHaveBeenCalledWith(
-      makeRoute({
-        mode: "wiki",
-        source: "src-wiki",
-        section: "intro",
-        folder: "folder-9",
-      }),
-    );
+    expect(view.onReference).toHaveBeenCalledWith({
+      kind: "wiki",
+      source: "src-wiki",
+      section: "intro",
+    });
     await user.click(screen.getByRole("link", { name: "資料 · 仕様書" }));
-    expect(view.navigate).toHaveBeenCalledWith(
-      makeRoute({
-        mode: "library",
-        source: "ja",
-        job: "job-2",
-        view: "preview",
-        unit: 5,
-        folder: "folder-9",
-      }),
-    );
+    expect(view.onReference).toHaveBeenLastCalledWith({
+      kind: "document",
+      job: "job-2",
+      unit: 5,
+    });
     api.publish(
       view.query,
       task({ id: "s4", output: { results: [bareWikiHit] } }),
     );
     await user.click(await screen.findByRole("link", { name: "Wiki · 付録" }));
-    expect(view.navigate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mode: "wiki",
-        source: "src-wiki",
-        section: null,
-      }),
-    );
+    expect(view.onReference).toHaveBeenLastCalledWith({
+      kind: "wiki",
+      source: "src-wiki",
+      section: undefined,
+    });
 
     api.publish(
       view.query,
@@ -1554,6 +1818,61 @@ describe("KnowledgeSearch", () => {
       task({ id: "s1", state: "failed", error: "失敗しました", output: {} }),
     );
     expect(await screen.findByText("失敗しました")).toBeInTheDocument();
+  });
+
+  it("comes back from a source to the same query, results, selection and focused link", async () => {
+    const api = installKnowledge();
+    const user = userEvent.setup();
+    const route = makeRoute({ mode: "library", folder: "folder-9" });
+    const view = renderSearch({ open: true, route });
+    await user.type(
+      screen.getByRole("searchbox", { name: "検索文" }),
+      "budget",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "検索対象" }),
+      "document",
+    );
+    api.retrievalBody = task({ output: { results: [wikiHit, docHit] } });
+    api.searchReply = () => json(api.retrievalBody);
+    await user.click(screen.getByRole("button", { name: "検索" }));
+    const second = await screen.findByRole("link", { name: "資料 · 仕様書" });
+    document.getElementById("knowledgeSearch")!.scrollTop = 120;
+    await user.click(second);
+    expect(view.onReference).toHaveBeenCalledWith({
+      kind: "document",
+      job: "job-2",
+      unit: 5,
+    });
+    // The shell closes the dialog while the source is shown.
+    view.set({ open: false });
+    // A plain open is a new search; coming back resumes the last one.
+    view.set({ open: true, resume: true });
+    const again = await screen.findByRole("link", { name: "資料 · 仕様書" });
+    expect(
+      screen.getByRole("link", { name: /Wiki · 導入/ }),
+    ).toBeInTheDocument();
+    expect(again).toHaveFocus();
+    expect(again).toHaveAttribute("data-opened", "true");
+    expect(
+      screen.getByRole("link", { name: /Wiki · 導入/ }),
+    ).not.toHaveAttribute("data-opened");
+    expect(document.getElementById("knowledgeSearch")!.scrollTop).toBe(120);
+    expect(screen.getByRole("searchbox", { name: "検索文" })).toHaveValue(
+      "budget",
+    );
+    expect(screen.getByRole("combobox", { name: "検索対象" })).toHaveValue(
+      "document",
+    );
+    // Closing and opening the dialog the ordinary way starts empty again.
+    view.set({ open: false, resume: false });
+    view.set({ open: true });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("link", { name: "資料 · 仕様書" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(api.searches).toHaveLength(1);
   });
 
   it("reports failed requests and ignores responses from an old scope", async () => {

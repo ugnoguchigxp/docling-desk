@@ -25,6 +25,7 @@ import { valueSnapshot } from "./plate";
 import { preservedMarkdown } from "./preserved-markdown";
 import { HeadingElement } from "../plate/ui/heading-node";
 import { LinkElement } from "../plate/ui/link-node";
+import "../components/app-tokens.css";
 import "./wiki-plate.css";
 
 export interface EditorDocument {

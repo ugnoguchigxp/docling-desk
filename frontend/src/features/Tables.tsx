@@ -31,7 +31,7 @@ import {
   type PopupPosition,
 } from "../components/ui";
 import { request } from "../lib/api";
-import { isDocument } from "../lib/formats";
+import { isDocument, originalName } from "../lib/formats";
 import { useAsyncScope } from "../lib/async-scope";
 import { isDone, type Job, type Table } from "../lib/types";
 import {
@@ -846,7 +846,7 @@ export function TableCard({
               if (e.key === "Enter") applyFilter();
             }}
           />
-          <StatusMessage className="table-popup-error" role="alert">
+          <StatusMessage className="table-popup-error" kind="error">
             {error}
           </StatusMessage>
           <Toolbar className="table-popup-actions">
@@ -1043,8 +1043,7 @@ export function Tables({
                 table={t}
                 visible={visible && t.ref === table?.ref}
                 onSource={() => {
-                  if (isDocument(job.original_filename || job.filename))
-                    onSource(1);
+                  if (isDocument(originalName(job))) onSource(1);
                   else if (t.pages.length) onSource(t.pages[0]);
                 }}
               />

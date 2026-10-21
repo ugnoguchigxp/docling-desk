@@ -1,11 +1,18 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { expect, test } from "vitest";
 import {
+  familyOf,
   isDocument,
   isExcalidraw,
   isSupported,
+  isWikiArticle,
+  isWikiImportFile,
   matchesFormat,
+  originalName,
   supportedAccept,
   supportedLabel,
+  viewKind,
 } from "./formats";
 
 test("recognizes documents, supported uploads, and format filters", () => {
@@ -94,4 +101,84 @@ test("accepts standalone Excalidraw files and filters them", () => {
   expect(isSupported("scene.excalidraw.json")).toBe(false);
   expect(matchesFormat("graph.drawio", "excalidraw")).toBe(false);
   expect(supportedAccept).toContain(".drawio");
+});
+
+// The same file the server-side test (tests/test_format_contract.py) reads.
+const contract = JSON.parse(
+  readFileSync(
+    resolve(__dirname, "../../../tests/fixtures/format-contract/cases.json"),
+    "utf8",
+  ),
+) as {
+  names: { name: string; family: string | null }[];
+  content_cases: { name: string; diagram: boolean }[];
+};
+
+test("files the shared boundary names under the family the server uses", () => {
+  expect(contract.names.length).toBeGreaterThan(30);
+  for (const { name, family } of contract.names) {
+    expect(familyOf(name), name).toBe(family);
+    expect(isSupported(name), name).toBe(family !== null);
+  }
+});
+
+test("every extension offered to the file chooser is accepted, and nothing else is", () => {
+  const offered = supportedAccept.split(",");
+  for (const extension of offered) {
+    expect(isSupported(`file${extension}`), extension).toBe(true);
+    expect(isSupported(extension), extension).toBe(false);
+  }
+  expect(new Set(offered).size).toBe(offered.length);
+  expect(
+    contract.names
+      .filter((n) => n.family)
+      .every((n) =>
+        offered.some((extension) => n.name.toLowerCase().endsWith(extension)),
+      ),
+  ).toBe(true);
+});
+
+test("a name does not decide how a stored document is opened, the server's flags do", () => {
+  // A PNG that carries a draw.io model is a diagram, an ordinary one an image.
+  for (const { name, diagram } of contract.content_cases) {
+    expect(
+      viewKind({ diagram, image: diagram ? undefined : { reference: name } }),
+      name,
+    ).toBe(diagram ? "drawio" : "image");
+  }
+  expect(viewKind({ excalidraw: true })).toBe("excalidraw");
+  expect(viewKind({})).toBe("extracted");
+  // Extraction can have failed or been skipped: no flags, whatever the name.
+  expect(viewKind({ diagram: false, image: null })).toBe("extracted");
+});
+
+test("the original file name is the one the person uploaded", () => {
+  expect(originalName({ filename: "a.pdf", original_filename: "b.tex" })).toBe(
+    "b.tex",
+  );
+  expect(originalName({ filename: "a.pdf", original_filename: null })).toBe(
+    "a.pdf",
+  );
+  expect(originalName({ filename: "a.pdf", original_filename: "" })).toBe(
+    "a.pdf",
+  );
+});
+
+test("Wiki import takes Markdown and CSV articles and the two manifest files", () => {
+  for (const name of ["a.md", "A.MARKDOWN", "index.csv"]) {
+    expect(isWikiArticle(name), name).toBe(true);
+    expect(isWikiImportFile(name), name).toBe(true);
+  }
+  for (const name of ["wiki-manifest.json", "pages.jsonl"]) {
+    expect(isWikiArticle(name), name).toBe(false);
+    expect(isWikiImportFile(name), name).toBe(true);
+  }
+  for (const name of [
+    "a.txt",
+    "manifest.json",
+    "pages.json",
+    ".md",
+    "a.md.bak",
+  ])
+    expect(isWikiImportFile(name), name).toBe(false);
 });

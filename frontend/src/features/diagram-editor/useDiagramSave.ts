@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import {
-  DiagramRequestError,
   commitDraft,
   getContent,
   getDiagram,
@@ -11,6 +10,7 @@ import {
   type InfoResponse,
   type RevisionInfo,
 } from "../../lib/diagrams";
+import { HttpError } from "../../lib/http";
 import { errorText } from "../../lib/api";
 import { discardOwnDraft } from "./useDraftSync";
 import { classify } from "./problems";
@@ -88,8 +88,7 @@ export function useDiagramSave(
             )
           : await saveRevision(s.id, op.scene, op.sourceEtag, op.key);
       } catch (error) {
-        if (!(error instanceof DiagramRequestError) || error.status !== 412)
-          throw error;
+        if (!(error instanceof HttpError) || error.status !== 412) throw error;
         // The same content may already be saved without us knowing it: the
         // Idempotency-Key can have expired, or another session of this user
         // saved it. If the current revision is exactly what we sent, adopt it.
@@ -128,7 +127,7 @@ export function useDiagramSave(
           if (op.scene === scene) return;
         } catch (error) {
           if (
-            !(error instanceof DiagramRequestError) ||
+            !(error instanceof HttpError) ||
             (error.status !== 412 && error.status !== 404)
           )
             throw error;
@@ -149,8 +148,7 @@ export function useDiagramSave(
       }
       settle(op.scene, await execute(op));
     } catch (error) {
-      if (error instanceof DiagramRequestError && error.status === 409)
-        s.pending = null;
+      if (error instanceof HttpError && error.status === 409) s.pending = null;
       ui.raise(classify(error, "save"));
     } finally {
       s.saving = false;
@@ -223,7 +221,7 @@ export function useDiagramSave(
         // The restore leaves any earlier draft behind; it is stale now.
         if (restored.draft) void dropStale(restored.draft);
       } catch (error) {
-        if (error instanceof DiagramRequestError && error.status === 409)
+        if (error instanceof HttpError && error.status === 409)
           s.restoring = null;
         ui.raise(classify(error, "restore"));
       } finally {

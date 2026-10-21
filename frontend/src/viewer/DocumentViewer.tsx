@@ -1,12 +1,5 @@
 import { useViewerSource } from "./data-source";
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   ActionLink,
   Button,
@@ -16,9 +9,17 @@ import {
   Toolbar,
 } from "../components/ui";
 import { Icon } from "../components/Icons";
-import { FeatureBoundary } from "../components/FeatureBoundary";
+import { FeatureBoundary, lazyFeature } from "../components/FeatureBoundary";
 import { fileUrl, object } from "../lib/api";
-import { isDocument, isSource, isTex } from "../lib/formats";
+import {
+  isDocument,
+  isDocx,
+  isPdf,
+  isSource,
+  isTex,
+  isXlsx,
+  originalName,
+} from "../lib/formats";
 import {
   isDone,
   isLightweightPreview,
@@ -32,7 +33,7 @@ import { Rag, Structure } from "../features/Resources";
 import { usePreviewCopy } from "../features/PreviewCopy";
 import { useWordPreview } from "../features/Word";
 import "../features/Viewer.css";
-const Tables = lazy(() =>
+const Tables = lazyFeature(() =>
   import("../features/Tables").then((m) => ({ default: m.Tables })),
 );
 export function DocumentViewer({
@@ -40,6 +41,7 @@ export function DocumentViewer({
   view,
   onView,
   onBack,
+  backLabel = "資料一覧へ戻る",
   message,
   initialLanguage,
   navigation,
@@ -53,6 +55,8 @@ export function DocumentViewer({
   view: View;
   onView: (v: View) => void;
   onBack: () => void;
+  /** The back control's name; it says where Back goes when that is not the list. */
+  backLabel?: string;
   message: string;
   initialLanguage: Language;
   onLanguage: (l: Language) => void;
@@ -81,16 +85,16 @@ export function DocumentViewer({
   useEffect(() => {
     if (view === "tables") setTablesVisited(true);
   }, [view]);
-  const originalName = job.original_filename || job.filename;
-  const tex = isTex(originalName);
-  const sourceText = isSource(originalName);
+  const original = originalName(job);
+  const tex = isTex(original);
+  const sourceText = isSource(original);
   const [texMode, setTexMode] = useState<"pdf" | "source">("pdf");
   const texPdf = tex && texMode === "pdf" && !!job.tex_preview;
-  const wholeDocument = isDocument(originalName) && !texPdf;
+  const wholeDocument = isDocument(original) && !texPdf;
   const lightweight = isLightweightPreview(job);
   const slideView = job.slide_layout || lightweight;
-  const workbook = job.filename.toLowerCase().endsWith(".xlsx"),
-    pdf = job.filename.toLowerCase().endsWith(".pdf") || texPdf;
+  const workbook = isXlsx(job.filename),
+    pdf = isPdf(job.filename) || texPdf;
   const requestedPage = initialUnit
     ? Math.max(1, Math.min(initialUnit, wholeDocument ? 1 : job.pages || 1))
     : null;
@@ -127,9 +131,7 @@ export function DocumentViewer({
     language,
     revision,
   );
-  const word = (job.original_filename || job.filename)
-    .toLowerCase()
-    .endsWith(".docx");
+  const word = isDocx(original);
   const { controls: wordControls, notify: notifyWord } = useWordPreview(
     job.id,
     wholeDocument,
@@ -253,7 +255,7 @@ export function DocumentViewer({
             <IconButton
               id="backToFiles"
               icon="back"
-              label="資料一覧へ戻る"
+              label={backLabel}
               onClick={onBack}
             />
           )}
@@ -391,7 +393,8 @@ export function DocumentViewer({
           </div>
           {tablesVisited && (
             <FeatureBoundary
-              fallback={
+              onRetry={Tables.reset}
+              fallback={(retry) => (
                 <div
                   id="tables"
                   role="tabpanel"
@@ -399,11 +402,11 @@ export function DocumentViewer({
                   hidden={view !== "tables"}
                 >
                   <p role="alert">
-                    表の画面を読み込めませんでした。画面を再読み込みしてお試しください。
+                    表の画面を読み込めませんでした。もう一度読み込めます。資料の他の表示はそのまま使えます。
                   </p>
-                  <Button onClick={() => location.reload()}>再読み込み</Button>
+                  <Button onClick={retry}>もう一度読み込む</Button>
                 </div>
-              }
+              )}
             >
               <Suspense
                 fallback={

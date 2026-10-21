@@ -7,7 +7,7 @@ import {
   StatusMessage,
   TextField,
 } from "../components/ui";
-import { sourceEdit } from "../editor/RawEditor";
+import { sourceEdit } from "../editor/source-edit";
 import { errorText, request } from "../lib/api";
 import { withBase } from "../lib/base";
 import {
@@ -17,42 +17,11 @@ import {
 } from "../editor/raw-markdown";
 import { WikiPlate } from "../editor/WikiPlate";
 import type { EditorDocument } from "../editor/WikiPlateEditor";
+import type { ArticleInfo, WikiDraft } from "./wiki-draft";
 import "./wiki-editor.css";
 
-export interface ArticleInfo {
-  subtitle: string;
-  keywords: string[];
-  original_url: string;
-  image: { url: string; alt: string; caption: string; credit: string };
-}
-export interface WikiDraft {
-  id: string;
-  namespace: string;
-  path: string;
-  title: string;
-  body: string;
-  language: string;
-  article_info: ArticleInfo;
-  etag: string | null;
-  editor_document?: EditorDocument | null;
-}
-export function newWikiDraft(namespace = "Wiki"): WikiDraft {
-  return {
-    id: `wiki-${crypto.randomUUID().replaceAll("-", "")}`,
-    namespace,
-    path: "",
-    title: "",
-    body: "",
-    language: "ja",
-    etag: null,
-    article_info: {
-      subtitle: "",
-      keywords: [],
-      original_url: "",
-      image: { url: "", alt: "", caption: "", credit: "" },
-    },
-  };
-}
+export { newWikiDraft } from "./wiki-draft";
+export type { ArticleInfo, WikiDraft } from "./wiki-draft";
 
 export function WikiEditor({
   initial,
@@ -425,7 +394,9 @@ export function WikiEditor({
         <p>保存していない内容を破棄して、閲覧に戻りますか？</p>
         <DialogActions>
           <Button onClick={() => setDiscard(false)}>編集を続ける</Button>
-          <Button onClick={onClose}>破棄して戻る</Button>
+          <Button className="danger" onClick={onClose}>
+            破棄して戻る
+          </Button>
         </DialogActions>
       </Dialog>
     </form>
