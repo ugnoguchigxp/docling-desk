@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -12,13 +13,26 @@ from lxml import html
 from openpyxl import load_workbook
 
 from docling_desk.documents.text import DOCUMENT_SUFFIXES
-from docling_desk.preview.editable_preview import RENDERER_VERSION, ensure_pdf_preview
+from docling_desk.preview.editable_preview import (
+    RENDERER_VERSION,
+    ensure_pdf_preview,
+    refresh_saved_preview,
+)
 from docling_desk.preview.hashing import digest
 from docling_desk.preview.sheets import preview_sheets, sheet_html
 from docling_desk.storage import job_file, original_file
 from docling_desk.translation.store import LOCK, atomic_json, fingerprint
 
+LOGGER = logging.getLogger(__name__)
 BINDING_VERSION = 2
+# Only PDF and PowerPoint previews use the page-image renderer. Other formats keep the
+# value their saved bindings were made with, so their translations stay valid.
+UNCHANGED_RENDERER_VERSION = 3
+LEGACY_NAME = "translation-source.legacy.json"
+NO_SAVED_PREVIEW = (
+    "原本プレビューが古い形式で、再生成に使う保存済みの描画PDFがありません。"
+    "抽出本文を別枠で翻訳します。原本上の文字置換は利用できません。"
+)
 
 
 def text_candidate(value: str) -> bool:
@@ -32,9 +46,33 @@ def serialize(tree, raw: str) -> str:
     return html.tostring(tree, encoding="unicode", doctype=declaration[1] if declaration else None)
 
 
+def uses_page_preview(suffix: str, job: dict) -> bool:
+    """Whether the document is shown through the page-image renderer.
+
+    A PDF always is. A PowerPoint deck is only when its preview is that renderer's;
+    a deck shown by another preview, or by none, keeps its bindings unchanged.
+    """
+    return suffix == ".pdf" or (
+        suffix == ".pptx" and str(job.get("preview") or "").startswith("editable-preview/")
+    )
+
+
+def current_page_preview(folder: Path, relative: str) -> None:
+    """Page previews of an older renderer are regenerated, never read."""
+    if not relative.startswith("editable-preview/"):
+        return
+    try:
+        version = json.loads((folder / "editable-preview/manifest.json").read_text())["version"]
+    except (OSError, ValueError, KeyError, TypeError):
+        version = None
+    if version != RENDERER_VERSION:
+        raise ValueError("原本プレビューを新しい形式で再生成する必要があります。")
+
+
 def slide_template(folder: Path, relative: str) -> str:
     if not relative:
         raise ValueError("原本プレビューがありません。")
+    current_page_preview(folder, relative)
     folder = folder.resolve()
     path = (folder / relative).resolve()
     if not path.is_relative_to(folder.resolve()):
@@ -79,6 +117,11 @@ def template_for(folder: Path, job: dict, number: int) -> str:
         slide = slide_previews(folder)[number]
         if not slide.get("preview"):
             raise ValueError("原本プレビューがありません。抽出本文を別枠で翻訳します。")
+        if (
+            slide["preview"].startswith("editable-preview/")
+            and refresh_saved_preview(original_file(folder, ".pptx"), folder) is None
+        ):
+            raise ValueError(NO_SAVED_PREVIEW)
         return slide_template(folder, slide["preview"])
     if suffix == ".pdf":
         ensure_pdf_preview(original_file(folder, ".pdf"), folder)
@@ -100,22 +143,6 @@ def html_segments(raw: str, roots: list) -> list[dict]:
     for root in scope:
         for node in root.iter():
             if not isinstance(node.tag, str) or node.tag in {"script", "style"}:
-                continue
-            if any(p.get("data-glyph-clusters") == "true" for p in node.iterancestors()):
-                continue
-            if node.get("data-glyph-clusters") == "true":
-                value = "".join(node.itertext())
-                if text_candidate(value):
-                    segments.append(
-                        {
-                            "id": f"t{len(segments) + 1:05d}",
-                            "source_text": value,
-                            "locator": {
-                                "node_path": node.getroottree().getpath(node),
-                                "slot": "svg_text",
-                            },
-                        }
-                    )
                 continue
             for slot in ("text", "tail"):
                 value = getattr(node, slot)
@@ -385,41 +412,127 @@ def dependencies(folder: Path) -> dict:
             paths[relative.as_posix()] = path
     return {
         "binding_version": BINDING_VERSION,
-        "renderer_version": RENDERER_VERSION,
+        "renderer_version": RENDERER_VERSION
+        if uses_page_preview(suffix, job)
+        else UNCHANGED_RENDERER_VERSION,
         "cache_version": 2,
         "job": {k: job.get(k) for k in ("filename", "original_filename", "preview")},
         "files": {name: cached_digest(path) for name, path in sorted(paths.items())},
     }
 
 
+def archive_legacy(folder: Path, saved: dict, current: dict) -> None:
+    """Keep the source text of a binding made by an older renderer.
+
+    Translations saved against it no longer match the new page blocks. This record
+    lets the status API list them next to their original text until re-translated.
+    It is keyed by the binding's source hash and only ever grows, so a rollback and a
+    second upgrade add their generation beside the first. Failing to archive is logged
+    and never blocks the new binding: saved translations are not touched either way.
+    """
+    try:
+        previous = (saved.get("dependencies") or {}).get("renderer_version")
+        if previous == current["renderer_version"]:
+            return
+        path = folder / LEGACY_NAME
+        try:
+            bindings = json.loads(path.read_text(encoding="utf-8"))["bindings"]
+            if not isinstance(bindings, dict):
+                raise ValueError("invalid archive")
+        except (OSError, ValueError, KeyError, TypeError):
+            bindings = {}
+        added = False
+        for unit in saved.get("units", []):
+            if unit["source_hash"] not in bindings:
+                added = True
+                bindings[unit["source_hash"]] = {
+                    "unit_id": unit["id"],
+                    "renderer_version": previous,
+                    "segments": [
+                        {"id": s["id"], "source_text": s["source_text"]} for s in unit["segments"]
+                    ],
+                }
+        if added:
+            atomic_json(path, {"document_id": saved.get("document_id"), "bindings": bindings})
+    except (KeyError, TypeError, ValueError, OSError):
+        LOGGER.warning(
+            "Could not archive the earlier translation binding in %s", folder, exc_info=True
+        )
+
+
+def legacy_pairs(folder: Path, unit_id: str, record: dict) -> list[dict] | None:
+    """Original/translation pairs of a translation made against an archived older binding."""
+    result = record.get("result") or {}
+    translations = result.get("translations")
+    try:
+        binding = json.loads((folder / LEGACY_NAME).read_text(encoding="utf-8"))["bindings"][
+            result.get("source_hash")
+        ]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if not isinstance(translations, dict) or binding.get("unit_id") != unit_id:
+        return None
+    return [
+        {"source": s["source_text"], "translation": translations[s["id"]]}
+        for s in binding["segments"]
+        if isinstance(translations.get(s["id"]), str)
+    ]
+
+
+def refresh_page_preview(folder: Path, job: dict) -> None:
+    """Generate or upgrade the page previews a binding is built from.
+
+    Rebuilding every page is slow, so callers must not hold the translation lock.
+    """
+    suffix = Path(job.get("original_filename") or job["filename"]).suffix.lower()
+    if suffix == ".pdf":
+        ensure_pdf_preview(original_file(folder, ".pdf"), folder)
+    elif uses_page_preview(suffix, job):
+        # A preview of an older renderer is rebuilt from its saved PDF, not read.
+        refresh_saved_preview(original_file(folder, ".pptx"), folder)
+
+
 def source_map(folder: Path) -> dict:
     folder = folder.resolve()
-    with LOCK:
-        path = folder / "translation-source.json"
-        current = dependencies(folder)
-        if path.exists():
-            try:
-                saved = read_source(str(path), signature(path))
-                if saved.get("dependencies") == current and saved.get("document_id") == folder.name:
-                    return saved
-            except (OSError, ValueError, TypeError):
-                pass
-        job = json.loads(job_file(folder).read_text())
-        if Path(job.get("original_filename") or job["filename"]).suffix.lower() == ".pdf":
-            # Generate / upgrade once before capturing template dependencies,
-            # rather than checking or generating the complete PDF for every page.
-            ensure_pdf_preview(original_file(folder, ".pdf"), folder)
+    prepared = False
+    while True:
+        with LOCK:
+            path = folder / "translation-source.json"
             current = dependencies(folder)
-        source = build_source(folder)
-        # A source edit invalidates every stored result, even if one unit's visible text happens to match.
-        # PDF preview creation may have added dependencies during build_source.
-        after = dependencies(folder)
-        # Fail rather than publishing bindings to a source edited mid-build.
-        if any(after["files"].get(k) != v for k, v in current["files"].items()):
-            raise ValueError("展開中に原本または参照素材が変更されました。再度開いてください。")
-        dependencies_hash = fingerprint(after)
-        for unit in source["units"]:
-            unit["source_hash"] = fingerprint([unit["source_hash"], dependencies_hash])
-        source["dependencies"] = after
-        atomic_json(path, source)
-        return source
+            saved = None
+            if path.exists():
+                try:
+                    saved = read_source(str(path), signature(path))
+                    if (
+                        saved.get("dependencies") == current
+                        and saved.get("document_id") == folder.name
+                    ):
+                        return saved
+                except (OSError, ValueError, TypeError):
+                    saved = None
+            job = json.loads(job_file(folder).read_text())
+            if prepared:
+                return write_source(folder, path, current, saved)
+        # Outside the lock: other documents' status and translations keep running while
+        # this one's previews are generated. The lock is then retaken, so the
+        # dependencies are captured again, after the previews exist.
+        refresh_page_preview(folder, job)
+        prepared = True
+
+
+def write_source(folder: Path, path: Path, current: dict, saved: dict | None) -> dict:
+    source = build_source(folder)
+    # A source edit invalidates every stored result, even if one unit's visible text happens to match.
+    # PDF preview creation may have added dependencies during build_source.
+    after = dependencies(folder)
+    # Fail rather than publishing bindings to a source edited mid-build.
+    if any(after["files"].get(k) != v for k, v in current["files"].items()):
+        raise ValueError("展開中に原本または参照素材が変更されました。再度開いてください。")
+    dependencies_hash = fingerprint(after)
+    for unit in source["units"]:
+        unit["source_hash"] = fingerprint([unit["source_hash"], dependencies_hash])
+    source["dependencies"] = after
+    if saved is not None:
+        archive_legacy(folder, saved, after)
+    atomic_json(path, source)
+    return source

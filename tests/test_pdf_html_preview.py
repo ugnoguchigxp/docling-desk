@@ -1,21 +1,15 @@
 import hashlib
-import json
-from io import BytesIO
 
-import pymupdf
-from fontTools.ttLib import TTFont
+import pypdfium2 as pdfium
 from lxml import html
+from PIL import Image
 from reportlab.pdfgen import canvas
 
 from docling_desk.documents.conversion import Job, convert_job
-from docling_desk.preview.editable_preview import (
-    build_editable_preview,
-    editable_preview,
-    outline_font,
-)
+from docling_desk.preview.editable_preview import build_editable_preview, editable_preview
 
 
-def test_pdf_retains_text_vectors_mixed_dimensions_and_rotation(tmp_path):
+def test_pdf_keeps_mixed_dimensions_rotation_and_a_selectable_text_layer(tmp_path):
     source = tmp_path / "original.pdf"
     doc = canvas.Canvas(str(source), pagesize=(300, 400))
     doc.drawString(30, 350, "First page")
@@ -24,30 +18,31 @@ def test_pdf_retains_text_vectors_mixed_dimensions_and_rotation(tmp_path):
     doc.setPageSize((600, 300))
     doc.drawString(30, 250, "Second page")
     doc.save()
-    pdf = pymupdf.open(source)
+    pdf = pdfium.PdfDocument(source)
     pdf[1].set_rotation(90)
-    pdf.saveIncr()
+    pdf.save(tmp_path / "rotated.tmp")
     pdf.close()
+    (tmp_path / "rotated.tmp").replace(source)
     before = hashlib.sha256(source.read_bytes()).hexdigest()
     path = build_editable_preview(source, source, tmp_path)
     assert editable_preview(source, tmp_path) == path
-    pages = json.loads((tmp_path / "editable-preview/text-layout.json").read_text())["pages"]
-    assert [(p["width"], p["height"]) for p in pages] == [(300, 400), (300, 600)]
+    sizes = []
     for number, text in [(1, "First page"), (2, "Second page")]:
         tree = html.fromstring((tmp_path / f"editable-preview/page-{number}.html").read_text())
-        assert "".join(tree.xpath("//tspan/text()")) == text
-        assert not tree.xpath("//img")
-        assert tree.xpath("//text/@font-family")[0].startswith("pdf-outline-")
+        page = tree.xpath('//div[@class="page-canvas"]')[0]
+        sizes.append((float(page.get("data-width")), float(page.get("data-height"))))
+        assert tree.xpath('//div[contains(@class,"pdf-text")]/text()') == [text]
+        assert tree.xpath("//img/@src") == [f"page-{number}.webp"]
+        assert not tree.xpath("//svg|//text|//script")
+        with Image.open(tmp_path / f"editable-preview/page-{number}.webp") as image:
+            assert image.size == (int(sizes[-1][0] * 2), int(sizes[-1][1] * 2))
+    # The second page is displayed rotated; its text runs down the page.
+    assert sizes == [(300, 400), (300, 600)]
+    rotated = html.fromstring((tmp_path / "editable-preview/page-2.html").read_text()).xpath(
+        '//div[contains(@class,"pdf-text")]/@style'
+    )[0]
+    assert "rotate(90.000deg)" in rotated
     assert before == hashlib.sha256(source.read_bytes()).hexdigest()
-
-
-def test_unembedded_font_outline_becomes_real_unicode_font():
-    # The exact glyph geometry is carried in a font; the document text stays text.
-    font = outline_font({ord("A"): ("M0 0 L.3 1 L.6 0 Z", 0.7)})
-    with TTFont(BytesIO(font)) as face:
-        name = face.getBestCmap()[ord("A")]
-        assert face["glyf"][name].numberOfContours == 1
-        assert face["hmtx"][name][0] == round(0.7 * 2048)
 
 
 def test_new_pdf_ingestion_produces_html_and_keeps_extraction_separate(tmp_path, monkeypatch):

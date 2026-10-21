@@ -26,7 +26,7 @@ PowerPointはスライドのレイアウトを保って表示し、サムネイ�
 <details>
 <summary>PDF・Excelのプレビューを見る</summary>
 
-PDFはページのサムネイルと倍率操作を備え、ページ全体または幅に合わせて表示できます。
+PDFはページのサムネイルと倍率操作を備え、ページ全体または幅に合わせて表示できます。ページはPDFium（pypdfium2）で画像に描画し、その上の見えない文字層で選択・コピー・翻訳ができます。翻訳は文字の位置に訳文を重ねて表示します（[設計と制約](docs/refactoring/pymupdf-removal.md)）。
 
 ![PDFの原本プレビュー：サムネイルとページ全体の表示](docs/screenshots/pdf-preview.webp)
 

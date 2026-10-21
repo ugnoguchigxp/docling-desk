@@ -1,27 +1,29 @@
 import hashlib
 import json
-from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import reportlab
-from fontTools.ttLib import TTFont
 from lxml import html
+from PIL import Image
 from pptx import Presentation
 from pptx.util import Pt
+from reportlab.lib.pdfencrypt import StandardEncryption
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont as ReportlabFont
 from reportlab.pdfgen import canvas
 
 from docling_desk.documents.conversion import office_preview
+from docling_desk.preview import pdfium_access
 from docling_desk.preview.editable_preview import (
     NOTICE,
+    RENDERER_VERSION,
     build_editable_preview,
     editable_preview,
+    ensure_pdf_preview,
+    refresh_saved_preview,
     source_textboxes,
-    translated_slide_html,
-    web_font,
 )
 from docling_desk.preview.native_preview import build_native_preview
 from docling_desk.preview.slides import split_quicklook
@@ -53,7 +55,7 @@ def sources(folder, pdf_count=2, size=(960, 540)):
     return source, pdf
 
 
-def test_preview_keeps_real_text_vector_paths_and_source_ids(tmp_path, monkeypatch):
+def test_preview_is_a_page_image_with_an_invisible_selectable_text_layer(tmp_path, monkeypatch):
     source, pdf = sources(tmp_path)
     before = [hashlib.sha256(p.read_bytes()).hexdigest() for p in (source, pdf)]
     preview = build_editable_preview(source, pdf, tmp_path)
@@ -61,13 +63,20 @@ def test_preview_keeps_real_text_vector_paths_and_source_ids(tmp_path, monkeypat
     frames = split_quicklook(tmp_path / preview, tmp_path, 2)
     for number, text in [(1, "Material"), (2, "Vendor & <review>")]:
         tree = html.fromstring((tmp_path / frames[number]).read_text())
-        assert tree.xpath("//text/tspan/text()") == [text]
-        assert tree.xpath("//path")
-        assert not tree.xpath("//img")
-        assert tree.xpath("//text/@data-source-id") == ["shape-2"]
-        assert not tree.xpath("//script|//review")
-    layout = json.loads((tmp_path / "editable-preview/text-layout.json").read_text())
-    assert layout["pages"][0]["textboxes"][0]["source_text"] == "Material"
+        # The graphics live in the image; the only DOM text is the invisible layer.
+        assert tree.xpath("//img/@src") == [f"page-{number}.webp"]
+        assert tree.xpath('//div[contains(@class,"pdf-text")]/text()') == [text]
+        assert tree.xpath('//div[contains(@class,"pdf-text")]/@data-source-id') == ["shape-2"]
+        assert not tree.xpath("//svg|//text|//tspan|//script|//review|//iframe|//link")
+        assert "@font-face" not in (tmp_path / frames[number]).read_text()
+        with Image.open(tmp_path / f"editable-preview/page-{number}.webp") as image:
+            assert image.format == "WEBP" and image.size == (1920, 1080)
+            # The blue rectangle drawn in the PDF is part of the image.
+            assert image.convert("RGB").getpixel((250, 330)) != (255, 255, 255)
+    manifest = json.loads((tmp_path / "editable-preview/manifest.json").read_text())
+    assert manifest["version"] == RENDERER_VERSION == 4
+    assert manifest["pages"] == 2 and manifest["text_blocks"] == manifest["mapped_blocks"] == 2
+    assert {"page-1.html", "page-1.webp", "page-2.webp"} <= set(manifest["assets"])
     assert before == [hashlib.sha256(p.read_bytes()).hexdigest() for p in (source, pdf)]
 
     def no_quicklook(*args, **kwargs):
@@ -77,21 +86,24 @@ def test_preview_keeps_real_text_vector_paths_and_source_ids(tmp_path, monkeypat
     assert office_preview(source, tmp_path) == (preview, NOTICE)
 
 
-def test_whole_textbox_can_be_replaced_with_japanese_without_changing_graphics(tmp_path):
+def test_text_block_sits_at_the_powerpoint_text_frame_in_page_percentages(tmp_path):
     source, pdf = sources(tmp_path)
-    build_editable_preview(source, pdf, tmp_path)
-    directory = tmp_path / "editable-preview"
-    original = (directory / "slide-1.svg").read_bytes()
-    translated = translated_slide_html(directory, 1, {"shape-2": "品目\n日本語の本文"})
-    tree = html.fromstring(translated)
-    assert not tree.xpath("//text")
-    assert tree.xpath("//foreignobject//div/text()") == ["品目\n日本語の本文"]
-    original_paths = html.fromstring(original).xpath("//path/@d")
-    assert tree.xpath("//path/@d") == original_paths
-    assert (directory / "slide-1.svg").read_bytes() == original
+    preview = build_editable_preview(source, pdf, tmp_path)
+    tree = html.fromstring(
+        (tmp_path / split_quicklook(tmp_path / preview, tmp_path, 2)[1]).read_text()
+    )
+    block = tree.xpath('//div[contains(@class,"pdf-text")]')[0]
+    style = dict(item.split(":", 1) for item in block.get("style").split(";"))
+    assert float(style["left"].rstrip("%")) == pytest.approx(100 / 960 * 100, abs=0.01)
+    assert float(style["top"].rstrip("%")) == pytest.approx(100 / 540 * 100, abs=0.01)
+    assert float(style["width"].rstrip("%")) == pytest.approx(200 / 960 * 100, abs=0.01)
+    assert float(style["height"].rstrip("%")) == pytest.approx(80 / 540 * 100, abs=0.01)
+    # Font size follows the rendered text (14pt) and scales with the page width.
+    assert float(style["font-size"].removesuffix("cqw")) == pytest.approx(14 / 960 * 100, abs=0.01)
+    assert block.get("data-size") == "14.000"
 
 
-def test_existing_translation_pipeline_keeps_graphics_and_native_text_anchor(tmp_path):
+def test_translation_replaces_the_block_text_and_draws_it_over_the_image(tmp_path):
     source, pdf = sources(tmp_path)
     preview = build_editable_preview(source, pdf, tmp_path)
     frames = split_quicklook(tmp_path / preview, tmp_path, 2)
@@ -101,35 +113,74 @@ def test_existing_translation_pipeline_keeps_graphics_and_native_text_anchor(tmp
     assert segments[0]["source_text"] == "Vendor & <review>"
     assert segments[0]["locator"]["slot"] == "text"
     translated = apply_text(raw, {"segments": segments}, {segments[0]["id"]: "仕入先"})
-    tree = html.fromstring(translated)
-    assert tree.xpath("//tspan/text()") == ["仕入先"]
-    assert tree.xpath("//path/@d") == html.fromstring(raw).xpath("//path/@d")
-    assert tree.xpath("//text/@transform") == html.fromstring(raw).xpath("//text/@transform")
-    assert tree.xpath("//text/@style") == html.fromstring(raw).xpath("//text/@style")
-    assert tree.xpath("//tspan/@x") == [html.fromstring(raw).xpath("//tspan/@x")[0].split()[0]]
+    tree, original = html.fromstring(translated), html.fromstring(raw)
+    block = tree.xpath('//div[contains(@class,"pdf-text")]')[0]
+    assert block.text == "仕入先" and block.get("data-translated") == "true"
+    assert "data-translated" not in original.xpath('//div[contains(@class,"pdf-text")]')[0].attrib
+    assert block.get("style").startswith(
+        original.xpath('//div[contains(@class,"pdf-text")]/@style')[0]
+    )
+    # The page image is untouched, and so is every other attribute of the block.
+    assert tree.xpath("//img/@src") == original.xpath("//img/@src")
+    assert block.get("data-source-id") == "shape-2"
     stale = dict(segments[0], source_text="different source")
     with pytest.raises(ValueError):
         apply_text(raw, {"segments": [stale]}, {stale["id"]: "仕入先"})
 
 
-def test_unmapped_svg_text_uses_natural_japanese_glyph_advances(tmp_path):
+def test_long_translation_shrinks_to_fit_the_frame_but_not_below_a_floor(tmp_path):
     source, pdf = sources(tmp_path)
     preview = build_editable_preview(source, pdf, tmp_path)
+    raw = slide_template(tmp_path, split_quicklook(tmp_path / preview, tmp_path, 2)[1])
+    segments = html_segments(raw, html.fromstring(raw).xpath('//div[@class="slide"]'))
+
+    def size(text):
+        tree = html.fromstring(apply_text(raw, {"segments": segments}, {segments[0]["id"]: text}))
+        block = tree.xpath('//div[contains(@class,"pdf-text")]')[0]
+        return float(block.get("style").rsplit("font-size:", 1)[1].removesuffix("cqw"))
+
+    base = 14 / 960 * 100
+    assert size("品目") == pytest.approx(base, abs=1e-3)
+    assert size("これは枠に収まるよう文字を小さくする長い訳文です。" * 3) < base
+    assert size("あ" * 400) == pytest.approx(base * 0.55, abs=1e-3)
+
+
+def test_pdf_text_outside_every_powerpoint_frame_becomes_its_own_block(tmp_path):
+    source, pdf = sources(tmp_path)
+    document = canvas.Canvas(str(pdf), pagesize=(960, 540))
+    document.setFont("Helvetica", 14)
+    document.drawString(107, 420, "Material")
+    document.drawString(40, 30, "Master footer")
+    document.showPage()
+    document.drawString(107, 420, "Vendor & <review>")
+    document.showPage()
+    document.save()
+    preview = build_editable_preview(source, pdf, tmp_path)
     frames = split_quicklook(tmp_path / preview, tmp_path, 2)
-    raw = slide_template(tmp_path, frames[1])
-    tree = html.fromstring(raw)
-    svg = tree.xpath("//svg")[0]
-    page = json.loads(svg.get("data-text-layout"))
-    page["textboxes"] = []
-    svg.set("data-text-layout", json.dumps(page))
-    raw = html.tostring(tree, encoding="unicode")
-    segments = html_segments(raw, tree.xpath('//div[@class="slide"]'))
-    translated = apply_text(raw, {"segments": segments}, {segments[0]["id"]: "品目"})
-    result = html.fromstring(translated)
-    assert result.xpath("//tspan/@x") == [tree.xpath("//tspan/@x")[0].split()[0]]
-    assert result.xpath("//text/@transform") == tree.xpath("//text/@transform")
-    assert result.xpath("//text/@style") == tree.xpath("//text/@style")
-    assert result.xpath("//path/@d") == tree.xpath("//path/@d")
+    tree = html.fromstring((tmp_path / frames[1]).read_text())
+    blocks = tree.xpath('//div[contains(@class,"pdf-text")]')
+    assert {b.text: b.get("data-source-id") for b in blocks} == {
+        "Material": "shape-2",
+        "Master footer": None,
+    }
+
+
+def test_pdf_line_inside_an_owned_frame_does_not_become_a_second_block(tmp_path):
+    source, pdf = sources(tmp_path)
+    document = canvas.Canvas(str(pdf), pagesize=(960, 540))
+    document.setFont("Helvetica", 14)
+    document.drawString(107, 420, "Material")
+    document.drawString(107, 380, "decoded differently")  # inside the frame, not in its text
+    document.showPage()
+    document.drawString(107, 420, "Vendor & <review>")
+    document.showPage()
+    document.save()
+    preview = build_editable_preview(source, pdf, tmp_path)
+    frames = split_quicklook(tmp_path / preview, tmp_path, 2)
+    tree = html.fromstring((tmp_path / frames[1]).read_text())
+    blocks = tree.xpath('//div[contains(@class,"pdf-text")]')
+    assert [b.text for b in blocks] == ["Material"]
+    assert blocks[0].get("data-source-id") == "shape-2"
 
 
 def test_group_offsets_and_scaling_are_retained_for_translation_targets():
@@ -142,23 +193,22 @@ def test_group_offsets_and_scaling_are_retained_for_translation_targets():
     box = source_textboxes(slide)[0]
     assert box["shape_path"] == [group.shape_id, child.shape_id]
     assert box["bbox"] == pytest.approx([100, 200, 500, 360])
+    assert box["frame"] == pytest.approx([100, 200, 400, 160])
+    assert box["angle"] == pytest.approx(0)
 
 
-def test_pdf_subset_font_unicode_mapping_can_be_restored():
-    path = Path(reportlab.__file__).parent / "fonts" / "Vera.ttf"
-    with TTFont(path) as font:
-        glyph = font.getBestCmap()[ord("A")]
-        glyph_id = font.getGlyphID(glyph)
-        font["cmap"].tables = []
-        del font["OS/2"]
-        del font["post"]
-        content = BytesIO()
-        font.save(content)
-    restored = web_font(content.getvalue(), {ord("A"): glyph_id})
-    with TTFont(BytesIO(restored)) as font:
-        assert font.getBestCmap()[ord("A")] == glyph
-        assert "OS/2" in font
-        assert font["post"].formatType == 3
+def test_rotated_textbox_keeps_its_own_size_and_angle():
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    shape = slide.shapes.add_textbox(Pt(100), Pt(100), Pt(200), Pt(40))
+    shape.text = "Turned"
+    shape.rotation = 90
+    box = source_textboxes(slide)[0]
+    # The bounding box swaps, the frame keeps the shape's own width and height.
+    assert box["bbox"] == pytest.approx([180, 20, 220, 220])
+    assert box["frame"][2:] == pytest.approx([200, 40])
+    assert box["angle"] == pytest.approx(90)
+    assert box["frame"][0] + box["frame"][2] / 2 == pytest.approx(200)
 
 
 @pytest.mark.parametrize("pdf_count,size", [(1, (960, 540)), (2, (540, 960))])
@@ -169,21 +219,69 @@ def test_wrong_pdf_rejected_before_registration(tmp_path, pdf_count, size):
     assert not (tmp_path / "editable-preview").exists()
 
 
-@pytest.mark.parametrize("change", ["source", "pdf", "asset", "outside"])
+def test_encrypted_and_over_limit_pdfs_are_refused(tmp_path, monkeypatch):
+    locked = tmp_path / "locked.pdf"
+    page = canvas.Canvas(str(locked), encrypt=StandardEncryption("user", "owner"))
+    page.drawString(50, 50, "secret")
+    page.save()
+    with pytest.raises(ValueError, match="暗号化"):
+        ensure_pdf_preview(locked, tmp_path)
+    assert not (tmp_path / "editable-preview").exists()
+    source, pdf = sources(tmp_path)
+    monkeypatch.setattr(pdfium_access, "MAX_PAGES", 1)
+    with pytest.raises(ValueError, match="上限"):
+        build_editable_preview(source, pdf, tmp_path)
+    assert not (tmp_path / "editable-preview").exists()
+    assert not list(tmp_path.glob(".editable-preview-*"))
+
+
+@pytest.mark.parametrize("change", ["source", "pdf", "asset", "outside", "image"])
 def test_stale_or_incomplete_editable_cache_is_rejected(tmp_path, change):
     source, pdf = sources(tmp_path)
     build_editable_preview(source, pdf, tmp_path)
     if change in {"source", "pdf"}:
         target = source if change == "source" else pdf
         target.write_bytes(target.read_bytes() + b"changed")
-    elif change == "asset":
-        (tmp_path / "editable-preview/slide-2.svg").unlink()
+    elif change in {"asset", "image"}:
+        (tmp_path / f"editable-preview/page-2.{'html' if change == 'asset' else 'webp'}").unlink()
     else:
         path = tmp_path / "editable-preview/manifest.json"
         data = json.loads(path.read_text())
         data["assets"] = ["../outside.svg"]
         path.write_text(json.dumps(data))
     assert editable_preview(source, tmp_path) is None
+
+
+def test_preview_of_an_older_renderer_is_never_read_and_is_rebuilt_from_the_saved_pdf(tmp_path):
+    source, pdf = sources(tmp_path)
+    preview = build_editable_preview(source, pdf, tmp_path)
+    directory = tmp_path / "editable-preview"
+    # What an older renderer left behind: its own SVG pages and a lower version.
+    (directory / "page-1.html").write_text(
+        "<html><body><svg><text>old svg</text></svg></body></html>"
+    )
+    manifest = json.loads((directory / "manifest.json").read_text())
+    manifest["version"] = 3
+    (directory / "manifest.json").write_text(json.dumps(manifest))
+    assert editable_preview(source, tmp_path) is None
+    assert split_quicklook(tmp_path / preview, tmp_path, 2) == {}
+    with pytest.raises(ValueError, match="再生成"):
+        slide_template(tmp_path, "editable-preview/page-1.html")
+    # Without a verified saved export nothing is rebuilt and the old page stays unread.
+    saved = pdf.read_bytes()
+    pdf.write_bytes(saved + b"tampered")
+    (tmp_path / "powerpoint-export.json").write_text(
+        json.dumps({"source_sha256": "x", "pdf_sha256": "y"})
+    )
+    assert refresh_saved_preview(source, tmp_path) is None
+    pdf.write_bytes(saved)
+    (tmp_path / "powerpoint-export.json").unlink()
+    manifest["pdf"] = "powerpoint-rendered.pdf"
+    (directory / "manifest.json").write_text(json.dumps(manifest))
+    assert refresh_saved_preview(source, tmp_path) == preview
+    assert "old svg" not in (directory / "page-1.html").read_text()
+    assert json.loads((directory / "manifest.json").read_text())["version"] == RENDERER_VERSION
+    assert slide_template(tmp_path, "editable-preview/page-1.html")
 
 
 def test_reference_image_cache_is_never_the_default_preview(tmp_path, monkeypatch):

@@ -16,7 +16,6 @@ docling-parse==7.22.1
 et-xmlfile==2.0.0
 fastapi==0.142.2
 filelock==4.0.9
-fonttools==4.66.1
 filetype==1.2.0
 fsspec==2026.9.0
 h11==0.16.0
@@ -63,7 +62,6 @@ pyobjc-framework-coreml==12.2.2; sys_platform == "darwin"
 pyobjc-framework-quartz==12.2.2; sys_platform == "darwin"
 pyobjc-framework-vision==12.2.2; sys_platform == "darwin"
 pypdfium2==5.13.0
-pymupdf==1.28.2
 pytest==9.1.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.4

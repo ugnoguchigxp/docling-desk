@@ -164,20 +164,32 @@ DOCLING_DATA_DIR=/path/to/data .venv/bin/python -m docling_desk.preview.preview_
 
 原本プレビューがない間も、位置を持つ抽出本文があれば訳文を別枠で表示できます。原本上の文字置換は利用できない理由を状態APIから返します。本文もないページには翻訳対象がない理由を返します。状態取得のエラー後は自動再取得を止め、翻訳ボタンから利用者が再度確認できます。
 
-展開データは `derived/documents/<ID>/translation-source.json` に保存します。原本・抽出本文・スライド情報・HTML/SVG・CSS・フォント・画像・描画PDF・生成方式のハッシュを照合し、変更がなければDocling文書や全ページのテンプレートを解析しません。ファイルの追加・削除も変更として扱います。ファイル属性はローカルでハッシュ再計算を省くために使い、保存する識別子は内容のハッシュです。Blob復元で更新時刻や保存先が変わっても、資料IDと内容が同じなら再利用できます。
+展開データは `derived/documents/<ID>/translation-source.json` に保存します。原本・抽出本文・スライド情報・ページ別HTML・ページ画像・CSS・フォント・描画PDF・生成方式のハッシュを照合し、変更がなければDocling文書や全ページのテンプレートを解析しません。ファイルの追加・削除も変更として扱います。ファイル属性はローカルでハッシュ再計算を省くために使い、保存する識別子は内容のハッシュです。Blob復元で更新時刻や保存先が変わっても、資料IDと内容が同じなら再利用できます。
 
 `DOCLING_BLOB_SYNC_DERIVED=true` の既存ミラーで、抽出本文・描画PDF・ページ別プレビュー・フォント・展開データ・訳文をまとめて同期します。生成途中の `.tmp` ディレクトリは送りません。ページ資産を送った後にmanifest、展開データ、ジョブ、分類manifestを送り、未送信や競合があれば公開情報の送信を待ちます。
 
+### 2026年10月21日 PyMuPDFの除去と原本プレビューの方式変更
+
+AGPL-3.0のPyMuPDFをやめ、PDFiumの`pypdfium2`（Apache-2.0/BSD）と`python-pptx`（MIT）だけを使います。PDFとPPTX（書き出したPDF経由）の原本プレビューは、ページごとの画像（WebP、長辺3200px・最大約2倍）と、その上の見えない文字層です。文字層はPDFiumの文字位置から段落ごとのブロックにまとめ、PPTXでは`python-pptx`の文字枠を使います。画像上の文字を選択・コピーでき、翻訳の元になります。
+
+翻訳した表示は、文字ブロックの位置に訳文を重ねます。背景色はページ画像から取り、文字の大きさは枠に収まるよう最小55%まで縮めます。位置に置けない訳文は、原文と訳文を並べた一覧で表示します。設計、失うもの（原本と同じフォントでの差し替え、ベクターの文字）、旧データの扱いと切り戻しは[PyMuPDF除去の設計](refactoring/pymupdf-removal.md)に記載しています。
+
+旧方式で作った`editable-preview/`（`manifest.json`の`version`が3以下）は読み込まず、PDFの表示、PPTXのスライド取得、翻訳の展開が最初に必要としたときに、原本PDFまたは保存済みの描画PDFから作り直します。作り直しには抽出もOffice書き出しも使いません。旧方式で保存した訳文は、原文が更新された扱い（stale）になり、`translation-source.legacy.json`に残した当時の原文と並べて一覧表示します。「翻訳をやり直す」で新しい位置に表示します。訳文のファイルは変更しません。
+
+画面での見た目と530ページの時間・メモリは、ブラウザーでの目視と再測定が済んでいません。
+
 ### 2026年10月6日の原因と検証
 
-100ページの固定制限はDesk側の設定でした。合字では複数のUnicode文字に対して描画字形が一つになり、PyMuPDFは後続文字をglyph ID=-1、幅0で返します。旧処理は文字数と描画字形数を同一とみなしていました。[PyMuPDFの公式仕様](https://pymupdf.readthedocs.io/en/latest/functions.html#Page.get_texttrace)に従い、後続文字を含むまとまりを一つの字形に対応付け、Unicodeを全て残したフォント置換とSVGの位置指定を行います。合字を含む行も、翻訳元には行全体の文字列を渡します。
+100ページの固定制限はDesk側の設定でした。合字は、PDFが持つUnicode対応表（ToUnicode）に複数の文字が登録されていても、PDFiumが全ての文字を一続きで返します。ページ上の文字層も翻訳元も、行全体の文字列（`office fi fl ff ffi ffl finish` など）を保持します。合字の字形そのものは、ページ画像に含まれます。
 
 プレビューがnullの状態取得は、nullをスライドのファイルパスとして扱ったため例外になっていました。本文を使う別枠表示への接続を修正しました。また保存済み展開データがあっても全ページを解析していた処理を、変更確認後に保存データを返す処理へ変えました。
 
-macOS 26.6.2 / arm64、Python 3.12.13で、合成した530ページのPPTX（文字、図形、各ページの画像）を使って測定しました。OCRは無効です。ページ生成はSVG・フォント・配置を一ページずつ保存し、一覧HTMLもページ別フレームを遅延表示します。PPTXの構造とDoclingの抽出文書は全体を保持するため、資料に応じたメモリ増加は残ります。
+macOS 26.6.2 / arm64、Python 3.12.13で、合成した530ページのPPTX（文字、図形、各ページの画像）を使って測定しました。OCRは無効です。ページ生成はページ画像（WebP）と文字層を一ページずつ保存し、一覧HTMLもページ別フレームを遅延表示します。PPTXの構造とDoclingの抽出文書は全体を保持するため、資料に応じたメモリ増加は残ります。
 
-検証用のコードは `qa/performance/powerpoint_preview.py`（変換・保存PDFからの再生成・初回展開・保存データの再利用）、`powerpoint_preview_memory.py`（別プロセスのプレビュー単独測定）、`powerpoint_browser.mjs`（530ページの表示と合字コピー）です。生成した合成資料と測定JSONはGit管理から除外しています。本番資料4件と本番の530ページ原本は、この作業先にはないため検証していません。Stanley Sites内のコピーとAzure本番へのデプロイは行っていません。
+検証用のコードは `qa/performance/powerpoint_preview.py`（変換・保存PDFからの再生成・初回展開・保存データの再利用）、`powerpoint_preview_memory.py`（別プロセスのプレビュー単独測定）です。旧SVG方式の表示を確かめていた `powerpoint_browser.mjs` は、PyMuPDF除去で対象の表示が無くなったため削除しました。生成した合成資料と測定JSONはGit管理から除外しています。本番資料4件と本番の530ページ原本は、この作業先にはないため検証していません。Stanley Sites内のコピーとAzure本番へのデプロイは行っていません。
 
+
+下の測定値は、10月6日時点のSVG方式でのものです。10月21日にページ画像と文字層の方式へ変えた後の530ページでの時間・メモリは、再測定していません（後述）。
 
 | 測定・検証 | 結果 |
 | --- | --- |
@@ -229,14 +241,7 @@ PowerPointの `progressive-preview/revision-N.html` を軽量復旧表示とし�
 
 初回のブラウザー回帰では削除済み案内を待つ古い期待値を更新しました。その後PDF原本ダウンロードの待機が一度タイムアウトし、単独3回と全69件の再実行では成功しました。実プリンターへの出力、本番nginxの制限値・Basic認証、Azure本番の再配置は今回の検証に含みません。nginxの資産GET/HEADとAPI・更新操作の制限を分ける運用例は [reverse-proxy.md](reverse-proxy.md#ページ資産とapiのアクセス制限) に記載しています。
 
-再実行用コードは `qa/performance/recovery_preview_server.py` と `recovery_preview_browser.mjs` です。生成資料・一時JWT・証明書・画面・通信記録は `qa/performance/recovery-*/` 以下でGit管理から除外します。
-
-```sh
-.venv/bin/python qa/performance/recovery_preview_server.py --saved-preview /path/to/saved/progressive-preview --output qa/performance/recovery-new-run
-DOCLING_RECOVERY_QA_OUTPUT=qa/performance/recovery-new-run node qa/performance/recovery_preview_browser.mjs
-```
-
-サーバーは既存の保存先を上書きしません。保存済み `page-N.html`・`fonts-N.css` を用意し、出力先には新しいディレクトリを指定します。検証後はサーバーを停止してください。commit・push・本番の再起動は行っていません。
+この検証の再実行用コード（`recovery_preview_server.py`、`recovery_preview_browser.mjs`）は旧SVG方式の文字配置を前提にしていたため、PyMuPDF除去（[設計](refactoring/pymupdf-removal.md)）で削除しました。上の結果は旧方式での記録です。
 
 ### 同日のコードレビューによる追加修正
 

@@ -48,19 +48,28 @@ window.TranslationBrowser = (() => {
     if (data.unlocated_count) warning.push(`ページ位置のない要素 ${data.unlocated_count}件は翻訳対象外です。`);
     status(warning.join(' '));
     el('translationPanel').hidden = true;
-    const key = `${job.id}:${unit.id}:${language}:${record?.result_created_at || ''}:${record?.available}`;
-    if (key === rendered) { if (record?.available && unit.mode === 'panel' && panelKey === key) el('translationPanel').hidden = false; return; }
+    const key = `${job.id}:${unit.id}:${language}:${record?.result_created_at || ''}:${record?.available}:${record?.stale}`;
+    if (key === rendered) { if (panelKey === key) el('translationPanel').hidden = false; return; }
     rendered = key;
     if (unit.kind === 'slide') SlideBrowser.setLanguage(language, true);
     else if (unit.kind === 'sheet' || unit.kind === 'page') notifyFrame();
-    if (record?.available && unit.mode === 'panel') {
+    // A translation saved against an older page layout cannot be placed on the page: list it with its original text.
+    if ((record?.available && unit.mode === 'panel') || record?.stale) {
       const id = job.id, wanted = key;
       try {
         const value = await fetchJSON(`/api/jobs/${id}/translations/${language}/${unit.id}`);
-        if (job?.id !== id || rendered !== wanted || !value.available) return;
-        el('translationPanelTitle').textContent = `${names[unit.kind]} ${unit.number} · ${language === 'en' ? '英訳' : '日本語訳'}`;
+        const legacy = !record.available && value.legacy && value.pairs?.length;
+        if (job?.id !== id || rendered !== wanted || !(value.available || legacy)) return;
+        if (legacy) status(`${warning.join(' ')} 以前の表示方式で保存した訳文を、原文と並べて一覧で表示しています。翻訳をやり直すと原本上の位置に表示します。`.trim());
+        el('translationPanelTitle').textContent = `${names[unit.kind]} ${unit.number} · ${language === 'en' ? '英訳' : '日本語訳'}${legacy ? '（原文と対訳）' : ''}`;
         el('translationPanelText').replaceChildren();
-        for (const text of value.texts || []) { const p = document.createElement('p'); p.textContent = text; el('translationPanelText').append(p); }
+        for (const pair of value.pairs || []) {
+          const item = document.createElement('div'), source = document.createElement('p'), text = document.createElement('p');
+          item.className = 'translation-pair'; source.className = 'translation-source';
+          source.textContent = pair.source; text.textContent = pair.translation; item.append(source, text);
+          el('translationPanelText').append(item);
+        }
+        if (!value.pairs?.length) for (const text of value.texts || []) { const p = document.createElement('p'); p.textContent = text; el('translationPanelText').append(p); }
         panelKey = key;
         el('translationPanel').hidden = false;
       } catch (error) { if (job?.id === id && rendered === wanted) { rendered = ''; status(error.message); } }

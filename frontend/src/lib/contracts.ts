@@ -286,5 +286,14 @@ export const policy = decoder<RagPolicy>(
 
 export const translationPanel = decoder<{
   available: boolean;
-  texts: string[];
-}>(fields({ available: boolean, texts: list(string) }));
+  texts?: string[];
+  pairs?: { source: string; translation: string }[];
+  legacy?: boolean;
+}>(
+  fields({
+    available: boolean,
+    texts: maybe(list(string)),
+    pairs: maybe(list(fields({ source: string, translation: string }))),
+    legacy: maybe(boolean),
+  }),
+);

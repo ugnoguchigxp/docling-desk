@@ -5,12 +5,16 @@ import json
 from pathlib import Path
 
 import httpx
+import pypdfium2 as pdfium
 import pytest
 from docling_azure_ocr.config import OcrError, OcrProfile
 from docling_azure_ocr.runtime import OcrRuntime
 from docling_azure_ocr.transport import AzureTransport
+from pdf_samples import pdf_bytes
 from PIL import Image, ImageDraw
 from pydantic import SecretStr
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen.canvas import Canvas
 
 from docling_desk.documents.conversion import job_converter
 from docling_desk.documents.ocr_operations import FileOcrLedger
@@ -259,18 +263,17 @@ def test_ocr_evidence_is_separate_from_exported_text_and_html(tmp_path, monkeypa
 
 @pytest.mark.parametrize("rotation", [0, 90, 180, 270])
 def test_real_pdf_adapter_preserves_backend_coordinate_frame(tmp_path, rotation):
-    import pymupdf
-
     from docling_desk.documents.rag import build_context_chunks
 
-    image = io.BytesIO()
     bitmap = Image.new("RGB", (400, 100), "white")
     ImageDraw.Draw(bitmap).text((15, 15), "IMAGE NEEDLE 73921", fill="black")
-    bitmap.save(image, "PNG")
-    pdf = pymupdf.open()
-    page = pdf.new_page(width=500, height=300)
-    page.insert_image(pymupdf.Rect(50, 50, 450, 150), stream=image.getvalue())
-    page.set_cropbox(pymupdf.Rect(25, 25, 475, 275))
+    stream = io.BytesIO()
+    canvas = Canvas(stream, pagesize=(500, 300))
+    canvas.drawImage(ImageReader(bitmap), 50, 150, width=400, height=100)
+    canvas.save()
+    pdf = pdfium.PdfDocument(stream.getvalue())
+    page = pdf[0]
+    page.set_cropbox(25, 25, 475, 275)
     page.set_rotation(rotation)
     source = tmp_path / "original.pdf"
     pdf.save(source)
@@ -441,14 +444,8 @@ def test_removed_environment_options_cannot_change_ocr_defaults():
 
 
 def test_native_text_pdf_does_not_submit_to_azure(tmp_path):
-    import pymupdf
-
-    pdf = pymupdf.open()
-    page = pdf.new_page()
-    page.insert_text((60, 60), "NATIVE TEXT ONLY - no image OCR needed")
     source = tmp_path / "native.pdf"
-    pdf.save(source)
-    pdf.close()
+    source.write_bytes(pdf_bytes(("NATIVE TEXT ONLY - no image OCR needed",), at=(60, 60)))
     transport = RecordingTransport()
     instance = runtime(tmp_path, transport)
     doc = job_converter(PROFILE, instance).convert(source).document

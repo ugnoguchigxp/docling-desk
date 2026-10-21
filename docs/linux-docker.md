@@ -1,6 +1,6 @@
 # Linux・Dockerの起動とAzure準備
 
-Python 3.12 / Debian bookwormのLinuxコンテナで、資料のアップロード、Docling抽出、React画面、原本プレビューを動かします。PDFのOCRはTesseract（日本語・英語）、OfficeプレビューはLibreOffice、PPTXのサムネイルは書き出したPDFからPyMuPDFで生成します。macOSでは引き続きApple OCR、PowerPoint、Quick Look、WebKitを使います。
+Python 3.12 / Debian bookwormのLinuxコンテナで、資料のアップロード、Docling抽出、React画面、原本プレビューを動かします。PDFのOCRはTesseract（日本語・英語）、OfficeプレビューはLibreOffice、PPTXのサムネイルは書き出したPDFからPDFium（pypdfium2）で生成します。macOSでは引き続きApple OCR、PowerPoint、Quick Look、WebKitを使います。
 
 ## 初回起動
 
@@ -133,7 +133,7 @@ Azureの設定根拠: [ingress](https://learn.microsoft.com/en-us/azure/containe
 
 ## 表示の違いと制約
 
-- PPTXはLibreOffice ImpressからPDFを生成し、既存のHTML/SVG変換へ渡します。非表示スライドも含め、ページ数・寸法を検証し、原本は変更しません。Microsoft Office専用の図形・フォント・SmartArt等には差が出ることがあります。
+- PPTXはLibreOffice ImpressからPDFを生成し、ページ画像と文字層への変換へ渡します。非表示スライドも含め、ページ数・寸法を検証し、原本は変更しません。Microsoft Office専用の図形・フォント・SmartArt等には差が出ることがあります。
 - XLSXとDOCXはLibreOfficeが出力したHTMLを既存のサンドボックス表示へ渡します。Excelはシート単位、Wordは文書全体で表示します。XLSXのHTMLでは保存値と異なる再計算結果が表示される場合がありますが、Doclingの抽出は原本から独立して行います。
 - PDFのOCRエンジンが変わるため、macOSと抽出文字や位置が完全一致するとは扱いません。日本語・英語以外はTesseract言語データとOCR設定の追加が必要です。
 - 既存の保存結果は自動一括変換しません。macOS用プレビューのキャッシュは継続表示できます。Linuxで新規追加した資料はLinux用の処理で生成します。

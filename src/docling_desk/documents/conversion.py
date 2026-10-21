@@ -281,7 +281,7 @@ def office_preview(source: Path, folder: Path) -> tuple[str | None, str]:
                 renderer_name = None
             if renderer_name == "LibreOffice Impress":
                 notice = (
-                    "LibreOfficeの描画から生成したHTML/SVGです。文字はテキスト、図形はベクターとして保持します。"
+                    "LibreOfficeの描画をページ画像として表示しています。文字は画像の上に選択できる文字層を重ねています。"
                     "Microsoft Officeとはフォント・配置が異なることがあります。"
                 )
             return preview, notice

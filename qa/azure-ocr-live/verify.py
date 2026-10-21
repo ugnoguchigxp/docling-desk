@@ -49,13 +49,13 @@ def save_report():
 
 
 def documents(image_path):
-    import pymupdf
     from docx import Document
     from docx.shared import Inches as WordInches
     from openpyxl import Workbook
     from openpyxl.drawing.image import Image as SheetImage
     from pptx import Presentation
     from pptx.util import Inches
+    from reportlab.pdfgen import canvas
 
     paths = []
     path = OUTPUT / "synthetic-azure-image.pptx"
@@ -79,11 +79,10 @@ def documents(image_path):
     workbook.save(path)
     paths.append(("xlsx", path))
     path = OUTPUT / "synthetic-azure-image.pdf"
-    pdf = pymupdf.open()
-    page = pdf.new_page(width=750, height=400)
-    page.insert_image(pymupdf.Rect(25, 40, 725, 300), filename=str(image_path))
-    pdf.save(path)
-    pdf.close()
+    pdf = canvas.Canvas(str(path), pagesize=(750, 400))
+    pdf.drawImage(str(image_path), 25, 400 - 300, width=700, height=260)
+    pdf.showPage()
+    pdf.save()
     paths.append(("pdf-image-only", path))
     return paths
 

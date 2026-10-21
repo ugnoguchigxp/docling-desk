@@ -26,8 +26,22 @@ test("invalid network structures fail before reaching document controls", () => 
     translationPanel({
       available: true,
       texts: ["<script>literal text</script>"],
-    }).texts[0],
+    }).texts?.[0],
   ).toBe("<script>literal text</script>");
+  expect(() =>
+    translationPanel({
+      available: false,
+      legacy: true,
+      pairs: [{ source: "a" }],
+    }),
+  ).toThrow("応答形式");
+  expect(
+    translationPanel({
+      available: false,
+      legacy: true,
+      pairs: [{ source: "原文", translation: "訳" }],
+    }).pairs,
+  ).toEqual([{ source: "原文", translation: "訳" }]);
 });
 
 test("rejects invalid dates and counts before a library render can crash", () => {
@@ -113,10 +127,12 @@ const explanation = {
 };
 
 test("accepts explanation, translation, element, chunk, and policy payloads", () => {
-  expect(explanationResult({ result: explanation, source_match: true }).source_match).toBe(
-    true,
-  );
-  expect(explanationResult({ result: null, source_match: false }).result).toBeNull();
+  expect(
+    explanationResult({ result: explanation, source_match: true }).source_match,
+  ).toBe(true);
+  expect(
+    explanationResult({ result: null, source_match: false }).result,
+  ).toBeNull();
   expect(() =>
     explanationResult({
       result: { ...explanation, web_search: search },

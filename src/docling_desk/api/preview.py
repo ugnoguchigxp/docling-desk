@@ -229,7 +229,10 @@ def translated_slide(job_id: str, number: int, language: str = "original") -> HT
     try:
         raw = template_for(folder, job, number)
         return translated_html(job_id, f"slide-{number}", raw, language)
-    except (OSError, ValueError, KeyError, StopIteration) as exc:
+    except ValueError as exc:
+        # e.g. an old preview with no saved PDF to rebuild it from: say why, not "not found".
+        raise HTTPException(404, str(exc)) from exc
+    except (OSError, KeyError, StopIteration) as exc:
         raise HTTPException(404, "スライドが見つかりません。") from exc
 
 

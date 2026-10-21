@@ -15,6 +15,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from pdf_samples import pdf_bytes
 
 from docling_desk.viewer.gateway import create_gateway
 
@@ -355,7 +356,6 @@ async def exercise_document_reads(mcp, host, gateway_url, headers, call, upload,
     import base64
     from io import BytesIO
 
-    import pymupdf
     from PIL import Image
 
     async def register(body, filename):
@@ -432,11 +432,10 @@ async def exercise_document_reads(mcp, host, gateway_url, headers, call, upload,
         "get_document_table", {"arguments": {**ref, "table_ref": table_ref}}
     )
     assert stale.isError and "evidence_changed" in str(stale.content)
-    with pymupdf.open() as pdf:
-        pdf.new_page(width=400, height=600).insert_text((30, 30), "Synthetic PDF content")
-        pdf.new_page(width=400, height=600).insert_text((30, 30), "Second page content")
-        pdf_bytes = pdf.tobytes()
-    _, pdf_ref = await register(pdf_bytes, "read.pdf")
+    sample = pdf_bytes(
+        ("Synthetic PDF content", "Second page content"), size=(400, 600), at=(30, 30)
+    )
+    _, pdf_ref = await register(sample, "read.pdf")
     outline = await read("get_document_outline", reference=pdf_ref)
     assert outline["kind"] == "page" and [u["number"] for u in outline["units"]] == [1, 2]
     page = await read(

@@ -64,7 +64,8 @@ def test_python_scopes_follow_pyproject_and_classification(report):
     }
     for name in ("pytest", "iniconfig", "ruff", "ty", "reportlab"):
         assert packages[name]["scope"] == "development"
-    assert packages["pymupdf"]["scope"] == "runtime" and packages["pymupdf"]["direct"] is True
+    assert packages["pypdfium2"]["scope"] == "runtime" and packages["pypdfium2"]["direct"] is True
+    assert "pymupdf" not in packages and "fonttools" not in packages
     assert packages["fastapi"]["direct"] is True and packages["anyio"]["direct"] is False
     assert packages["azure-identity"]["scope"] == "optional"
     mcp = packages["mcp"]
@@ -207,12 +208,10 @@ def test_every_distributed_item_has_a_ledger_record(report, ledger):
 def test_unreviewed_distribution_lists_what_blocks_release(report):
     rows = unreviewed_distribution(report)
     names = {row["name"] for row in rows}
-    assert {"pymupdf", "python:3.12-slim-bookworm", "excalidraw fonts"} <= names
+    assert {"python:3.12-slim-bookworm", "excalidraw fonts"} <= names
     assert "pytest" not in names  # development scope is not a distribution blocker
     assert all(row["review_status"] in {"inventoried", "unreviewed"} for row in rows)
-    pymupdf = next(r for r in report["packages"] if r["name"] == "pymupdf")
-    assert pymupdf["review_status"] == "inventoried" and pymupdf["cleared"] is False
-    assert any("AGPL" in text for text in pymupdf["conditions"])
+    assert not any("AGPL" in text for r in report["packages"] for text in r.get("conditions", []))
 
 
 def test_asset_paths_exist_and_vendor_hashes_match():
@@ -258,9 +257,7 @@ def test_docling_submodule_matches_the_recorded_revision(ledger):
 def test_notice_covers_the_shipped_third_party_items():
     notice = (ROOT / "NOTICE.md").read_text(encoding="utf-8")
     for needle in (
-        "PyMuPDF",
-        "AGPL-3.0",
-        "MuPDF",
+        "pypdfium2",
         "Atlassian",
         "Plate",
         "Excalifont",

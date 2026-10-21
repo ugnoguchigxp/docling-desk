@@ -2,20 +2,17 @@
 
 from __future__ import annotations
 
-import base64
 import json
+import math
 import os
 import re
 import time
-from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
-import pymupdf
 import pytest
 import reportlab
 from fastapi.testclient import TestClient
-from fontTools.ttLib import TTFont
 from lxml import html
 from pptx import Presentation
 from pptx.util import Pt
@@ -26,7 +23,7 @@ from test_blob_mirror import MemoryStore
 
 from docling_desk import config
 from docling_desk.blob_mirror import Mirror
-from docling_desk.preview.editable_preview import build_editable_preview, glyph_clusters
+from docling_desk.preview.editable_preview import build_editable_preview
 from docling_desk.preview.hashing import digest
 from docling_desk.preview.preview_migration import rebuild_preview
 from docling_desk.storage import document_folder, job_file, migrate_layout, original_file
@@ -34,6 +31,32 @@ from docling_desk.translation.source import html_segments, source_map
 from docling_desk.translation.view import apply_text
 
 TEXT = "office fi fl ff ffi ffl finish"
+
+
+def expand_unicode(path: Path, mapping: dict[bytes, str]) -> None:
+    """Give glyphs a multi-character ToUnicode mapping without moving any byte offset.
+
+    The PDF is written uncompressed. Unused trailing CMap entries are dropped and the
+    difference padded, so every xref offset stays valid.
+    """
+    data = path.read_bytes()
+    gained = 0
+    for code, text in mapping.items():
+        target = text.encode("utf-16-be").hex().upper().encode()
+        data, count = re.subn(
+            rb"<" + code + rb"> <[0-9A-F]{4}>\n", b"<" + code + b"> <" + target + b">\n", data
+        )
+        assert count == 1
+        gained += len(target) - 4
+    entries = math.ceil(gained / 12)
+    for _ in range(entries):
+        data, count = re.subn(rb"<[0-9A-F]{2}> <[0-9A-F]{4}>\n(?=endbfchar)", b"", data)
+        assert count == 1
+    data, count = re.subn(
+        rb"(\d+) beginbfchar", lambda m: b"%d beginbfchar" % (int(m[1]) - entries), data
+    )
+    assert count == 1
+    path.write_bytes(data.replace(b"endbfchar", b" " * (entries * 12 - gained) + b"endbfchar", 1))
 
 
 def ligature_sources(folder: Path):
@@ -46,33 +69,17 @@ def ligature_sources(folder: Path):
     deck.save(source)
     font = Path(reportlab.__file__).parent / "fonts/Vera.ttf"
     pdfmetrics.registerFont(ReportlabFont("RecoveryVera", str(font)))
-    writer = canvas.Canvas(str(pdf), pagesize=(600, 300))
+    writer = canvas.Canvas(str(pdf), pagesize=(600, 300), pageCompression=0)
     for _ in range(2):
         writer.setFont("RecoveryVera", 20)
         writer.drawString(50, 250, "office \ufb01 \ufb02 X Y Z finish")
         writer.showPage()
     writer.save()
-    # Genuine fi/fl outlines with expanded Unicode mappings; ff/ffi/ffl
-    # exercise longer continuations and repeated single-letter glyphs too.
-    with pymupdf.open(pdf) as document:
-        font_xref = document[0].get_fonts()[0][0]  # Helvetica has no ToUnicode.
-        font_xref = next(f[0] for f in document[0].get_fonts() if "Vera" in f[3])
-        kind, value = document.xref_get_key(font_xref, "ToUnicode")
-        assert kind == "xref"
-        xref = int(value.split()[0])
-        cmap = document.xref_stream(xref)
-        for encoded, unicode in [
-            (b"FB01", b"00660069"),
-            (b"FB02", b"0066006C"),
-            (b"0058", b"00660066"),
-            (b"0059", b"006600660069"),
-            (b"005A", b"00660066006C"),
-        ]:
-            cmap = re.sub(
-                rb"(<[0-9A-Fa-f]+>\s*)<" + encoded + rb">", rb"\g<1><" + unicode + b">", cmap
-            )
-        document.update_stream(xref, cmap)
-        document.saveIncr()
+    size = pdf.stat().st_size
+    # Genuine fi/fl glyphs whose ToUnicode expands to several characters; ff/ffi/ffl
+    # exercise longer expansions on glyphs that are single letters in the font.
+    expand_unicode(pdf, {b"01": "fi", b"02": "fl", b"58": "ff", b"59": "ffi", b"5A": "ffl"})
+    assert pdf.stat().st_size == size
     (folder / "powerpoint-export.json").write_text(
         json.dumps({"source_sha256": digest(source), "pdf_sha256": digest(pdf)})
     )
@@ -81,32 +88,30 @@ def ligature_sources(folder: Path):
 
 def test_ligatures_keep_full_selectable_unicode_and_translation_binding(tmp_path):
     source, pdf = ligature_sources(tmp_path)
-    with pymupdf.open(pdf) as document:
-        chars = document[1].get_texttrace()[0]["chars"]
-        assert sum(c[1] == -1 for c in chars) == 7
-        assert "".join(chr(c[0]) for c in chars) == TEXT
     build_editable_preview(source, pdf, tmp_path)
     raw = (tmp_path / "editable-preview/page-2.html").read_text()
     tree = html.fromstring(raw)
-    assert "".join(tree.xpath("//text//tspan/text()")) == TEXT
-    assert tree.xpath('//tspan[text()="fi"]')
-    assert tree.xpath("//text/@data-source-id") == ["shape-2"]
-    css = (tmp_path / "editable-preview/fonts-2.css").read_text()
-    encoded = re.search(r"base64,([^)]*)", css)[1]
-    with TTFont(BytesIO(base64.b64decode(encoded))) as font:
-        assert "GSUB" in font
-        ligatures = font["GSUB"].table.LookupList.Lookup[0].SubTable[0].ligatures
-        assert any(len(item.Component) == 2 for items in ligatures.values() for item in items)
+    # The expanded characters are all selectable, and the line still belongs to its frame.
+    assert tree.xpath('//div[contains(@class,"pdf-text")]/text()') == [TEXT]
+    assert tree.xpath('//div[contains(@class,"pdf-text")]/@data-source-id') == ["shape-2"]
     segments = html_segments(raw, [])
     assert [s["source_text"] for s in segments] == [TEXT]
     translated = apply_text(raw, {"segments": segments}, {segments[0]["id"]: "合字の訳文"})
-    assert html.fromstring(translated).xpath("//tspan/text()") == ["合字の訳文"]
-    assert "Arial" in html.fromstring(translated).xpath("//text/@font-family")[0]
+    block = html.fromstring(translated).xpath('//div[contains(@class,"pdf-text")]')[0]
+    assert block.text == "合字の訳文" and block.get("data-translated") == "true"
 
 
-def test_unknown_negative_glyph_is_rejected():
-    with pytest.raises(ValueError, match="後続文字"):
-        glyph_clusters([(ord("i"), -1, (0, 0), (0, 0, 0, 10))])
+def test_unexpanded_ligature_glyphs_are_read_as_plain_letters(tmp_path):
+    pdf = tmp_path / "original.pdf"
+    font = Path(reportlab.__file__).parent / "fonts/Vera.ttf"
+    pdfmetrics.registerFont(ReportlabFont("RecoveryVeraPlain", str(font)))
+    writer = canvas.Canvas(str(pdf), pagesize=(600, 300))
+    writer.setFont("RecoveryVeraPlain", 20)
+    writer.drawString(50, 250, "of\ufb01ce \ufb02ag")
+    writer.save()
+    build_editable_preview(pdf, pdf, tmp_path)
+    tree = html.fromstring((tmp_path / "editable-preview/page-1.html").read_text())
+    assert tree.xpath('//div[contains(@class,"pdf-text")]/text()') == ["office flag"]
 
 
 def test_preview_failure_keeps_previous_complete_generation(tmp_path):
@@ -114,7 +119,7 @@ def test_preview_failure_keeps_previous_complete_generation(tmp_path):
     build_editable_preview(source, pdf, tmp_path)
     previous = (tmp_path / "editable-preview/manifest.json").read_bytes()
     with patch(
-        "docling_desk.preview.editable_preview.render_page", side_effect=ValueError("bad glyph")
+        "docling_desk.preview.editable_preview.page_blocks", side_effect=ValueError("bad page")
     ):
         with pytest.raises(ValueError):
             build_editable_preview(source, pdf, tmp_path)

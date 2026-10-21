@@ -51,8 +51,18 @@ def test_pdf_viewer_uses_original_dimensions_and_blocks_document_scripts(pdf_cli
     assert not html.fromstring(response.text).xpath('//figure[@class="pdf-page"]/img')
     page = client.get(f"/view/{job_id}/pages/1")
     assert page.status_code == 200
-    assert html.fromstring(page.text).xpath("//text/tspan/text()") == ["First page"]
-    assert "font-src 'self' data:" in page.headers["Content-Security-Policy"]
+    tree = html.fromstring(page.text)
+    # A page image plus an invisible text layer; no vector text, fonts or scripts of its own.
+    assert tree.xpath('//div[@class="page-canvas"]/img/@src') == [
+        "/files/%s/editable-preview/page-1.webp" % job_id
+    ]
+    assert tree.xpath('//div[contains(@class,"pdf-text")]/text()') == ["First page"]
+    assert not tree.xpath("//svg|//text|//tspan|//style[contains(text(),'@font-face')]")
+    assert (
+        client.get(f"/files/{job_id}/editable-preview/page-1.webp").headers["content-type"]
+        == "image/webp"
+    )
+    assert "img-src 'self' data:" in page.headers["Content-Security-Policy"]
     assert "sandbox allow-scripts" in page.headers["Content-Security-Policy"]
     assert "allow-same-origin" not in page.headers["Content-Security-Policy"]
     assert html.fromstring(page.text).xpath("//script/@src") == [

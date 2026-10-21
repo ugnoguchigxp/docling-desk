@@ -8,7 +8,6 @@ import json
 from io import BytesIO, StringIO
 from uuid import uuid4
 
-import pymupdf
 import pytest
 from docling_core.types.doc import (
     BoundingBox,
@@ -21,6 +20,7 @@ from docling_core.types.doc import (
 )
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from pdf_samples import pdf_bytes
 from PIL import Image
 
 from docling_desk.documents.conversion import Job
@@ -74,10 +74,9 @@ def artifact(folder, suffix=".pdf"):
     ]
     doc.add_table(TableData(num_rows=2, num_cols=2, table_cells=cells), prov=prov(2))
     doc.save_as_json(folder / "document.json")
-    with pymupdf.open() as pdf:
-        for n in (1, 2):
-            pdf.new_page(width=400, height=600).insert_text((30, 30), f"Synthetic page {n}")
-        pdf.save(folder / "original.pdf")
+    (folder / "original.pdf").write_bytes(
+        pdf_bytes(("Synthetic page 1", "Synthetic page 2"), size=(400, 600), at=(30, 30))
+    )
     return job
 
 

@@ -12,7 +12,7 @@ from reportlab.pdfgen import canvas
 
 import docling_desk.preview.powerpoint_export as export
 from docling_desk.documents.conversion import office_preview
-from docling_desk.preview.editable_preview import build_editable_preview
+from docling_desk.preview.editable_preview import RENDERER_VERSION, build_editable_preview
 
 
 def source(folder):
@@ -62,8 +62,9 @@ def test_new_pptx_automatically_uses_native_pdf_and_text_html(tmp_path, native_r
     before = path.read_bytes()
     preview, notice = office_preview(path, tmp_path)
     assert preview == "editable-preview/Preview.html"
-    assert "テキスト" in notice
+    assert "文字層" in notice
     assert "First source" in (tmp_path / "editable-preview/page-1.html").read_text()
+    assert (tmp_path / "editable-preview/page-1.webp").is_file()
     assert 'loading="lazy"' in (tmp_path / preview).read_text()
     assert len(native_renderer) == 1
     assert path.read_bytes() == before
@@ -93,7 +94,7 @@ def test_verified_older_pdf_can_rebuild_html_without_rerender(tmp_path, monkeypa
         export.subprocess, "run", lambda *a, **k: pytest.fail("Valid PDF must be reused")
     )
     assert office_preview(path, tmp_path)[0] == "editable-preview/Preview.html"
-    assert json.loads(manifest.read_text())["version"] == 3
+    assert json.loads(manifest.read_text())["version"] == RENDERER_VERSION
 
 
 @pytest.mark.parametrize("failure", ["missing", "timeout", "wrong_pages"])

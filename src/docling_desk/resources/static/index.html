@@ -123,7 +123,7 @@
   <label>次の翻訳までの間隔（秒）<input id="translationInterval" type="number" min="0" max="3600" step="1" value="60" required></label>
   <p id="translationQueueNote">1ページずつ順番に翻訳します。長いページを分割する場合も、この間隔を空けます。</p>
   <label class="translation-check"><input id="translationForce" type="checkbox">保存済みの単位も再翻訳する</label>
-  <p id="translationDisclosure"></p><p>文字列だけを翻訳し、文字枠・図形・文字サイズを保ちます。長い訳文ははみ出す場合があります。画像内の文字はそのままです。</p>
+  <p id="translationDisclosure"></p><p>文字列だけを翻訳し、図形や画像はそのまま、原文の文字の位置に訳文を重ねて表示します。長い訳文は文字を小さくして収めますが、はみ出す場合があります。画像内の文字はそのままです。</p>
   <p id="translationDialogMessage" role="status" hidden></p><button id="translationSubmit" type="submit" class="primary">翻訳を開始</button>
 </form></dialog>
 </body>

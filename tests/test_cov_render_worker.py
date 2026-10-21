@@ -11,11 +11,11 @@ from pathlib import Path
 from uuid import uuid4
 from zipfile import ZipFile
 
-import pymupdf
 import pytest
 from docling_azure_ocr.config import OcrError, OcrProfile
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from pdf_samples import encrypted_pdf_bytes, pdf_bytes
 
 from docling_desk.documents import conversion
 from docling_desk.documents.conversion import (
@@ -622,25 +622,12 @@ def test_worker_auth_validation_extract_and_viewer(tmp_path, monkeypatch):
     path.unlink()
     path.symlink_to(tmp_path / "nope")
     assert client.post("/internal/v1/validate", json=linked, headers=_headers()).status_code == 422
-    pdf = pymupdf.open()
-    for _ in range(101):
-        pdf.new_page()
     monkeypatch.setattr(worker_mod, "MAX_PAGES", 100)
-    too_many = _upload(root, pdf.tobytes(), ".pdf")
-    pdf.close()
+    too_many = _upload(root, pdf_bytes(pages=101), ".pdf")
     assert (
         client.post("/internal/v1/validate", json=too_many, headers=_headers()).status_code == 422
     )
-    secret = pymupdf.open()
-    secret.new_page()
-    secret.save(
-        tmp_path / "enc.pdf",
-        encryption=pymupdf.PDF_ENCRYPT_AES_256,
-        owner_pw="owner",
-        user_pw="user",
-    )
-    secret.close()
-    encrypted = _upload(root, (tmp_path / "enc.pdf").read_bytes(), ".pdf")
+    encrypted = _upload(root, encrypted_pdf_bytes(), ".pdf")
     assert (
         client.post("/internal/v1/validate", json=encrypted, headers=_headers()).status_code == 422
     )

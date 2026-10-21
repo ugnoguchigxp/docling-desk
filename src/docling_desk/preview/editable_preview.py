@@ -1,50 +1,66 @@
-"""Preserve PowerPoint's native graphics and real text in fixed-layout HTML/SVG."""
+"""Show PDF and PowerPoint pages as a page image with an invisible, selectable text layer.
+
+Every page is rendered once by PDFium into a WebP image. A positioned
+``div.pdf-text`` per text block sits on top of it, transparent, so the text
+stays selectable and copyable. Translations replace a block's text and make the
+block opaque (see ``translation.view.apply_text``); nothing here reconstructs
+vector text or fonts.
+"""
 
 from __future__ import annotations
 
-import base64
 import html
 import json
 import math
 import re
 import shutil
-import threading
-from collections import defaultdict
+from collections import Counter, defaultdict
 from difflib import SequenceMatcher
-from io import BytesIO
 from pathlib import Path
+from statistics import median
 from tempfile import TemporaryDirectory
-from typing import cast
+from threading import Lock
 from uuid import uuid4
 
-import lxml.etree as etree  # ty: ignore[unresolved-import]  # lxml's installed binary extension.
-import pymupdf
-from fontTools.feaLib.builder import addOpenTypeFeaturesFromString
-from fontTools.fontBuilder import FontBuilder
-from fontTools.pens.cu2quPen import Cu2QuPen
-from fontTools.pens.transformPen import TransformPen
-from fontTools.pens.ttGlyphPen import TTGlyphPen
-from fontTools.svgLib.path import parse_path
-from fontTools.ttLib import TTFont, newTable
-from fontTools.ttLib.tables._c_m_a_p import CmapSubtable, table__c_m_a_p
+from docling.utils.locks import pypdfium2_lock
+from PIL import Image
 from pptx import Presentation
 from pptx.shapes.group import GroupShape
 
-from docling_desk.config import MAX_PAGES
-from docling_desk.preview.native_preview import digest
+from docling_desk.preview.hashing import digest
+from docling_desk.preview.pdf_text import TextLine, group_blocks, read_page
+from docling_desk.preview.pdfium_access import checked_pdf, open_pdf
 from docling_desk.storage import original_file
 
-SVG = "http://www.w3.org/2000/svg"
-XHTML = "http://www.w3.org/1999/xhtml"
-NS = {"s": SVG}
-XLINK = "http://www.w3.org/1999/xlink"
-NOTICE = "原本側はPowerPointの描画から生成したHTML/SVGです。文字はテキスト、図形はベクターとして保持し、翻訳用に元の文字枠との対応を記録しています。"
-PDF_NOTICE = "PDFの描画をHTML/SVGで保持しています。文字はテキスト、図形はベクターです。スキャン画像内の文字は原本画像のままです。"
-RENDERER_VERSION = 3
-PDF_RENDER_LOCK = threading.Lock()
+NOTICE = "原本側はPowerPointの描画をページ画像として表示しています。文字は画像の上に選択できる文字層を重ねており、翻訳すると文字枠の位置に訳文を重ねて表示します。"
+PDF_NOTICE = "PDFの描画をページ画像として表示しています。文字は画像の上に選択できる文字層を重ねており、翻訳すると文字の位置に訳文を重ねて表示します。スキャン画像内の文字は原本画像のままです。"
+RENDERER_VERSION = 4
+PDF_RENDER_LOCK = Lock()
+IMAGE_SCALE = 2.0
+IMAGE_MAX_SIDE = 3200
+IMAGE_MAX_PIXELS = 12_000_000
+IMAGE_QUALITY = 85
+# Translation backgrounds below this share of one colour are drawn translucent.
+UNIFORM_SHARE = 0.45
+# A text area is sampled at about this many pixels, however large it is drawn.
+SAMPLE_PIXELS = 2500
+FONT_STACK = 'Arial,"Hiragino Sans","Yu Gothic","Noto Sans CJK JP",sans-serif'
+PAGE_STYLE = (
+    "html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff}"
+    ".page-canvas{position:absolute;inset:0;container-type:inline-size;overflow:hidden;background:#fff}"
+    ".page-canvas>img{position:absolute;inset:0;width:100%;height:100%;display:block;"
+    "-webkit-user-select:none;user-select:none;pointer-events:none}"
+    ".pdf-text{position:absolute;margin:0;box-sizing:border-box;display:flex;"
+    "flex-direction:column;color:transparent;white-space:pre;"
+    f"font-family:{FONT_STACK};"
+    "-webkit-user-select:text;user-select:text}"
+    ".pdf-text[data-translated]{color:var(--fg);background:var(--bg);background-clip:content-box;"
+    "white-space:pre-wrap;overflow-wrap:anywhere}"
+)
 
 
 def editable_preview(source: Path, folder: Path) -> str | None:
+    """The page-preview index when a complete current-version cache matches the exact bytes."""
     directory = folder / "editable-preview"
     try:
         manifest = json.loads((directory / "manifest.json").read_text())
@@ -151,9 +167,19 @@ def source_textboxes(slide) -> list[dict]:
             for frame, bx, by, bw, bh, cell in frames:
                 if not frame.text.strip():
                     continue
+                # A shape's own rotation turns it about its centre, inside the group.
+                turn = math.radians(shape.rotation) if cell is None else 0.0
+                cs, sn = math.cos(turn), math.sin(turn)
+                mx, my = bx + bw / 2, by + bh / 2
                 corners = [
-                    (a * px + c * py + e, b * px + d * py + f)
-                    for px, py in [(bx, by), (bx + bw, by), (bx, by + bh), (bx + bw, by + bh)]
+                    (
+                        a * qx + c * qy + e,
+                        b * qx + d * qy + f,
+                    )
+                    for qx, qy in (
+                        (mx + (px - mx) * cs - (py - my) * sn, my + (px - mx) * sn + (py - my) * cs)
+                        for px, py in [(bx, by), (bx + bw, by), (bx, by + bh), (bx + bw, by + bh)]
+                    )
                 ]
                 rect = [
                     min(p[0] for p in corners),
@@ -161,6 +187,13 @@ def source_textboxes(slide) -> list[dict]:
                     max(p[0] for p in corners),
                     max(p[1] for p in corners),
                 ]
+                # The unrotated frame in slide space: its side lengths and the angle of its top edge.
+                width = math.dist(corners[0], corners[1]) / 12700
+                height = math.dist(corners[0], corners[2]) / 12700
+                angle = math.degrees(
+                    math.atan2(corners[1][1] - corners[0][1], corners[1][0] - corners[0][0])
+                )
+                centre = ((rect[0] + rect[2]) / 25400, (rect[1] + rect[3]) / 25400)
                 alignment = frame.paragraphs[0].alignment
                 boxes.append(
                     {
@@ -172,6 +205,8 @@ def source_textboxes(slide) -> list[dict]:
                         "cell": cell,
                         "source_text": frame.text.replace("\v", "\n"),
                         "bbox": [v / 12700 for v in rect],
+                        "frame": [centre[0] - width / 2, centre[1] - height / 2, width, height],
+                        "angle": angle,
                         "rotation": shape.rotation,
                         "alignment": "center"
                         if alignment == 2
@@ -192,7 +227,6 @@ def source_textboxes(slide) -> list[dict]:
                                 frame.margin_bottom,
                             ]
                         ],
-                        "node_ids": [],
                     }
                 )
 
@@ -237,282 +271,238 @@ def match_box(trace: dict, text: str, boxes: list[dict]) -> dict | None:
     return nearby[0][1]
 
 
-def web_font(content: bytes, cmap: dict[int, int]) -> bytes:
-    """PDF subset fonts often omit Unicode cmaps; rebuild from native glyph/Unicode pairs."""
-    with TTFont(BytesIO(content)) as font:
-        glyphs = font.getGlyphOrder()
-        mapped = dict(font.getBestCmap() or {})
-        mapped.update({u: glyphs[g] for u, g in cmap.items() if 0 <= g < len(glyphs)})
-        table = cast(table__c_m_a_p, newTable("cmap"))
-        table.tableVersion, table.tables = 0, []
-        for format_, platform, encoding in [(4, 3, 1), (12, 3, 10)]:
-            subtable = CmapSubtable.newSubtable(format_)
-            subtable.platformID, subtable.platEncID, subtable.language = platform, encoding, 0
-            subtable.cmap = {u: g for u, g in mapped.items() if format_ == 12 or u <= 0xFFFF}
-            table.tables.append(subtable)
-        font["cmap"] = table
-        font.sfntVersion = "OTTO" if "CFF " in font or "CFF2" in font else "\x00\x01\x00\x00"
-        # PDF fonts omit tables required by browser font sanitizers. Recreate
-        # metrics without touching glyph outlines; discard malformed glyph names.
-        builder = FontBuilder(font=font, isTTF="glyf" in font)
-        if "OS/2" not in font:
-            builder.setupOS2(
-                sTypoAscender=font["hhea"].ascent,
-                sTypoDescender=font["hhea"].descent,
-                usWinAscent=max(font["head"].yMax, 0),
-                usWinDescent=max(-font["head"].yMin, 0),
-            )
-        builder.setupPost(keepGlyphNames=False)
-        output = BytesIO()
-        font.save(output)
-        return output.getvalue()
-
-
-def outline_font(glyphs: dict[int | str, tuple[str, float]]) -> bytes:
-    """Embed the renderer's exact glyph outlines even when a PDF omits its font.
-
-    This creates a real Unicode font, not images or visible outlined text.
-    The SVG text remains selectable and replaceable.
-    """
-    units = 2048
-    sequences = {chr(u) if isinstance(u, int) else u: value for u, value in glyphs.items()}
-    # A cluster retains every Unicode character. GSUB renders its single PDF
-    # outline, while selection and copying still expose the original sequence.
-    for sequence in list(sequences):
-        for char in sequence:
-            sequences.setdefault(char, ("", 0))
-    names = {u: "u" + "_".join(f"{ord(c):06x}" for c in u) for u in sequences}
-    builder = FontBuilder(units, isTTF=True)
-    builder.setupGlyphOrder([".notdef", *names.values()])
-    builder.setupCharacterMap({ord(u): name for u, name in names.items() if len(u) == 1})
-    outlines = {".notdef": TTGlyphPen(None).glyph()}
-    metrics = {".notdef": (units, 0)}
-    for unicode, (path, advance) in sequences.items():
-        pen = TTGlyphPen(None)
-        parse_path(path, TransformPen(Cu2QuPen(pen, max_err=0.5), (units, 0, 0, units, 0, 0)))
-        glyph = pen.glyph()
-        glyph.recalcBounds(None)
-        outlines[names[unicode]] = glyph
-        metrics[names[unicode]] = (max(0, round(advance * units)), getattr(glyph, "xMin", 0))
-    builder.setupGlyf(outlines)
-    builder.setupHorizontalMetrics(metrics)
-    builder.setupHorizontalHeader(ascent=units, descent=-units // 4)
-    builder.setupNameTable(
-        {
-            "familyName": "PDF glyphs",
-            "styleName": "Regular",
-            "uniqueFontIdentifier": "PDFGlyphs",
-            "fullName": "PDF glyphs",
-            "psName": "PDFGlyphs",
-            "version": "Version 1.0",
-        }
-    )
-    builder.setupOS2(
-        sTypoAscender=units, sTypoDescender=-units // 4, usWinAscent=units, usWinDescent=units // 4
-    )
-    builder.setupPost(keepGlyphNames=False)
-    builder.setupMaxp()
-    rules = [
-        f"sub {' '.join(names[c] for c in sequence)} by {names[sequence]};"
-        for sequence in sorted(names, key=len, reverse=True)
-        if len(sequence) > 1
-    ]
-    if rules:
-        addOpenTypeFeaturesFromString(
-            builder.font, "feature rlig { " + " ".join(rules) + " } rlig;"
-        )
-    output = BytesIO()
-    builder.font.save(output)
-    return output.getvalue()
-
-
-def pdf_textboxes(page) -> list[dict]:
-    boxes = []
-    for index, block in enumerate(page.get_text("dict")["blocks"]):
-        if block["type"] != 0:
-            continue
-        text = "\n".join("".join(s["text"] for s in line["spans"]) for line in block["lines"])
-        boxes.append(
-            {
-                "id": f"block-{index}",
-                "source_text": text,
-                "bbox": list(block["bbox"]),
-                "margins": [0, 0, 0, 0],
-                "alignment": "left",
-                "vertical_alignment": "top",
-                "rotation": 0,
-                "node_ids": [],
-            }
-        )
-    return boxes
-
-
-def glyph_clusters(chars) -> list[list]:
-    clusters = []
-    for char in chars:
-        if char[1] == -1:
-            # PyMuPDF's continuation has the same origin and zero advance.
-            if (
-                not clusters
-                or char[2] != clusters[-1][0][2]
-                or abs(char[3][2] - char[3][0]) > 0.001
-            ):
-                raise ValueError("PDFの合字の後続文字が不正です。")
-            clusters[-1].append(char)
-        else:
-            clusters.append([char])
-    return clusters
-
-
-def position_clusters(node, clusters) -> None:
-    # Explicit per-character x positions disable font ligatures in browsers.
-    # Use one positioned tspan per cluster, keeping the complete Unicode text.
-    spans = list(node)
-    coordinates = []
-    for span in spans:
-        text = "".join(span.itertext())
-        xs = re.split(r"[\s,]+", span.get("x", "").strip())
-        ys = re.split(r"[\s,]+", span.get("y", "").strip())
-        if len(xs) not in {1, len(text)} or len(ys) not in {1, len(text)}:
-            raise ValueError("PDFの合字の文字位置を対応付けできません。")
-        coordinates.extend(
-            (xs[min(i, len(xs) - 1)], ys[min(i, len(ys) - 1)]) for i in range(len(text))
-        )
-    if len(coordinates) != sum(map(len, clusters)):
-        raise ValueError("PDFの合字の文字数が一致しません。")
-    for span in spans:
-        node.remove(span)
-    node.set("data-glyph-clusters", "true")
-    cursor = 0
-    for cluster in clusters:
-        x, y = coordinates[cursor]
-        span = etree.SubElement(node, f"{{{SVG}}}tspan", x=x, y=y)
-        span.text = "".join(chr(c[0]) for c in cluster)
-        cursor += len(cluster)
-
-
-def render_page(document, page, number: int, boxes: list[dict]) -> tuple[str, dict, str]:
-    font_maps, font_files, fallback_glyphs = defaultdict(dict), {}, defaultdict(dict)
-    width, height = page.rect.width, page.rect.height
-    tree = etree.fromstring(page.get_svg_image(text_as_path=False).encode())
-    # Avoid duplicate clip/gradient IDs in the standalone multi-slide HTML.
-    for element in tree.iter():
-        if element.get("id"):
-            element.set("id", f"p{number}-" + element.get("id"))
-        for attribute, value in list(element.attrib.items()):
-            if value.startswith("#") and attribute.endswith("href"):
-                element.set(attribute, f"#p{number}-" + value[1:])
-            elif "url(#" in value:
-                element.set(attribute, value.replace("url(#", f"url(#p{number}-"))
-    fonts = {f[3]: f[0] for f in page.get_fonts()}
-    nodes, traces = tree.findall(".//s:text", NS), page.get_texttrace()
-    if len(nodes) != len(traces):
-        raise ValueError(f"スライド{number}の文字と描画を対応付けできません。")
-    fragments = []
-    glyph_uses, glyph_paths, cursor = None, {}, 0
-    clusters_by_trace = [glyph_clusters(t["chars"]) for t in traces]
-    for index, (node, trace) in enumerate(zip(nodes, traces, strict=True), 1):
-        text = "".join(node.itertext())
-        if text != "".join(chr(c[0]) for c in trace["chars"]):
-            raise ValueError(f"スライド{number}の文字列が描画と一致しません。")
-        node_id = f"p{number}-text-{index}"
-        node.set("id", node_id)
-        box = match_box(trace, text, boxes)
+def page_blocks(lines: list[TextLine], boxes: list[dict]) -> list[dict]:
+    """Text blocks of one page: PowerPoint text frames where known, otherwise PDF paragraphs."""
+    claimed: dict[str, list[TextLine]] = defaultdict(list)
+    free = []
+    for line in lines:
+        trace = {"bbox": [line.x0, line.y0, line.x1, line.y1], "size": line.size}
+        box = match_box(trace, line.text, boxes) if boxes else None
         if box:
-            node.set("data-source-id", box["id"])
-            box["node_ids"].append(node_id)
-        font_name = node.get("font-family")
-        xref = fonts.get(font_name) or fonts.get(trace["font"])
-        alias = f"pdf-font-p{number}-{xref}" if xref else font_name
-        embedded = False
-        clusters = clusters_by_trace[index - 1]
-        has_ligatures = any(len(c) > 1 for c in clusters)
-        if xref and not has_ligatures:
-            name, extension, _, content = document.extract_font(xref)
-            if content and extension in {"ttf", "otf"}:
-                pairs = {unicode: glyph for unicode, glyph, *_ in trace["chars"]}
-                key = xref
-                if any(u in font_maps[xref] and font_maps[xref][u] != g for u, g in pairs.items()):
-                    # Keep alternate glyphs in their own face, without changing other runs.
-                    key = f"{xref}-p{number}-{index}"
-                    alias = f"pdf-font-p{number}-{key}"
-                font_files[key] = (content, extension)
-                font_maps[key].update(pairs)
-                embedded = True
-        if not embedded:
-            if glyph_uses is None:
-                outlined = etree.fromstring(page.get_svg_image(text_as_path=True).encode())
-                glyph_uses = outlined.xpath("//*[@data-text]")
-                if len(glyph_uses) != sum(len(c) for c in clusters_by_trace):
-                    raise ValueError(f"ページ{number}のフォント輪郭と文字を対応付けできません。")
-                glyph_paths = {
-                    p.get("id"): p.get("d", "") for p in outlined.findall(".//s:defs/s:path", NS)
-                }
-            font_key = xref or re.sub(r"[^a-zA-Z0-9]", "_", trace["font"])
-            alias = f"pdf-outline-p{number}-{font_key}"
-            run_glyphs = {}
-            for use, cluster in zip(
-                glyph_uses[cursor : cursor + len(clusters)],
-                clusters,
-                strict=True,
-            ):
-                char = cluster[0]
-                if use.get("data-text") != chr(char[0]):
-                    raise ValueError("PDFのフォント輪郭と文字列が一致しません。")
-                path = glyph_paths[use.get(f"{{{XLINK}}}href", "").removeprefix("#")]
-                advance = (char[3][2] - char[3][0]) / trace["size"] if trace["size"] else 1
-                run_glyphs["".join(chr(c[0]) for c in cluster)] = (path, advance)
-            if any(
-                sequence in fallback_glyphs[alias]
-                and (
-                    fallback_glyphs[alias][sequence][0] != path
-                    or abs(fallback_glyphs[alias][sequence][1] - advance) > 0.0001
-                )
-                for sequence, (path, advance) in run_glyphs.items()
-            ):
-                alias += f"-run{index}"
-            fallback_glyphs[alias].update(run_glyphs)
-        if has_ligatures:
-            position_clusters(node, clusters)
-        cursor += len(clusters)
-        node.set("font-family", alias)
-        node.set(
-            "style",
-            f"font-family:{json.dumps(alias)},Arial,sans-serif;font-size:{float(node.get('font-size')):g}px",
-        )
-        fragments.append(
-            {
-                "id": node_id,
-                "text": text,
-                "bbox": list(trace["bbox"]),
-                "font": font_name,
-                "size": trace["size"],
-                "color": trace["color"],
-                "direction": trace["dir"],
-                "source_id": box["id"] if box else None,
-                "source_text_differs": bool(
-                    box and normalize(text) not in normalize(box["source_text"])
-                ),
-            }
-        )
-    layout = {
-        "number": number,
-        "width": width,
-        "height": height,
-        "textboxes": boxes,
-        "fragments": fragments,
+            claimed[box["id"]].append(line)
+        else:
+            free.append(line)
+    # A line the text could not place (a shared edge, a decoded ligature) still belongs
+    # to a frame that already owns its neighbours, never to a second block.
+    owners = [box for box in boxes if box["id"] in claimed]
+    unplaced = []
+    for line in free:
+        cx, cy = (line.x0 + line.x1) / 2, (line.y0 + line.y1) / 2
+        inside = [
+            box
+            for box in owners
+            if box["bbox"][0] - 3 <= cx <= box["bbox"][2] + 3
+            and box["bbox"][1] - 3 <= cy <= box["bbox"][3] + 3
+        ]
+        if inside:
+            smallest = min(
+                inside, key=lambda b: (b["bbox"][2] - b["bbox"][0]) * (b["bbox"][3] - b["bbox"][1])
+            )
+            claimed[smallest["id"]].append(line)
+        else:
+            unplaced.append(line)
+    free = unplaced
+    blocks = []
+    for box in boxes:
+        matched = claimed.get(box["id"])
+        if matched:
+            blocks.append(frame_block(box, matched))
+    blocks.extend(pdf_block(block) for block in group_blocks(free))
+    blocks.sort(key=lambda b: (round(b["cover"][1]), b["cover"][0]))
+    return blocks
+
+
+def cover_of(lines: list[TextLine]) -> list[float]:
+    return [
+        min(line.x0 for line in lines),
+        min(line.y0 for line in lines),
+        max(line.x1 for line in lines),
+        max(line.y1 for line in lines),
+    ]
+
+
+def frame_block(box: dict, lines: list[TextLine]) -> dict:
+    size = median(line.size for line in lines)
+    tops = sorted(line.y0 for line in lines if line.rotation == 0)
+    steps = [b - a for a, b in zip(tops, tops[1:], strict=False) if 0.5 * size < b - a < 3 * size]
+    left, top, right, bottom = box["margins"]
+    return {
+        "source_id": box["id"],
+        "text": box["source_text"],
+        "frame": box["frame"],
+        "angle": box["angle"],
+        "padding": [top, right, bottom, left],
+        "align": box["alignment"],
+        "valign": box["vertical_alignment"],
+        "size": size,
+        "pitch": median(steps) if steps else size * 1.2,
+        "color": next((line.color for line in lines if line.color), None),
+        "cover": cover_of(lines),
     }
-    tree.set("data-text-layout", json.dumps(layout, ensure_ascii=False))
-    css = []
-    for alias, glyphs in fallback_glyphs.items():
-        encoded = base64.b64encode(outline_font(glyphs)).decode()
-        css.append(f'@font-face{{font-family:"{alias}";src:url(data:font/ttf;base64,{encoded})}}')
-    for xref, (content, extension) in font_files.items():
-        encoded = base64.b64encode(web_font(content, font_maps[xref])).decode()
-        css.append(
-            f'@font-face{{font-family:"pdf-font-p{number}-{xref}";src:url(data:font/{extension};base64,{encoded})}}'
+
+
+def pdf_block(block) -> dict:
+    cx, cy = (block.x0 + block.x1) / 2, (block.y0 + block.y1) / 2
+    width, height = block.x1 - block.x0, block.y1 - block.y0
+    if block.rotation in (90, 270):
+        width, height = height, width
+    return {
+        "source_id": None,
+        "text": block.text,
+        "frame": [cx - width / 2, cy - height / 2, width, height],
+        "angle": block.rotation,
+        "padding": [0, 0, 0, 0],
+        "align": "left",
+        "valign": "top",
+        "size": block.size,
+        "pitch": block.pitch,
+        "color": block.color,
+        "cover": cover_of(block.lines),
+    }
+
+
+def dominant_color(
+    image: Image.Image, scale: tuple[float, float], cover: list[float]
+) -> tuple[tuple[int, int, int], float]:
+    """Most common colour under a text area and the share of pixels near it."""
+    left, top = (
+        max(0, math.floor(cover[0] * scale[0]) - 1),
+        max(0, math.floor(cover[1] * scale[1]) - 1),
+    )
+    right = min(image.width, math.ceil(cover[2] * scale[0]) + 1)
+    bottom = min(image.height, math.ceil(cover[3] * scale[1]) + 1)
+    if right <= left or bottom <= top:
+        return (255, 255, 255), 0.0
+    crop = image.crop((left, top, right, bottom))
+    if crop.width * crop.height > SAMPLE_PIXELS:
+        shrink = math.sqrt(SAMPLE_PIXELS / (crop.width * crop.height))
+        crop = crop.resize(
+            (max(1, int(crop.width * shrink)), max(1, int(crop.height * shrink))),
+            Image.Resampling.NEAREST,
         )
-    return etree.tostring(tree, encoding="unicode"), layout, "\n".join(css)
+    counts: Counter[tuple[int, int, int]] = Counter()
+    sums: dict[tuple[int, int, int], list[int]] = defaultdict(lambda: [0, 0, 0])
+    data = crop.tobytes()
+    pixels = list(zip(data[0::3], data[1::3], data[2::3], strict=True))
+    for red, green, blue in pixels:
+        key = (red >> 4, green >> 4, blue >> 4)
+        counts[key] += 1
+        total = sums[key]
+        total[0] += red
+        total[1] += green
+        total[2] += blue
+    key, count = counts.most_common(1)[0]
+    red, green, blue = (round(v / count) for v in sums[key])
+    return (red, green, blue), count / len(pixels)
+
+
+def luminance(colour: tuple[int, int, int]) -> float:
+    def channel(value: int) -> float:
+        level = value / 255
+        return level / 12.92 if level <= 0.03928 else ((level + 0.055) / 1.055) ** 2.4
+
+    red, green, blue = (channel(v) for v in colour)
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+
+
+def readable_colour(
+    foreground: tuple[int, int, int] | None, background: tuple[int, int, int]
+) -> tuple[int, int, int]:
+    """The PDF's own text colour, unless it would not be legible on the sampled background."""
+    shade = luminance(background)
+    if foreground is not None:
+        light, dark = sorted((luminance(foreground), shade), reverse=True)
+        if (light + 0.05) / (dark + 0.05) >= 3:
+            return foreground
+    return (17, 17, 17) if shade > 0.4 else (255, 255, 255)
+
+
+def percent(value: float, total: float) -> str:
+    return f"{value / total * 100:.4f}"
+
+
+def block_html(
+    number: int,
+    index: int,
+    block: dict,
+    page: tuple[float, float],
+    image: Image.Image,
+    scale: tuple[float, float],
+) -> str:
+    width, height = page
+    x, y, w, h = block["frame"]
+    top, right, bottom, left = block["padding"]
+    size = max(block["size"], 1.0)
+    background, share = dominant_color(image, scale, block["cover"])
+    foreground = readable_colour(block["color"], background)
+    fill = (
+        "#%02x%02x%02x" % background
+        if share >= UNIFORM_SHARE
+        else "rgba(%d,%d,%d,.88)" % background
+    )
+    line_height = min(max(block["pitch"] / size, 1.0), 1.6)
+    justify = {"middle": "center", "bottom": "flex-end"}.get(block["valign"], "flex-start")
+    style = (
+        f"left:{percent(x, width)}%;top:{percent(y, height)}%;"
+        f"width:{percent(w, width)}%;height:{percent(h, height)}%;"
+        f"font-size:{percent(size, width)}cqw;line-height:{line_height:.3f};"
+        f"padding:{percent(top, width)}cqw {percent(right, width)}cqw "
+        f"{percent(bottom, width)}cqw {percent(left, width)}cqw;"
+        f"justify-content:{justify};text-align:{block['align']};"
+        f"--fg:#{'%02x%02x%02x' % foreground};--bg:{fill}"
+    )
+    if abs(block["angle"]) > 0.05:
+        style += f";transform:rotate({block['angle']:.3f}deg)"
+    attributes = {
+        "class": "pdf-text",
+        "id": f"p{number}-text-{index}",
+        "data-pw": f"{width:.3f}",
+        "data-cw": f"{max(w - left - right, 1.0):.3f}",
+        "data-ch": f"{max(h - top - bottom, 1.0):.3f}",
+        "data-size": f"{size:.3f}",
+        "data-lh": f"{line_height:.3f}",
+        "style": style,
+    }
+    if block["source_id"]:
+        attributes["data-source-id"] = block["source_id"]
+    rendered = " ".join(f'{name}="{html.escape(value)}"' for name, value in attributes.items())
+    return f"<div {rendered}>{html.escape(block['text'], quote=False)}</div>"
+
+
+def page_html(
+    number: int,
+    page: tuple[float, float],
+    blocks: list[dict],
+    image: Image.Image,
+    scale: tuple[float, float],
+) -> str:
+    width, height = page
+    layer = "".join(
+        block_html(number, index, block, page, image, scale)
+        for index, block in enumerate(blocks, 1)
+    )
+    return (
+        '<!doctype html><html lang="ja"><head><meta charset="utf-8">'
+        f"<style>{PAGE_STYLE}</style></head><body>"
+        f'<div class="page-canvas" data-number="{number}" data-width="{width:g}" data-height="{height:g}">'
+        f'<img src="page-{number}.webp" alt="" draggable="false">{layer}</div></body></html>'
+    )
+
+
+def render_page_image(page) -> tuple[Image.Image, tuple[float, float]]:
+    """The page as an RGB image and its pixels per point; the caller holds the PDFium lock."""
+    width, height = page.get_size()
+    scale = min(
+        IMAGE_SCALE,
+        IMAGE_MAX_SIDE / max(width, height),
+        math.sqrt(IMAGE_MAX_PIXELS / (width * height)),
+    )
+    bitmap = page.render(scale=max(scale, 0.05))
+    try:
+        image = bitmap.to_pil().convert("RGB")
+    finally:
+        bitmap.close()
+    return image, (image.width / width, image.height / height)
 
 
 def build_editable_preview(source: Path, pdf: Path, folder: Path) -> str:
@@ -526,95 +516,83 @@ def build_editable_preview(source: Path, pdf: Path, folder: Path) -> str:
         raise ValueError("PowerPointのページ寸法がありません。")
     original_digest, pdf_digest = digest(source), digest(pdf)
     directory = folder / "editable-preview"
-    with pymupdf.open(pdf) as document:
-        if document.needs_pass or not 0 < len(document) <= MAX_PAGES:
-            raise ValueError("暗号化PDF、空のPDF、またはページ数の上限を超えるPDFです。")
-        if deck is not None and len(document) != len(deck.slides):
-            raise ValueError("PowerPointとPDFのページ数が一致しません。")
-        if deck is not None and any(
-            abs(p.rect.width - float(deck.slide_width or 0) / 12700) > 0.1
-            or abs(p.rect.height - float(deck.slide_height or 0) / 12700) > 0.1
-            for p in document
-        ):
-            raise ValueError("PowerPointとPDFのページ寸法が一致しません。")
-        # Only one page's SVG, font outlines and layout are alive at a time.
-        # Publish the complete directory only after every page succeeds.
-        with TemporaryDirectory(prefix=".editable-preview-", suffix=".tmp", dir=folder) as work:
-            staging = Path(work) / "editable-preview"
-            staging.mkdir()
-            assets = ["Preview.html", "fonts.css", "text-layout.json"]
-            fragments_count = mapped_count = 0
-            with (
-                (staging / "Preview.html").open("w") as preview,
-                (staging / "text-layout.json").open("w") as layouts,
-                (staging / "fonts.css").open("w") as fonts,
-            ):
+    info = checked_pdf(pdf)
+    if deck is not None and info.pages != len(deck.slides):
+        raise ValueError("PowerPointとPDFのページ数が一致しません。")
+    if deck is not None and any(
+        abs(width - float(deck.slide_width or 0) / 12700) > 0.1
+        or abs(height - float(deck.slide_height or 0) / 12700) > 0.1
+        for width, height in info.sizes
+    ):
+        raise ValueError("PowerPointとPDFのページ寸法が一致しません。")
+    # Only one page's image and text are alive at a time. Publish the complete
+    # directory only after every page succeeds.
+    with TemporaryDirectory(prefix=".editable-preview-", suffix=".tmp", dir=folder) as work:
+        staging = Path(work) / "editable-preview"
+        staging.mkdir()
+        assets = ["Preview.html"]
+        blocks_count = mapped_count = 0
+        with pypdfium2_lock:
+            document = open_pdf(pdf)
+        try:
+            with (staging / "Preview.html").open("w") as preview:
                 preview.write(
                     '<!doctype html><html lang="ja"><head><meta charset="utf-8">'
                     f"<title>{html.escape(source.name)}</title><style>body{{margin:0;background:#e8edf2}}.slide{{margin:12px auto;background:white}}iframe{{width:100%;height:100%;border:0}}</style></head><body>"
                 )
-                layouts.write('{"version":2,"pages":[')
-                for number, page in enumerate(document, 1):
-                    boxes = (
-                        source_textboxes(deck.slides[number - 1])
-                        if deck is not None
-                        else pdf_textboxes(page)
+                for number, size in enumerate(info.sizes, 1):
+                    with pypdfium2_lock:
+                        page = document[number - 1]
+                        try:
+                            image, scale = render_page_image(page)
+                            lines = read_page(page)
+                        finally:
+                            page.close()
+                    boxes = source_textboxes(deck.slides[number - 1]) if deck is not None else []
+                    blocks = page_blocks(lines, boxes)
+                    image.save(
+                        staging / f"page-{number}.webp", "WEBP", quality=IMAGE_QUALITY, method=4
                     )
-                    svg, layout, css = render_page(document, page, number, boxes)
-                    (staging / f"slide-{number}.svg").write_text(svg)
-                    (staging / f"layout-{number}.json").write_text(
-                        json.dumps(layout, ensure_ascii=False)
-                    )
-                    (staging / f"fonts-{number}.css").write_text(css)
-                    fonts.write(css + "\n")
                     (staging / f"page-{number}.html").write_text(
-                        f'<!doctype html><html lang="ja"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts-{number}.css"><style>html,body,svg{{margin:0;width:100%;height:100%;overflow:hidden}}svg{{display:block}}text{{user-select:text}}</style></head><body>{svg}</body></html>'
+                        page_html(number, size, blocks, image, scale)
                     )
+                    image.close()
                     preview.write(
-                        f'<div class="slide" data-number="{number}" style="width:{layout["width"]:g}px;height:{layout["height"]:g}px"><iframe loading="lazy" src="page-{number}.html" title="ページ {number}" sandbox></iframe></div>'
+                        f'<div class="slide" data-number="{number}" style="width:{size[0]:g}px;height:{size[1]:g}px"><iframe loading="lazy" src="page-{number}.html" title="ページ {number}" sandbox></iframe></div>'
                     )
-                    layouts.write(
-                        ("," if number > 1 else "") + json.dumps(layout, ensure_ascii=False)
-                    )
-                    assets.extend(
-                        f"{stem}-{number}.{ext}"
-                        for stem, ext in [
-                            ("slide", "svg"),
-                            ("layout", "json"),
-                            ("fonts", "css"),
-                            ("page", "html"),
-                        ]
-                    )
-                    fragments_count += len(layout["fragments"])
-                    mapped_count += sum(bool(f["source_id"]) for f in layout["fragments"])
+                    assets.extend((f"page-{number}.html", f"page-{number}.webp"))
+                    blocks_count += len(blocks)
+                    mapped_count += sum(bool(b["source_id"]) for b in blocks)
                 preview.write("</body></html>")
-                layouts.write("]}")
-            if digest(source) != original_digest or digest(pdf) != pdf_digest:
-                raise ValueError("生成中に原本またはPDFが変更されました。")
-            manifest = {
-                "version": RENDERER_VERSION,
-                "renderer": "Native PDF / editable SVG text",
-                "pdf": pdf_relative,
-                "source_sha256": original_digest,
-                "pdf_sha256": pdf_digest,
-                "pages": len(document),
-                "assets": assets,
-                "text_fragments": fragments_count,
-                "mapped_fragments": mapped_count,
-            }
-            (staging / "manifest.json").write_text(json.dumps(manifest, indent=2))
-            previous = folder / f".editable-preview-old-{uuid4().hex}.tmp"
-            if directory.exists():
-                directory.rename(previous)
-            try:
-                staging.rename(directory)
-            except OSError:
-                if previous.exists():
-                    previous.rename(directory)
-                raise
-            finally:
-                if previous.exists() and directory.exists():
-                    shutil.rmtree(previous)
+        finally:
+            with pypdfium2_lock:
+                document.close()
+        if digest(source) != original_digest or digest(pdf) != pdf_digest:
+            raise ValueError("生成中に原本またはPDFが変更されました。")
+        manifest = {
+            "version": RENDERER_VERSION,
+            "renderer": "PDFium page image / text layer",
+            "pdf": pdf_relative,
+            "source_sha256": original_digest,
+            "pdf_sha256": pdf_digest,
+            "pages": info.pages,
+            "assets": assets,
+            "text_blocks": blocks_count,
+            "mapped_blocks": mapped_count,
+        }
+        (staging / "manifest.json").write_text(json.dumps(manifest, indent=2))
+        previous = folder / f".editable-preview-old-{uuid4().hex}.tmp"
+        if directory.exists():
+            directory.rename(previous)
+        try:
+            staging.rename(directory)
+        except OSError:
+            if previous.exists():
+                previous.rename(directory)
+            raise
+        finally:
+            if previous.exists() and directory.exists():
+                shutil.rmtree(previous)
     return "editable-preview/Preview.html"
 
 
@@ -623,58 +601,20 @@ def ensure_pdf_preview(source: Path, folder: Path) -> str:
         return editable_preview(source, folder) or build_editable_preview(source, source, folder)
 
 
-def replace_textbox(tree, page: dict, source_id: str, text: str) -> None:
-    box = next(b for b in page["textboxes"] if b["id"] == source_id)
-    nodes = [tree.xpath("//*[@id=$id]", id=node_id)[0] for node_id in box["node_ids"]]
-    if not nodes:
-        raise ValueError("描画文字と対応しない文字枠は置換できません。")
-    fragment = next(f for f in page["fragments"] if f["id"] == box["node_ids"][0])
-    if abs(fragment["direction"][1]) > 0.01:
-        raise ValueError("回転・縦書き文字枠の翻訳描画は未対応です。")
-    x0, y0, x1, y1 = box["bbox"]
-    left, top, right, bottom = box["margins"]
-    tag = f"{{{SVG}}}foreignObject" if etree.QName(tree).namespace == SVG else "foreignObject"
-    replacement = etree.Element(tag, id=f"translation-{source_id}")
-    replacement.attrib.update(
-        {
-            "x": str(x0 + left),
-            "y": str(y0 + top),
-            "width": str(x1 - x0 - left - right),
-            "height": str(y1 - y0 - top - bottom),
-        }
-    )
-    container = etree.SubElement(replacement, f"{{{XHTML}}}div", nsmap={None: XHTML})
-    color = fragment["color"]
-    rgb = [round(c * 255) for c in color] if len(color) == 3 else [round(color[0] * 255)] * 3
-    container.set(
-        "style",
-        f'height:100%;display:flex;flex-direction:column;justify-content:{"center" if box["vertical_alignment"] == "middle" else "flex-end" if box["vertical_alignment"] == "bottom" else "flex-start"};font-family:Arial,"Hiragino Sans","Yu Gothic",sans-serif;font-size:{fragment["size"]:g}px;line-height:1.2;white-space:pre-wrap;overflow-wrap:anywhere;text-align:{box["alignment"]};color:rgb({rgb[0]},{rgb[1]},{rgb[2]})',
-    )
-    paragraph = etree.SubElement(container, f"{{{XHTML}}}div")
-    paragraph.set("style", "width:100%;max-height:100%")
-    paragraph.text = text
-    nodes[0].addprevious(replacement)
-    for node in nodes:
-        node.getparent().remove(node)
+def refresh_saved_preview(source: Path, folder: Path) -> str | None:
+    """Rebuild a PowerPoint preview from an older renderer, from its saved PDF.
 
+    Nothing is exported: only the PDF a verified earlier export left in the folder
+    is used, so the host needs no Office. Returns None when that PDF is missing or
+    no longer matches; the caller then treats the preview as unavailable.
+    """
+    from docling_desk.preview.powerpoint_export import saved_export
 
-def translated_slide_html(directory: Path, number: int, replacements: dict[str, str]) -> str:
-    """A translation consumer can replace a whole source textbox, preserving native graphics."""
-    path = directory / f"layout-{number}.json"
-    page = (
-        json.loads(path.read_text())
-        if path.exists()
-        else json.loads((directory / "text-layout.json").read_text())["pages"][number - 1]
-    )
-    tree = etree.fromstring((directory / f"slide-{number}.svg").read_bytes())
-    for source_id, text in replacements.items():
-        replace_textbox(tree, page, source_id, text)
-    css = directory / f"fonts-{number}.css"
-    styles = (css if css.exists() else directory / "fonts.css").read_text()
-    return (
-        '<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>body{margin:0}'
-        + styles
-        + "</style></head><body>"
-        + etree.tostring(tree, encoding="unicode")
-        + "</body></html>"
-    )
+    with PDF_RENDER_LOCK:
+        if current := editable_preview(source, folder):
+            return current
+        try:
+            pdf = saved_export(source, folder)
+        except (OSError, ValueError, RuntimeError):
+            return None
+        return build_editable_preview(source, pdf, folder)

@@ -13,12 +13,12 @@ from uuid import uuid4
 from zipfile import ZipFile
 
 import lxml.etree as etree  # ty: ignore[unresolved-import]  # Installed lxml binary extension.
-import pymupdf
 from pptx import Presentation
 
 from docling_desk.config import RESOURCES as ROOT
 from docling_desk.preview.hashing import digest
 from docling_desk.preview.office_linux import convert_office
+from docling_desk.preview.pdfium_access import inspect_pdf
 
 EXPORT_LOCK = threading.Lock()
 SCRIPT = ROOT / "scripts/export-powerpoint.applescript"
@@ -33,15 +33,17 @@ def validate_export(source: Path, pdf: Path) -> None:
     width, height = deck.slide_width, deck.slide_height
     if width is None or height is None:
         raise ValueError("PowerPointのページ寸法がありません。")
-    with pymupdf.open(pdf) as document:
-        if document.needs_pass or len(document) != len(deck.slides):
-            raise ValueError("PowerPointから書き出したPDFのページ数が原本と一致しません。")
-        if any(
-            abs(page.rect.width - width / 12700) > 0.1
-            or abs(page.rect.height - height / 12700) > 0.1
-            for page in document
-        ):
-            raise ValueError("PowerPointから書き出したPDFのページ寸法が原本と一致しません。")
+    try:
+        info = inspect_pdf(pdf)
+    except ValueError as exc:
+        raise ValueError("PowerPointから書き出したPDFのページ数が原本と一致しません。") from exc
+    if info.pages != len(deck.slides):
+        raise ValueError("PowerPointから書き出したPDFのページ数が原本と一致しません。")
+    if any(
+        abs(page_width - width / 12700) > 0.1 or abs(page_height - height / 12700) > 0.1
+        for page_width, page_height in info.sizes
+    ):
+        raise ValueError("PowerPointから書き出したPDFのページ寸法が原本と一致しません。")
 
 
 def cached_export(source: Path, folder: Path) -> Path | None:
@@ -56,6 +58,22 @@ def cached_export(source: Path, folder: Path) -> Path | None:
         except (OSError, ValueError, KeyError, TypeError, RuntimeError):
             continue
     return None
+
+
+def saved_export(source: Path, folder: Path) -> Path:
+    """The PDF an earlier export left in the folder, if it still matches. Never exports.
+
+    A known mismatch is never accepted; a legacy PDF without a hash manifest must at
+    least agree with the deck on every slide's count and dimensions.
+    """
+    pdf = folder / "powerpoint-rendered.pdf"
+    if not pdf.is_file():
+        raise ValueError("保存済みの描画PDFがありません。")
+    manifests = (folder / "powerpoint-export.json", folder / "editable-preview/manifest.json")
+    if any(path.is_file() for path in manifests) and cached_export(source, folder) is None:
+        raise ValueError("保存済みPDFが原本と一致しません。")
+    validate_export(source, pdf)
+    return pdf
 
 
 def prepare_copy(source: Path, target: Path) -> None:

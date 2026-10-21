@@ -12,7 +12,7 @@ from docling_desk.preview.document_frames import interactive_html
 from docling_desk.storage import job_file
 from docling_desk.translation.provider import TranslationError
 from docling_desk.translation.service import overview
-from docling_desk.translation.source import source_map
+from docling_desk.translation.source import legacy_pairs, source_map
 from docling_desk.translation.store import read_result, usable
 from docling_desk.translation.view import apply_text
 
@@ -82,6 +82,20 @@ def translation_result(
         result = {**record, "available": usable(record, unit), "mode": unit["mode"]}
         if result["available"] and unit["mode"] == "panel":
             result["texts"] = [record["result"]["translations"][s["id"]] for s in unit["segments"]]
+            result["pairs"] = [
+                {
+                    "source": s["source_text"],
+                    "translation": record["result"]["translations"][s["id"]],
+                }
+                for s in unit["segments"]
+            ]
+        elif record.get("result") and not result["available"]:
+            # Saved against an older page layout: it cannot be placed on the page, so
+            # list it beside its original text until the unit is translated again.
+            pairs = legacy_pairs(folder, unit_id, record)
+            if pairs is not None:
+                result["pairs"] = pairs
+                result["legacy"] = True
         headers = {"Cache-Control": "no-store"}
         if download:
             headers["Content-Disposition"] = f'attachment; filename="{unit_id}-{language}.json"'

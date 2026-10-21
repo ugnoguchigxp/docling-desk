@@ -146,6 +146,8 @@ class TranslationManager:
             raise TranslationError("input", "翻訳先は英語か日本語を指定してください。")
         profile = provider.profile if provider else configured_profile()
         schedule = configured_schedule(interval_seconds)
+        # Generate any missing page previews before taking the lock; the call under it is then a read.
+        source_map(folder)
         with LOCK:
             source = source_map(folder)
             ids = unit_ids if unit_ids is not None else [u["id"] for u in source["units"]]
@@ -438,6 +440,8 @@ class TranslationManager:
 
 
 def overview(folder: Path) -> dict:
+    # Previews are generated outside the lock; under it this only reads the saved binding.
+    source_map(folder)
     with LOCK:
         source = source_map(folder)
         units = []

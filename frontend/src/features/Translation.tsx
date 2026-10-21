@@ -30,6 +30,7 @@ import {
   type TranslationOverview,
 } from "../lib/types";
 const active = ["queued", "waiting", "running"];
+type PanelResult = ReturnType<typeof contracts.translationPanel>;
 interface Notice {
   kind: StatusKind;
   text: string;
@@ -92,13 +93,22 @@ export function useTranslation(
   const panel = useQuery({
     queryKey: queryKeys.translationResult(job.id, unit?.id, language, revision),
     queryFn: ({ signal }) =>
-      request<{ available: boolean; texts: string[] }>(
+      request<PanelResult>(
         `/api/jobs/${job.id}/translations/${language}/${unit!.id}`,
         { signal },
         contracts.translationPanel,
       ),
-    enabled: !lightweight && !!record?.available && unit?.mode === "panel",
+    // A translation saved against an older page layout cannot be placed on the
+    // page; the server lists it beside its original text instead.
+    enabled:
+      !lightweight &&
+      ((!!record?.available && unit?.mode === "panel") || !!record?.stale),
   });
+  const legacy =
+    !record?.available && !!panel.data?.legacy && !!panel.data.pairs?.length;
+  const showPanel =
+    legacy ||
+    (!!record?.available && unit?.mode === "panel" && !!panel.data?.available);
   const [opened, setOpened] = useState(false),
     [target, setTarget] = useState<"en" | "ja">("en"),
     [scope, setScope] = useState("current"),
@@ -196,6 +206,11 @@ export function useTranslation(
           recordKind[record.state] ?? "partial",
           `${unitLabel(unit.kind, unit.number)} は${states[record.state] || record.state}です。原文を表示しています。`,
         );
+      if (legacy)
+        note(
+          "partial",
+          "以前の表示方式で保存した訳文を、原文と並べて一覧で表示しています。翻訳をやり直すと原本上の位置に表示します。",
+        );
       if (record.error) note("error", record.error);
       if (unit.kind === "slide") note("partial", "サムネイルは原文です。");
       if (unit.excluded_count)
@@ -289,13 +304,11 @@ export function useTranslation(
       <SidePanel
         id="translationPanel"
         aria-label="このページの訳文"
-        hidden={
-          !record?.available || unit?.mode !== "panel" || !panel.data?.available
-        }
+        hidden={!showPanel}
         heading="translationPanelTitle"
         title={
           unit
-            ? `${unitLabel(unit.kind, unit.number)} · ${language === "en" ? "英訳" : "日本語訳"}`
+            ? `${unitLabel(unit.kind, unit.number)} · ${language === "en" ? "英訳" : "日本語訳"}${legacy ? "（原文と対訳）" : ""}`
             : ""
         }
         headingClass="translation-panel-heading"
@@ -303,9 +316,14 @@ export function useTranslation(
         onClose={() => onLanguage("original")}
       >
         <div id="translationPanelText">
-          {panel.data?.texts?.map((text, i) => (
-            <p key={i}>{text}</p>
-          ))}
+          {panel.data?.pairs?.length
+            ? panel.data.pairs.map((pair, i) => (
+                <div key={i} className="translation-pair">
+                  <p className="translation-source">{pair.source}</p>
+                  <p>{pair.translation}</p>
+                </div>
+              ))
+            : panel.data?.texts?.map((text, i) => <p key={i}>{text}</p>)}
         </div>
       </SidePanel>
     </>
@@ -415,7 +433,7 @@ export function useTranslation(
           へ送信します。
         </p>
         <p>
-          文字列だけを翻訳し、文字枠・図形・文字サイズを保ちます。長い訳文ははみ出す場合があります。画像内の文字はそのままです。
+          文字列だけを翻訳し、図形や画像はそのまま、原文の文字の位置に訳文を重ねて表示します。長い訳文は文字を小さくして収めますが、はみ出す場合があります。画像内の文字はそのままです。
         </p>
         <StatusMessage
           id="translationDialogMessage"

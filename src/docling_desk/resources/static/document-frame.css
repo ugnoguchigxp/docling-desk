@@ -1,4 +1,4 @@
-body[data-unit] :is(p,span,td,th,text,tspan){-webkit-user-select:text;user-select:text}
+body[data-unit] :is(p,span,td,th,text,tspan,.pdf-text){-webkit-user-select:text;user-select:text}
 /* SVG glyph gaps and decorative shapes must not swallow a text drag. */
 body[data-unit^="slide-"] svg :is(path,rect,image,use,polygon,polyline,line,circle,ellipse){pointer-events:none}
 body[data-unit^="slide-"] svg :is(text,tspan){pointer-events:bounding-box}

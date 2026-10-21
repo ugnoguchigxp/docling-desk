@@ -5,9 +5,9 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
-import pymupdf
 import pytest
 from fastapi.testclient import TestClient
+from pdf_samples import pdf_bytes
 
 from docling_desk.knowledge.worker import create_worker
 
@@ -56,11 +56,7 @@ def test_validation_checks_hash_and_pdf_page_limit(worker, monkeypatch):
     payload["sha256"] = "a" * 64
     headers = {"Authorization": f"Bearer {TOKEN}"}
     assert client.post("/internal/v1/validate", json=payload, headers=headers).status_code == 422
-    pdf = pymupdf.open()
-    for _ in range(101):
-        pdf.new_page()
-    payload = uploaded(root, pdf.tobytes(), ".pdf")
-    pdf.close()
+    payload = uploaded(root, pdf_bytes(pages=101), ".pdf")
     assert client.post("/internal/v1/validate", json=payload, headers=headers).status_code == 422
 
 
@@ -250,11 +246,7 @@ def test_viewer_rewrites_svg_links_without_inserting_tokens_in_text(tmp_path):
 
 def test_default_shared_page_limit_accepts_530_pages(worker):
     client, root = worker
-    pdf = pymupdf.open()
-    for _ in range(530):
-        pdf.new_page()
-    payload = uploaded(root, pdf.tobytes(), ".pdf")
-    pdf.close()
+    payload = uploaded(root, pdf_bytes(pages=530), ".pdf")
     assert (
         client.post(
             "/internal/v1/validate", json=payload, headers={"Authorization": f"Bearer {TOKEN}"}

@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID
 
-import pymupdf
 from docling_azure_ocr.config import OcrError, OcrProfile, api_key, load_profile
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
@@ -31,6 +30,7 @@ from docling_desk.documents.ocr_operations import FileOcrLedger, HttpOcrLedger
 from docling_desk.documents.ocr_profiles import make_runtime
 from docling_desk.knowledge.document_reads import ReadOptions
 from docling_desk.operations.models import problems as model_problems
+from docling_desk.preview.pdfium_access import check_pdf_limits
 from docling_desk.storage import job_file
 
 
@@ -146,9 +146,7 @@ def create_worker(root: Path, token: str) -> FastAPI:
                 raise ValueError("source_changed")
             validate_input(path)
             if value.suffix == ".pdf":
-                with pymupdf.open(path) as pdf:
-                    if pdf.is_encrypted or len(pdf) > MAX_PAGES:
-                        raise ValueError("invalid_pdf")
+                check_pdf_limits(path, MAX_PAGES)
         except (OSError, ValueError, RuntimeError) as exc:
             raise HTTPException(422, "invalid_document") from exc
         return path

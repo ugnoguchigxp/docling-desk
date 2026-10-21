@@ -9,6 +9,7 @@ from pathlib import Path
 import pypdfium2 as pdfium
 from docling.utils.locks import pypdfium2_lock
 
+from docling_desk.preview.pdfium_access import inspect_pdf
 from docling_desk.preview.thumbnails import (
     MAX_THUMBNAIL_BYTES,
     WEBP_METHOD,
@@ -59,15 +60,7 @@ def pdf_thumbnail(source: Path, number: int) -> Path:
 
 def pdf_pages(source: Path) -> list[tuple[float, float]]:
     # Share Docling's lock: PDFium must not run concurrently with conversion.
-    with pypdfium2_lock, pdfium.PdfDocument(source) as document:
-        sizes = []
-        for index in range(len(document)):
-            page = document[index]
-            try:
-                sizes.append(page.get_size())
-            finally:
-                page.close()
-        return sizes
+    return list(inspect_pdf(source).sizes)
 
 
 def render_pdf_page(source: Path, number: int, scale: float) -> bytes:

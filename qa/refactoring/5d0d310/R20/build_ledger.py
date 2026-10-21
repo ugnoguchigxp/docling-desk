@@ -56,18 +56,6 @@ FAMILY_CONDITIONS = [
 GENERIC = {"dual license", "license", "other", "unknown"}
 
 PY_SPECIAL = {
-    "pymupdf": {
-        "conditions": [
-            "AGPL-3.0 または Artifex 商用ライセンスの二重ライセンス。本件はAGPL条件で使う想定(NOTICE.md)",
-            "配布(wheelを要求するだけの配布は除く)・Dockerイメージ・ネットワーク提供のいずれでも、対応するソースの入手手段と全文の提示が必要",
-            "同梱の MuPDF(libmupdf)もAGPL",
-        ],
-        "remaining": [
-            "dist-info の COPYING は『Dual Licensed - GNU AFFERO GPL 3.0 or Artifex Commercial License』の1行だけで、AGPL全文は同梱されない",
-            "本体(MIT)との結合物としてAGPLが及ぶ範囲の法的判断は未了(人と法務の確認が必要)",
-            "AGPLの対応ソース(pymupdf 1.28.2 と MuPDF)の入手先を配布物に明記する必要",
-        ],
-    },
     "certifi": {"remaining": ["MPL-2.0。改変なしで再配布する前提を確認"]},
     "tqdm": {"remaining": ["MPL-2.0 AND MIT の二重表記。MPL部分の対象ファイルを未確認"]},
     "torch": {

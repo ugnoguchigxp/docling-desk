@@ -256,12 +256,18 @@ function overview(
     ...overrides,
   };
 }
+interface PanelBody {
+  available: boolean;
+  texts?: string[];
+  pairs?: { source: string; translation: string }[];
+  legacy?: boolean;
+}
 function renderTranslation(
   data: TranslationOverview,
   props: { current?: number; language?: Language; state?: Job["state"] } = {},
 ) {
   const posts: unknown[] = [];
-  let panel: { available: boolean; texts: string[] } = {
+  let panel: PanelBody = {
     available: true,
     texts: ["Hello", "World"],
   };
@@ -323,7 +329,7 @@ function renderTranslation(
     posts,
     onLanguage,
     fetchMock,
-    setPanel(next: { available: boolean; texts: string[] }) {
+    setPanel(next: PanelBody) {
       panel = next;
     },
     setFailGet(value: boolean) {
@@ -828,4 +834,108 @@ it("does not open the dialog for a page the person left while the list was loadi
   expect(document.getElementById("translationDialog")).not.toHaveAttribute(
     "open",
   );
+});
+
+it("lists a translation saved against an older page layout beside its original text", async () => {
+  const data = overview({
+    units: [
+      {
+        id: "page-1",
+        kind: "page",
+        number: 1,
+        mode: "replace",
+        excluded_count: 0,
+        segments_count: 2,
+        languages: {
+          en: {
+            ...idle,
+            state: "completed",
+            stale: true,
+            result_created_at: "old",
+          },
+          ja: idle,
+        },
+      },
+    ],
+  });
+  const view = renderTranslation(data, { language: "en" });
+  view.setPanel({
+    available: false,
+    legacy: true,
+    pairs: [
+      { source: "Original A", translation: "訳A" },
+      { source: "Original B", translation: "訳B" },
+    ],
+  });
+  expect(await screen.findByText("Original A")).toBeVisible();
+  expect(screen.getByText("訳B")).toBeVisible();
+  expect(document.getElementById("translationPanel")).toBeVisible();
+  expect(screen.getByText(/原文と対訳/)).toBeInTheDocument();
+  expect(screen.getByText(/以前の表示方式で保存した訳文/)).toBeInTheDocument();
+  expect(screen.getByText(/原文が更新されています/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "翻訳をやり直す" })).toBeVisible();
+  view.cache.clear();
+});
+
+it("hides the side panel for a stale translation the server cannot pair", async () => {
+  const data = overview({
+    units: [
+      {
+        id: "page-1",
+        kind: "page",
+        number: 1,
+        mode: "replace",
+        excluded_count: 0,
+        segments_count: 2,
+        languages: {
+          en: {
+            ...idle,
+            state: "completed",
+            stale: true,
+            result_created_at: "x",
+          },
+          ja: idle,
+        },
+      },
+    ],
+  });
+  const view = renderTranslation(data, { language: "en" });
+  view.setPanel({ available: false });
+  expect(await screen.findByText(/原文が更新されています/)).toBeInTheDocument();
+  expect(document.getElementById("translationPanel")).not.toBeVisible();
+  expect(screen.queryByText(/以前の表示方式/)).toBeNull();
+  view.cache.clear();
+});
+
+it("shows the original beside the translation in the extracted-text panel", async () => {
+  const data = overview({
+    units: [
+      {
+        id: "page-1",
+        kind: "page",
+        number: 1,
+        mode: "panel",
+        excluded_count: 0,
+        segments_count: 1,
+        languages: {
+          en: {
+            ...idle,
+            state: "completed",
+            available: true,
+            result_created_at: "s",
+          },
+          ja: idle,
+        },
+      },
+    ],
+  });
+  const view = renderTranslation(data, { language: "en" });
+  view.setPanel({
+    available: true,
+    texts: ["Hello"],
+    pairs: [{ source: "こんにちは", translation: "Hello" }],
+  });
+  expect(await screen.findByText("こんにちは")).toBeVisible();
+  expect(screen.getByText("Hello")).toBeVisible();
+  view.cache.clear();
 });

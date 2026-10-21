@@ -12,11 +12,12 @@ import threading
 from io import BytesIO
 from pathlib import Path
 
-import pymupdf
+from docling.utils.locks import pypdfium2_lock
 from PIL import Image
 
 from docling_desk.config import CACHE
 from docling_desk.config import RESOURCES as ROOT
+from docling_desk.preview.pdfium_access import open_pdf
 from docling_desk.storage import document_cache, original_file
 
 RENDER_LOCK = threading.Lock()
@@ -143,17 +144,24 @@ def thumbnail(folder: Path, number: int) -> Path:
         temporary = target.with_suffix(".tmp")
         try:
             if pdf is not None:
-                with pymupdf.open(pdf) as document:
-                    if not 1 <= number <= len(document):
-                        raise ValueError("スライドのプレビューが見つかりません。")
-                    page = document[number - 1]
-                    pixmap = page.get_pixmap(
-                        matrix=pymupdf.Matrix(240 / page.rect.width, 240 / page.rect.width)
-                    )
-                    with Image.frombytes(
-                        "RGB", (pixmap.width, pixmap.height), pixmap.samples
-                    ) as image:
-                        temporary.write_bytes(encode_thumbnail(image))
+                with pypdfium2_lock:
+                    document = open_pdf(pdf)
+                    try:
+                        if not 1 <= number <= len(document):
+                            raise ValueError("スライドのプレビューが見つかりません。")
+                        page = document[number - 1]
+                        try:
+                            bitmap = page.render(scale=240 / page.get_width())
+                            try:
+                                image = bitmap.to_pil().convert("RGB")
+                            finally:
+                                bitmap.close()
+                        finally:
+                            page.close()
+                    finally:
+                        document.close()
+                with image:
+                    temporary.write_bytes(encode_thumbnail(image))
             else:
                 result = subprocess.run(
                     [str(renderer()), str(source), str(width), str(height), "-"],

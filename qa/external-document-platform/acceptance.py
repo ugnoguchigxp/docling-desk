@@ -24,10 +24,11 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import httpx
-import pymupdf
 from docx import Document
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 
 ROOT = Path(__file__).resolve().parents[2]
 QA = ROOT / "qa/external-document-platform"
@@ -117,11 +118,10 @@ async def scenario(client_config, config, api_url, api_env, processes, logs, tem
 
     # Actual PDF, Office and Markdown registration through the existing multipart API.
     pdf_path = temporary / "synthetic.pdf"
-    pdf = pymupdf.open()
-    page = pdf.new_page()
-    page.insert_text((50, 80), "Synthetic inventory evidence 120 items.")
-    pdf.save(pdf_path)
-    pdf.close()
+    pdf = canvas.Canvas(str(pdf_path), pagesize=A4)
+    pdf.drawString(50, A4[1] - 80, "Synthetic inventory evidence 120 items.")
+    pdf.showPage()
+    pdf.save()
     office = Document()
     office.add_heading("Synthetic inventory", 1)
     office.add_paragraph("Synthetic inventory evidence 120 items.")

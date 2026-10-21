@@ -5,10 +5,11 @@ import subprocess
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import pymupdf
+import pypdfium2 as pdfium
 import pytest
 from fastapi.testclient import TestClient
 from lxml import html
+from pdf_samples import pdf_bytes
 
 from docling_desk import config
 from docling_desk.app import create_app
@@ -25,11 +26,7 @@ Hello TeX. $E=mc^2$
 
 def fake_compile(source, folder):
     assert source.read_text() == SOURCE
-    with pymupdf.open() as doc:
-        for text in ("Hello TeX", "Second page"):
-            page = doc.new_page()
-            page.insert_text((72, 72), text)
-        doc.save(folder / "tex-preview.pdf")
+    (folder / "tex-preview.pdf").write_bytes(pdf_bytes(("Hello TeX", "Second page")))
     return "tex-preview.pdf"
 
 
@@ -144,8 +141,8 @@ def test_real_engine_typesets_and_cannot_read_private_files(tmp_path):
     source = output / "paper.tex"
     source.write_text(SOURCE)
     result = tex.compile_tex(source, output)
-    with pymupdf.open(output / result) as pdf:
-        assert len(pdf) == 2 and "Hello TeX" in pdf[0].get_text()
+    with pdfium.PdfDocument(output / result) as pdf:
+        assert len(pdf) == 2 and "Hello TeX" in pdf[0].get_textpage().get_text_range()
     source.write_text(
         r"\documentclass{article}\begin{document}\input{" + str(private) + r"}\end{document}"
     )

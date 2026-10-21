@@ -14,7 +14,7 @@ from docling_desk.preview.editable_preview import (
     editable_preview,
     ensure_pdf_preview,
 )
-from docling_desk.preview.powerpoint_export import cached_export, validate_export
+from docling_desk.preview.powerpoint_export import saved_export
 from docling_desk.preview.slides import split_quicklook
 from docling_desk.storage import document_folders, job_file, original_file
 from docling_desk.translation.source import source_map
@@ -31,26 +31,10 @@ def rebuild_preview(folder: Path, *, saved_pdf_only: bool = False) -> dict:
     else:
         if saved_pdf_only:
             # Repair can run on a host with no Office renderer. Never re-extract.
-            pdf = folder / "powerpoint-rendered.pdf"
-            if not pdf.is_file():
-                return {
-                    "id": job.id,
-                    "state": "failed",
-                    "reason": "保存済みの描画PDFがありません。",
-                }
-            # A known mismatch is never accepted; legacy PDFs without a hash
-            # manifest must at least agree on every slide's count and dimensions.
-            manifests = [
-                folder / "powerpoint-export.json",
-                folder / "editable-preview/manifest.json",
-            ]
-            if any(path.is_file() for path in manifests) and cached_export(source, folder) is None:
-                return {
-                    "id": job.id,
-                    "state": "failed",
-                    "reason": "保存済みPDFが原本と一致しません。",
-                }
-            validate_export(source, pdf)
+            try:
+                pdf = saved_export(source, folder)
+            except ValueError as exc:
+                return {"id": job.id, "state": "failed", "reason": str(exc)}
             with PDF_RENDER_LOCK:
                 preview = editable_preview(source, folder) or build_editable_preview(
                     source, pdf, folder
