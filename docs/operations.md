@@ -1,12 +1,18 @@
 # 運用手順
 
-2026年10月6日更新。ここにある手順が現行の操作です。README内のテスト件数は、その変更を入れた時点の記録であり、今の全体結果ではありません。
+2026年10月21日更新（導入・診断・更新）。ここにある導入・診断・更新の手順が現行の操作です。末尾の2026年10月6日・7日の記録は、その時点の検証です。README内のテスト件数は、その変更を入れた時点の記録であり、今の全体結果ではありません。
 
 ## 導入
 
+macOSのソース導入とLinuxのDocker導入が現行の二つです。[README](../README.md#導入と起動)の手順と同一です。
+
+### macOS（ソースから）
+
+必要なもの：Git、Python 3.12、Node.js 22.12以上（corepack同梱版）。pnpm 10.24.0は `frontend/package.json` の指定に従い `corepack pnpm` が取得します。corepackが使えないNodeでは `npm install --global pnpm@10.24.0` で同じ版を入れ、`corepack pnpm` を `pnpm` に読み替えます。PyTorch 2.14.1のmacOS用wheelはarm64（macOS 14以上）です。Pythonは `pyproject.toml` が3.12〜3.14を許しますが、CI・Dockerは3.12です。
+
 ```sh
-git clone --recurse-submodules https://github.com/ugnoguchigxp/docling-desk.git
-cd docling-desk
+git clone --recurse-submodules https://github.com/ugnoguchigxp/docling-desk.git docling-desktop
+cd docling-desktop
 python3.12 -m venv .venv
 .venv/bin/python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1 torchvision==0.29.1
 .venv/bin/python -m pip install -r requirements-lock.txt
@@ -16,11 +22,25 @@ corepack pnpm --dir frontend install --frozen-lockfile
 corepack pnpm --dir frontend build
 corepack pnpm --dir frontend export:static
 .venv/bin/python -m docling_desk.operations.download_models
+.venv/bin/python -m docling_desk.operations.models
+./run.sh
 ```
 
-モデル取得はmanifestのrevisionを確認してから公開ディレクトリへ切り替えます。取得に失敗した途中ディレクトリは起動対象になりません。`.venv/bin/python -m docling_desk.operations.models` が `models match manifest` を出すまで、画面の `/health/ready` は `unavailable` です。理由は `missing:`、`revision:`、`incomplete:`、`unverified:`、`interrupted:`、`recover:`、`disk_space`、`frontend_missing` のいずれかです。`incomplete:` は必須の重み・設定・索引の欠落、空ファイル、設定の破損を区別します。`unverified:` はファイル名が揃っていても、更新時のヘッダ確認が済んでいない状態です。health確認は重み全体を読み直しません。差し替えの途中で止まった場合は `.venv/bin/python -m docling_desk.operations.models recover` が、manifestと一致する完了済みディレクトリだけを戻します。一致しなければ手順を表示し、`.previous` は確認前に消しません。
+`download_models` が初回のモデル取得で、インターネット接続が必要です。モデルはmanifestのrevisionを確認してから公開ディレクトリへ切り替えます。取得に失敗した途中ディレクトリは起動対象になりません。`.venv/bin/python -m docling_desk.operations.models` が `models match manifest` を出すまで、画面の `/health/ready` は `unavailable` です。理由は `missing:`、`revision:`、`incomplete:`、`unverified:`、`interrupted:`、`recover:`、`disk_space`、`frontend_missing` のいずれかです。`incomplete:` は必須の重み・設定・索引の欠落、空ファイル、設定の破損を区別します。`unverified:` はファイル名が揃っていても、更新時のヘッダ確認が済んでいない状態です。health確認は重み全体を読み直しません。差し替えの途中で止まった場合は `.venv/bin/python -m docling_desk.operations.models recover` が、manifestと一致する完了済みディレクトリだけを戻します。一致しなければ手順を表示し、`.previous` は確認前に消しません。
 
-ローカル画面は `./run.sh` で 127.0.0.1:8765 だけを開きます。外部ナレッジAPIは別の保存領域 `.knowledge-api` を使います。資格情報は本文のバックアップに入れません。
+ローカル画面は `./run.sh` で http://127.0.0.1:8765 だけを開きます。`./run.sh --port 8876` でポートを変更できます。設定は `.env.example` を参考にプロジェクト直下の `.env` に記入します。外部ナレッジAPIは別の保存領域 `.knowledge-api` を使います。資格情報は本文のバックアップに入れません。
+
+### Linux（Docker）
+
+必要なもの：DockerとDocker Compose。ホストにPython・Node.jsは不要です。
+
+```sh
+git clone --recurse-submodules https://github.com/ugnoguchigxp/docling-desk.git docling-desktop
+cd docling-desktop
+docker compose up -d --build --wait
+```
+
+初回のモデル取得はイメージのビルド中に行われ、ビルド時だけインターネット接続が必要です（`Dockerfile` のmodelsステージが `download_models` を実行します）。実行時はモデルを取得しません。http://127.0.0.1:18765 で開けます。既存のcheckoutでサブモジュールが空なら、先に `git submodule update --init --recursive` を実行します。起動後の確認、設定、ボリューム、Azureへの持ち込みは[Linux・Docker手順](linux-docker.md)にあります。
 
 以下の `data/` は開発環境の例です。保存先を変更している場合は、実際の `DOCLING_DATA_DIR` に置き換えてください。内部は `content/`・`derived/`・`runtime/`・`cache/` に分かれます。[保存構成と旧配置の移行](content-storage.md)を参照してください。
 
@@ -30,6 +50,7 @@ corepack pnpm --dir frontend export:static
 | --- | --- |
 | 起動のみ | `/health/live` が `ok` または `alive` |
 | 処理可能 | `/health/ready` が `ready`。それ以外は `reasons` を見る |
+| 機能ごとの利用可否 | `.venv/bin/python -m docling_desk --diagnose`（Dockerは `docker compose exec docling python -m docling_desk --diagnose`）、またはログイン後の `GET /api/diagnostics/features` |
 | 抽出待ち・失敗・一部成功 | 資料一覧の状態。失敗は再実行できるものと、再アップロードが必要なものを分ける |
 | Wiki正本 | `data/content/wiki/revisions/` と `data/content/manifests/wiki.json` |
 | 資料原本と分類 | `data/content/documents/<id>/original.*` と `data/content/manifests/library.json` |
@@ -38,6 +59,32 @@ corepack pnpm --dir frontend export:static
 | 意味検索未設定 | Wikiと全文検索は使える。索引作成はAzure設定後に利用者が開始する |
 
 ログとエラーには本文、APIキー、署名を残しません。追う識別子は request、job、run、版、ハッシュです。
+
+### 機能ごとの前提と診断
+
+`/health/ready` は画面全体の起動可否を返す公開の確認用で、意味と HTTP status は変えていません。機能ごとの診断は別の入口です。保存先とローカルの設定・導入物だけを読み、外部サービスへ接続せず、課金も発生しません。資格情報、内部パス、接続先URLは返しません。結果は次の三状態で、無関係な任意機能の未設定が他の機能の状態に影響することはありません。
+
+| 状態 | 意味 |
+| --- | --- |
+| `available` | 必須の前提がそろっている |
+| `not_configured` | 設定・導入・モデルが不足している。復旧方法に従って設定する |
+| `temporary_failure` | 空き容量、保存先、Blob同期、モデル差し替えの中断など、状態が戻れば使える |
+
+| 機能（`id`） | 必須の前提 | 任意・影響しない設定 |
+| --- | --- | --- |
+| ローカル閲覧・全文検索（`local_viewing`） | 画面の構築物、書込み可能な保存先、空き容量2 GiB以上、Blob復元が未完了でないこと | モデル、Office、TeX、すべてのクラウド設定 |
+| 資料の変換（`conversion`） | 検証済みモデル（manifest一致）、空き容量、Docling本体、ローカルOCR（macOSはApple、LinuxはTesseract） | Azure OCR |
+| PowerPointの原本プレビュー（`office_presentation`） | macOS：Microsoft PowerPoint。Linux：LibreOffice | 他のOffice形式 |
+| Excel・Wordの原本プレビュー（`office_documents`） | macOS：Quick Look。Linux：LibreOffice | PowerPoint |
+| TeXの組版表示（`tex_preview`） | Tectonic。隔離環境（macOSはsandbox-exec、Linuxはbubblewrap）。Dockerイメージには含まれない | TeXソースの閲覧は不要 |
+| 意味検索（`semantic_search`） | `DOCLING_AZURE_EMBEDDING_ENDPOINT`・`_KEY`・`_DEPLOYMENT`・`_MODEL_VERSION` の4つすべて | 全文検索は不要 |
+| 翻訳（`translation`） | 選択した接続先の設定（Codex SDKとログインまたは `OPENAI_API_KEY`。Azure OpenAIはHTTPS接続先・デプロイ名・APIキー） | 他の機能の設定 |
+| 解説（`explanation`） | Codex SDKとログインまたは `OPENAI_API_KEY` | Web検索（`DOCLING_EXPLANATION_WEB`。`brave` は `BRAVE_SEARCH_API_KEY`、`duckduckgo` と `disabled` は不要） |
+| Azure Blobミラー（`blob_storage`） | `DOCLING_STORAGE=azure-blob` と接続設定。同期に未解決の復元・競合・エラーがないこと | ローカル保存が正本であり、未設定でも他の機能は使える |
+
+新規にアップロードしたOffice資料のプレビュー生成は変換処理の中で行われるため、`conversion` も必要です（診断の `depends_on`）。保存済みのプレビューの閲覧にはモデルは不要です。
+
+`GET /api/diagnostics/features` は通常のAPIと同じログイン（`DOCLING_AUTH_MODE=jwt` では未ログインは401）の下にあり、`Cache-Control: no-store` を返します。各機能は `status`、不足の `reasons`、復旧方法の `recovery`、任意設定の `notes`、前提ごとの `prerequisites` を持ちます。画面を開いたときと復旧操作の後に取得し、短い間隔で繰り返さないでください（モデルの検証でファイルを読みます）。`--diagnose` は終了コード0（必須機能の `conversion` と `local_viewing` が `available`）または1を返し、`--json` で同じ内容をJSONで出します。
 
 ## バックアップと復元
 
@@ -87,10 +134,16 @@ cd frontend && UI_SYNTHETIC=1 pnpm test:e2e:synthetic
 
 旧配置から初めて更新する場合は、旧Webプロセスとバッチを停止し、変更前にバックアップを取得してください。新バージョンの起動時に保存配置を移行します。異なる内容の移行先がある場合は上書きせず停止します。旧バージョンへ戻す場合は、移行前のバックアップを空の別ディレクトリに復元し、その保存先を指定してください。
 
-1. 新しいソースと `src/docling_desk/resources/models/manifest.json` のrevisionを確認する。
-2. `.venv/bin/python -m docling_desk.operations.download_models` を実行する。失敗した場合、直前のモデルディレクトリが残ります。途中でプロセスが落ちたときは `.venv/bin/python -m docling_desk.operations.models recover` を実行します。
-3. `.venv/bin/python -m docling_desk.operations.models` と `.venv/bin/python -m docling_desk.operations.verify` が成功してから差し替える。
-4. 戻すときは、その時点のソースとmanifestに対応するモデルrevisionへ再度取得する。半端なモデルディレクトリのまま起動しません。旧revisionをmanifestと違うまま有効にはしません。
+macOS（ソース）：
+
+1. サーバーを停止し、バックアップを取得する。
+2. `git pull` と `git submodule update --init --recursive` で新しいソースを取得する。
+3. 導入手順のうち `pip install -r requirements-lock.txt` 以降のコマンドとfrontendのビルドを再実行する。torchの版が変わった場合は、導入手順のtorch行を先に実行する。
+4. `.venv/bin/python -m docling_desk.operations.models` を実行する。`models match manifest` 以外のとき、またはmanifestのrevisionが変わったときだけ `.venv/bin/python -m docling_desk.operations.download_models` を実行し、失敗した場合は直前のモデルディレクトリが残ることを確認する。途中でプロセスが落ちたときは `.venv/bin/python -m docling_desk.operations.models recover` を実行する。
+5. `.venv/bin/python -m docling_desk.operations.models` と `.venv/bin/python -m docling_desk.operations.verify` が成功してから `./run.sh` で起動する。
+6. 戻すときは、その時点のソースとmanifestに対応するモデルrevisionへ再度取得する。半端なモデルディレクトリのまま起動しません。旧revisionをmanifestと違うまま有効にはしません。
+
+Linux（Docker）：`git pull`、`git submodule update --init --recursive`、`docker compose up -d --build --force-recreate --wait` の順に実行します（コンテナは作り直されます）。モデルはビルドのmodelsステージで取得され、そのステージの入力（`src/docling_desk/`）が変わると取得し直されます。保存データは名前付きボリュームに残ります。`docker compose down -v` はボリュームも削除するため使いません。
 
 ## 既知の制限
 

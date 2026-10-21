@@ -67,7 +67,7 @@ operations/<operation_id>.json: `{"id", "key_sha256", "request_sha256", "action"
 
 ## 既知の制約
 
-- 文書変換は`exclusive_write`を変換全体で保持するため、変換中の図表保存・自動下書きはその完了まで待つ。画面は保存中の表示を続ける。
+- 資料フォルダー（`derived/documents/<id>`）の文書変換は、`exclusive_write`を入力確定と公開の短い区間だけ取り、計算中は取らない（[R13設計](refactoring/R13-design.md)）。変換中の図表保存・自動下書きは、その2つの短い区間だけ待つ。計算中は`runtime/activity`の活動ファイル（flock）が進行中を示し、バックアップは拒否される。クラッシュ後は活動が失効し、拒否は残らない。資料フォルダーの外（Knowledge workerの試行フォルダーなど）の変換は従来通り全体を排他で実行する。
 
 ## HTTP（`src/docling_desk/api/diagrams.py`、`router`を公開）
 

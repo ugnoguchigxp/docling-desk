@@ -1,0 +1,143 @@
+{
+  "document_kind": "refactoring_plan_baseline_not_execution_evidence",
+  "created_at": "2026-10-21",
+  "plan_status": "not_started",
+  "commit": "5d0d3109791cde560b64acb22c193c52ae9e9098",
+  "docling_commit": "a1c5ff2a8c5ab2bf87d7c1eb896b5bc351f51220",
+  "reviewed_source_digest": "5b8dcc9b3122238e099d96d60ca0c7b65a92d2985a6645b72c0539e8dce7bb89",
+  "reviewed_file_count": 1018,
+  "reviewed_digest_method": "SHA256 of json.dumps(sorted file rows with path, sha256, bytes, sort_keys=True). Source files were git listed cached + untracked nonignored, excluding symlinks and actual .env. Includes synthetic fixtures. Does not include this planning directory.",
+  "changed_files_from_previous_review": [],
+  "preexisting_status_short": "",
+  "current_work_scope": [
+    "docs/refactoring/README.md",
+    "docs/refactoring/implementation-plan.md",
+    "docs/refactoring/verification-plan.md",
+    "docs/refactoring/baseline.json"
+  ],
+  "current_execution": {
+    "product_code_changed": false,
+    "product_tests_run": false,
+    "planning_validation": "Recorded in conversation after creation; not a product test pass"
+  },
+  "prior_review": {
+    "reviewed_at": "2026-10-21",
+    "rubric_version": "1.1.0",
+    "mode": "full",
+    "depth": "deep",
+    "technical_profile": "desktop",
+    "technical_provisional_score": 67.7,
+    "technical_coverage_percent": 94.7,
+    "technical_formal_score": null,
+    "project_score": null,
+    "project_coverage_percent": 50.0,
+    "observed_tests": {
+      "python_full": {
+        "passed": 947,
+        "failed": 1,
+        "skipped": 4,
+        "failure": "Git metadata absent in isolated copy; source identity assertion only"
+      },
+      "python_targeted_environment_recheck": {
+        "passed": 1,
+        "failed": 0,
+        "source_and_expectations_unchanged": true
+      },
+      "python_distinct_passed_across_runs": 948,
+      "frontend_unit_passed": 291,
+      "knowledge_api_passed": 103,
+      "browser_passed": 91,
+      "browser_failed": 3,
+      "browser_failure": "Global .excalidraw.first() matches hidden library icon"
+    },
+    "limits": [
+      "These are previous review results, not tests executed while writing this plan.",
+      "Paid/live Azure OCR and live answer-model quality not verified.",
+      "Clean Linux Docker installation not verified.",
+      "Synthetic search performance and draft quality cases do not establish production budgets or actual-user outcomes."
+    ]
+  },
+  "future_execution_evidence_path": "qa/refactoring/<source-digest>/<run>",
+  "items": [
+    {
+      "id": "R01",
+      "status": "not_started"
+    },
+    {
+      "id": "R02",
+      "status": "not_started"
+    },
+    {
+      "id": "R03",
+      "status": "not_started"
+    },
+    {
+      "id": "R04",
+      "status": "not_started"
+    },
+    {
+      "id": "R05",
+      "status": "not_started"
+    },
+    {
+      "id": "R06",
+      "status": "not_started"
+    },
+    {
+      "id": "R07",
+      "status": "not_started"
+    },
+    {
+      "id": "R08",
+      "status": "not_started"
+    },
+    {
+      "id": "R09",
+      "status": "not_started"
+    },
+    {
+      "id": "R10",
+      "status": "not_started"
+    },
+    {
+      "id": "R11",
+      "status": "not_started"
+    },
+    {
+      "id": "R12",
+      "status": "not_started"
+    },
+    {
+      "id": "R13",
+      "status": "not_started"
+    },
+    {
+      "id": "R14",
+      "status": "not_started"
+    },
+    {
+      "id": "R15",
+      "status": "not_started"
+    },
+    {
+      "id": "R16",
+      "status": "not_started"
+    },
+    {
+      "id": "R17",
+      "status": "not_started"
+    },
+    {
+      "id": "R18",
+      "status": "not_started"
+    },
+    {
+      "id": "R19",
+      "status": "not_started"
+    },
+    {
+      "id": "R20",
+      "status": "not_started"
+    }
+  ]
+}

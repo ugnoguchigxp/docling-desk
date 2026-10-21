@@ -4,12 +4,15 @@ Python 3.12 / Debian bookwormのLinuxコンテナで、資料のアップロー�
 
 ## 初回起動
 
-DockerとComposeが必要です。Apple Silicon MacではLinux arm64、通常のx86_64 LinuxではLinux amd64のイメージを構築します。ビルド時だけパッケージ・モデル取得のためインターネットが必要です。取得元とモデル版は `src/docling_desk/resources/models/manifest.json` に固定しており、抽出時はモデルをダウンロードしません。
+DockerとComposeが必要です。ホストにPython・Node.jsは不要です。Apple Silicon MacではLinux arm64、通常のx86_64 LinuxではLinux amd64のイメージを構築します。手順は[README](../README.md#導入と起動)・[運用手順](operations.md#linuxdocker)と同一です。
 
 ```sh
-git submodule update --init --recursive
+git clone --recurse-submodules https://github.com/ugnoguchigxp/docling-desk.git docling-desktop
+cd docling-desktop
 docker compose up -d --build --wait
 ```
+
+既存のcheckoutでサブモジュールが空なら、先に `git submodule update --init --recursive` を実行します。初回のモデル取得はイメージのビルド中（`Dockerfile` のmodelsステージ）に行われ、ビルド時だけパッケージ・モデル取得のためインターネットが必要です。取得元とモデル版は `src/docling_desk/resources/models/manifest.json` に固定しており、抽出時はモデルをダウンロードしません。
 
 画面は **http://127.0.0.1:18765**。既存のmacOSサーバーの8765とは別ポートです。アップロードした資料・抽出結果・訳文・解説はDockerの名前付きボリューム `<Composeプロジェクト名>_docling-data` に保存し、ホストの既存 `data/` は読み込みません。`docling-desktop` フォルダーから起動した場合は `docling-desktop_docling-data` です。既存データを移す場合は、サーバーを停止した状態で別途コピーしてください。
 
@@ -31,9 +34,27 @@ docker compose down
 docker compose up -d --wait
 ```
 
-`/health/live` はプロセスの応答、`/health/ready` は画面・モデルの配置、保存先、空き容量2 GiB以上を確認します。readyは未準備なら503を返します。モデル推論そのものの成否は資料変換テストで確認します。`docker compose down -v` は保存ボリュームも削除するため、データを残す停止には使いません。
+`/health/live` はプロセスの応答、`/health/ready` は画面・モデルの配置、保存先、空き容量2 GiB以上を確認します。readyは未準備なら503を返します。モデル推論そのものの成否は資料変換テストで確認します。機能ごとの利用可否（変換、Officeプレビュー、TeX、意味検索、翻訳、解説、Blob）は次で確認します。外部へ接続せず、課金も発生しません。
+
+```sh
+docker compose exec docling python -m docling_desk --diagnose
+```
+
+ログイン後は `GET /api/diagnostics/features` でも取得できます。前提の一覧は[運用手順](operations.md#機能ごとの前提と診断)です。同梱のイメージにはTectonicとbubblewrapがないため、TeXの組版表示は「未設定」になります（ソースは閲覧できます）。Codexの認証情報（`OPENAI_API_KEY` など）やAzureを設定していない翻訳・解説・意味検索・Blobは「未設定」と表示されますが、閲覧・変換・検索は使えます。
+
+`docker compose down -v` は保存ボリュームも削除するため、データを残す停止には使いません。
 
 CPU推論を使います。初期の動作確認は2〜4 CPU、メモリー4〜8 GiBを目安にし、実資料のサイズ・ページ数で計測してください。空き容量はイメージ・ビルドキャッシュの分に加え、データ用に2 GiB以上必要です。GPUは不要です。
+
+## 更新
+
+```sh
+git pull
+git submodule update --init --recursive
+docker compose up -d --build --force-recreate --wait
+```
+
+`.env` の変更だけなら `docker compose up -d --force-recreate --wait` で足ります。保存データは名前付きボリュームに残ります。モデルは `src/docling_desk/` が変わるとビルドで取得し直されます。バックアップは[運用手順](operations.md#バックアップと復元)を参照してください。
 
 ## 動作確認
 

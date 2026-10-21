@@ -2,7 +2,7 @@
 
 PDF・PowerPoint・Excel・Word・Markdown・テキスト・TeX・draw.io・画像を、ローカルのブラウザーで閲覧・抽出・検索するアプリです。原本プレビューと、表・構造・出典付きのRAGデータを確認できます。Wiki取り込み、翻訳、解説、外部アプリ向けのナレッジAPIも備えています。
 
-- Python 3.12–3.14。macOS、Linuxを対象にしています。
+- macOS（ソース導入）とLinux（Docker）を対象にしています。Pythonは3.12–3.14に対応し、導入手順・CI・Dockerは3.12を使います。
 - 通常の画面はループバックで動作します。認証なしのローカル画面をインターネットへ公開しないでください。
 - モデルは初回に取得し、その後の抽出はローカルで動作します。Azure OCR・embedding・翻訳などの外部処理は個別の設定が必要です。
 - 本体は [MIT](LICENSE)。依存物・モデル・フォントの条件は [NOTICE](NOTICE.md) を参照してください。
@@ -65,9 +65,35 @@ Markdownの記事を分類ごとに取り込み、目次から見出しへ移動
 
 ![本文検索：資料とWikiの検索設定、出典と本文の抜粋、根拠の選択](docs/screenshots/search.webp)
 
-## 起動
+## 導入と起動
 
-Linuxでの導入は [Docker手順](docs/linux-docker.md) を参照してください。
+導入手順は環境ごとに一つです。詳細な確認方法と更新・復旧は[運用手順](docs/operations.md)にあります。
+
+### macOS（ソースから）
+
+必要なもの：Git、Python 3.12、Node.js 22.12以上（corepack同梱版）。pnpm 10.24.0は `frontend/package.json` の指定に従い `corepack pnpm` が取得します。corepackが使えないNodeでは `npm install --global pnpm@10.24.0` で同じ版を入れ、以下の `corepack pnpm` を `pnpm` に読み替えてください。PyTorch 2.14.1のmacOS用wheelはarm64（macOS 14以上）です。
+
+```sh
+git clone --recurse-submodules https://github.com/ugnoguchigxp/docling-desk.git docling-desktop
+cd docling-desktop
+python3.12 -m venv .venv
+.venv/bin/python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1 torchvision==0.29.1
+.venv/bin/python -m pip install -r requirements-lock.txt
+.venv/bin/python -m pip install --no-deps ./docling ./packages/docling-azure-ocr
+.venv/bin/python -m pip install --no-deps --no-build-isolation -e .
+corepack pnpm --dir frontend install --frozen-lockfile
+corepack pnpm --dir frontend build
+corepack pnpm --dir frontend export:static
+.venv/bin/python -m docling_desk.operations.download_models
+.venv/bin/python -m docling_desk.operations.models
+./run.sh
+```
+
+`download_models` が初回のモデル取得で、インターネット接続が必要です（取得後の抽出はローカルで動作します）。`operations.models` が `models match manifest` を表示すれば準備完了です。http://127.0.0.1:8765 で開けます。仮想環境を有効にしなくても、各コマンドは同じPython環境を使用します。
+
+### Linux（Docker）
+
+必要なもの：DockerとDocker Compose。ホストにPython・Node.jsは不要です。
 
 ```sh
 git clone --recurse-submodules https://github.com/ugnoguchigxp/docling-desk.git docling-desktop
@@ -75,30 +101,37 @@ cd docling-desktop
 docker compose up -d --build --wait
 ```
 
-http://127.0.0.1:18765 で開けます。macOSの原本プレビューはQuick Lookを使用し、PowerPointのPDF書き出しにはMicrosoft PowerPointが必要です。LinuxはLibreOfficeとTesseractを使用します。
+モデルはイメージのビルド時に取得するため、初回のビルドだけインターネット接続が必要です。起動後の抽出はモデルを取得しません。http://127.0.0.1:18765 で開けます。Linuxの原本プレビューはLibreOffice、OCRはTesseractで、いずれもイメージに含まれます。[Docker手順](docs/linux-docker.md)に動作確認と設定があります。
 
-## ソースから導入
-
-Python 3.12以上とNode.js 22.12以上、pnpm 10.24.0が必要です。LinuxはDockerを推奨します。以下はmacOSでの手順です。
+### 起動後の確認と機能ごとの診断
 
 ```sh
-git clone --recurse-submodules https://github.com/ugnoguchigxp/docling-desk.git docling-desktop
-cd docling-desktop
-python3.12 -m venv .venv
+curl --fail http://127.0.0.1:8765/health/ready   # Dockerは18765
+.venv/bin/python -m docling_desk --diagnose       # Dockerは docker compose exec docling python -m docling_desk --diagnose
+```
+
+`/health/live` はプロセスの応答、`/health/ready` は画面・モデル・保存先の準備を返す公開の確認用で、通常の機能診断ではありません。`--diagnose` は閲覧・変換・Officeプレビュー・TeX・意味検索・翻訳・解説・Blobを個別に「利用可能」「未設定」「一時的な問題」で表示し、復旧方法を示します。外部サービスへは接続せず、課金も発生しません。モデルなし、Officeなし、TeXなし、クラウド未設定でも、使える機能は使える状態として表示されます。ログイン後は同じ内容を `GET /api/diagnostics/features` で取得できます。前提の一覧は[運用手順](docs/operations.md#機能ごとの前提と診断)を参照してください。
+
+### 更新
+
+更新前に[バックアップ](docs/operations.md#バックアップと復元)を取得します。macOSは実行中のサーバーを停止してから、次の手順で更新します。Dockerは `git pull` と `git submodule update --init --recursive` の後に `docker compose up -d --build --force-recreate --wait` を実行します。保存データは名前付きボリュームに残ります。
+
+```sh
+git pull
+git submodule update --init --recursive
 .venv/bin/python -m pip install -r requirements-lock.txt
 .venv/bin/python -m pip install --no-deps ./docling ./packages/docling-azure-ocr
 .venv/bin/python -m pip install --no-deps --no-build-isolation -e .
-pnpm --dir frontend install --frozen-lockfile
-pnpm --dir frontend build
-pnpm --dir frontend export:static
-.venv/bin/python -m docling_desk.operations.download_models
+corepack pnpm --dir frontend install --frozen-lockfile
+corepack pnpm --dir frontend build
+corepack pnpm --dir frontend export:static
 .venv/bin/python -m docling_desk.operations.models
 ./run.sh
 ```
 
-http://127.0.0.1:8765 で開けます。仮想環境を有効にしなくても、各コマンドは同じPython環境を使用します。
+`operations.models` が `models match manifest` 以外を表示したときだけ、`download_models` を実行してから再確認します。torchの版が変わった場合は、導入手順のtorch行を先に実行してください。
 
-設定は `.env.example` を参考に、プロジェクト直下の `.env` に記入します。環境変数が優先され、ファイル内容をシェルとして実行しません。`./run.sh --port 8876` でポートを変更できます。
+設定は `.env.example` を参考に、プロジェクト直下の `.env` に記入します。環境変数が優先され、ファイル内容をシェルとして実行しません。`./run.sh --port 8876` でポートを変更できます。macOSの原本プレビューはQuick Lookを使用し、PowerPointのPDF書き出しにはMicrosoft PowerPointが必要です。TeXの組版にはTectonicが必要です。
 
 ## 保存先と既存環境の移行
 
