@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, NoReturn, Protocol
 
 from docling_desk import config
+from docling_desk.atomic_files import atomic_write_bytes
 from docling_desk.sqlite_writer import connect
 
 log = logging.getLogger("docling_desk.blob")
@@ -212,9 +213,9 @@ class Mirror:
 
     def _save(self, state: dict[str, Any]) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.state_path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
-        os.replace(temporary, self.state_path)
+        atomic_write_bytes(
+            self.state_path, json.dumps(state, ensure_ascii=False, indent=1).encode("utf-8")
+        )
 
     # -- local scan ----------------------------------------------------------
     def _wanted(self, key: str) -> bool:

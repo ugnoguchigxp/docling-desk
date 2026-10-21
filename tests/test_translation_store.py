@@ -1,7 +1,6 @@
-from pathlib import Path
-
 import pytest
 
+from docling_desk import atomic_files
 from docling_desk.translation.store import (
     atomic_json,
     interrupt_pending,
@@ -34,10 +33,10 @@ def test_atomic_replace_failure_keeps_previous_file(tmp_path, monkeypatch):
     atomic_json(path, {"old": True})
     previous = path.read_bytes()
 
-    def failed_replace(self, destination):
+    def failed_replace(source, destination):
         raise OSError("disk full")
 
-    monkeypatch.setattr(Path, "replace", failed_replace)
+    monkeypatch.setattr(atomic_files.os, "replace", failed_replace)
     with pytest.raises(OSError):
         atomic_json(path, {"new": True})
     assert path.read_bytes() == previous

@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
+from docling_desk.atomic_files import atomic_write_bytes
 from docling_desk.knowledge.content import normalize_path
 
 
@@ -118,12 +119,9 @@ class WikiFiles:
         self.manifest.parent.mkdir(parents=True, exist_ok=True)
         if any(p.is_symlink() for p in (self.manifest, *self.manifest.parents)):
             raise ValueError("Wikiの保存先が不正です。")
-        temporary = self.manifest.with_name(f".wiki-{uuid4().hex}.tmp")
-        try:
-            temporary.write_text(
-                json.dumps({"version": 1, "articles": articles}, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-            temporary.replace(self.manifest)
-        finally:
-            temporary.unlink(missing_ok=True)
+        atomic_write_bytes(
+            self.manifest,
+            json.dumps({"version": 1, "articles": articles}, ensure_ascii=False, indent=2).encode(
+                "utf-8"
+            ),
+        )

@@ -1,0 +1,88 @@
+{
+  "note": "ロックファイルだけでは分からない配布上の区分を、根拠つきで記録します。区分は配布許可ではありません。変更する場合は根拠も更新してください。",
+  "recorded_on": "2026-10-21",
+  "recorded_by": "Claude (自動棚卸し, 人による確認未了)",
+  "python": {
+    "development": {
+      "names": ["pytest", "iniconfig", "ruff", "ty", "reportlab"],
+      "evidence": [
+        "pyproject.toml の optional-dependencies.dev に pytest/ruff/ty/reportlab を宣言している。iniconfigはpytestの依存で、他の宣言済み依存は要求しない。",
+        "pytest/ruff は src/docling_desk/operations/verify.py と scripts/quality_baseline.py の検査コマンドだけが使う。",
+        "reportlab は src/docling_desk/development/samples.py(試験資料の生成)と tests/ だけが import し、実行経路から参照されない。",
+        "requirements-lock.txt を CI と Dockerfile が共有するため、Dockerイメージにも入る。イメージに必要な根拠はない。"
+      ]
+    },
+    "optional": {
+      "names": [
+        "azure-core",
+        "azure-identity",
+        "azure-storage-blob",
+        "cffi",
+        "cryptography",
+        "isodate",
+        "msal",
+        "msal-extensions",
+        "pycparser",
+        "pyjwt"
+      ],
+      "extras": ["blob", "docling-azure-ocr[managed-identity]"],
+      "evidence": [
+        "pyproject.toml の optional-dependencies.blob と packages/docling-azure-ocr の managed-identity が要求する。",
+        "requirements-lock.txt に『Azure managed identity (OCR) and Blob mirror』の区画があり、Dockerfile がイメージへ入れる。compose.yaml は Blob/Azure OCR の環境変数を渡す。"
+      ]
+    },
+    "undeclared_runtime": {
+      "names": ["marko", "opencv-python-headless"],
+      "evidence": [
+        "docling/docling/backend/md_backend.py が marko を import する。src/docling_desk/documents/conversion.py は InputFormat.MD を有効にする。",
+        ".venv の docling_ibm_models/tableformer(data_management/functional.py, tf_predictor.py)が cv2 を import する。TableFormerモデルを配布している(resources/models/manifest.json)。",
+        "どちらもロックにはあるが、pyproject.toml の docling-slim extras(convert-core,format-pdf,format-docx,format-pptx,format-xlsx,models-local)は要求しない。wheelだけを導入した環境では不足する可能性がある。pyproject.toml は本作業の変更対象外のため提案として報告する。"
+      ]
+    },
+    "unlocked_optional": [
+      {
+        "name": "mcp",
+        "version": "1.26.0",
+        "source": "pyproject.toml optional-dependencies.mcp; integrations/mcp/requirements.txt; deploy/Dockerfile.gateway",
+        "distribution": ["gateway-image", "wheel-extra:mcp"],
+        "evidence": "requirements-lock.txt に含まれない。Dockerfile(本体)には入らず、deploy/Dockerfile.gateway とCIの接続試験が integrations/mcp/requirements.txt から導入する。推移依存は未固定。"
+      }
+    ],
+    "source_installed": [
+      {
+        "name": "docling-slim",
+        "version": "2.132.0",
+        "source": "docling/ (git submodule)",
+        "evidence": "Dockerfile は COPY docling/ を --no-deps で導入する。requirements-lock.txt には載らない。docling/pyproject.toml の name=docling-slim, version=2.132.0。"
+      },
+      {
+        "name": "docling-azure-ocr",
+        "version": "0.1.0",
+        "source": "packages/docling-azure-ocr",
+        "evidence": "Dockerfile は COPY packages/docling-azure-ocr/ を --no-deps で導入する。requirements-lock.txt には載らない。"
+      }
+    ]
+  },
+  "npm": {
+    "build_only_roots": {
+      "names": ["tailwindcss", "@tailwindcss/vite", "tailwind-scrollbar-hide", "@types/lodash"],
+      "evidence": [
+        "tailwindcss と @tailwindcss/vite は frontend/vite.config.ts のビルドプラグインと CSS の @import だけで使われ、生成CSSだけが配布物に入る。",
+        "tailwind-scrollbar-hide は CSS の @plugin だけで使われる。",
+        "@types/lodash は型定義だけでブラウザー用コードを含まない。platejs の peer として pnpm が解決している。",
+        "いずれも frontend/package.json では dependencies にあるため、台帳上は runtime になる。実行時に配布されるのは生成物だけで、packageの実体は配布物に入らない。ただし export-static.mjs は dependencies の全 package の LICENSE を licenses.txt へ集めるため、告知としては含まれる。"
+      ],
+      "unused_candidates": [
+        {
+          "name": "dedent",
+          "version": "1.0.0",
+          "evidence": "frontend 配下(src, e2e, scripts, vite/vitest設定, CSS, HTML)に 'dedent' の参照は package.json だけ。pnpm-lock.yaml 上も他 package の依存に現れない(ts-dedent は別 package)。動的 import や文字列参照も検索したが該当なし。"
+        }
+      ]
+    },
+    "distribution_note": "frontend の package は Docker では node ステージのビルドにだけ使われ、配布されるのは vite の出力(static/frontend)と frontend/scripts/export-static.mjs が集める licenses.txt と excalidraw フォント。node_modules は配布物に入らない。"
+  },
+  "bun": {
+    "distribution_note": "knowledge-api/Dockerfile が bun install --frozen-lockfile --production で dependencies(hono, zod)とその推移依存だけを入れる。wheel/sdist(MANIFEST.in)と本体 Dockerfile(.dockerignore が knowledge-api を除外)には入らない。deploy/compose.knowledge.yml の api サービスだけが配布経路。"
+  }
+}

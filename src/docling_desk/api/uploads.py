@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import shutil
-import threading
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import uuid4
@@ -38,20 +37,21 @@ from docling_desk.documents.library import (
 )
 from docling_desk.documents.ocr_profiles import load_profile
 from docling_desk.documents.text import SUPPORTED_LABEL, SUPPORTED_SUFFIXES, TEXT_DOCUMENT_SUFFIXES
+from docling_desk.execution import SlotLease
 from docling_desk.operations.backup import exclusive_write
 from docling_desk.storage import document_folder, original_file, record_original, remove_document
 
 router = APIRouter()
 
 
-def run_job(folder: Path, job: Job, slots: threading.BoundedSemaphore) -> None:
-    try:
-        convert_job(folder, job)
-    finally:
-        slots.release()
+def run_job(folder: Path, job: Job) -> None:
+    # The slot is owned by the lease it was submitted with; it returns when this ends.
+    convert_job(folder, job)
 
 
-def publish_upload(source: Path, job: Job, folder_id: str | None, worker, slots) -> Job:
+def publish_upload(
+    source: Path, job: Job, folder_id: str | None, worker, lease: SlotLease | None
+) -> Job:
     # Receive/validate outside the data tree. Publish and roll back under the
     # same lock as backup, before acquiring the library's in-process lock.
     with exclusive_write(config.DATA, "upload"), LOCK:
@@ -67,13 +67,21 @@ def publish_upload(source: Path, job: Job, folder_id: str | None, worker, slots)
             record_original(folder, job.filename, job.created)
             register_upload(config.DATA, job, folder_id)
             save_job(folder, job)
-            if not job.image and not job.diagram:
-                worker.submit(run_job, folder, job, slots)
-            return decorate(load_library(config.DATA), job)
+            accepted = decorate(load_library(config.DATA), job)
+            if lease is None:
+                return accepted
+            # Last fallible step: once accepted, the queued job owns the folder and
+            # the slot, so nothing after this may fail and roll the folder back.
+            lease.submit(worker, run_job, folder, job)
         except Exception:
             if folder.is_dir():
                 remove_document(folder)
             raise
+        try:
+            return decorate(load_library(config.DATA), job)
+        except Exception:
+            # Already accepted: a failed refresh must not report it as rejected.
+            return accepted
 
 
 @router.post("/api/upload", response_model=Job, status_code=202)
@@ -109,14 +117,15 @@ async def upload(
     slots = getattr(request.app.state, "slots", None)
     if worker is None or slots is None:
         raise HTTPException(503, "処理を受け付ける準備ができていません。")
-    if needs_conversion and not slots.acquire(blocking=False):
-        raise HTTPException(429, "処理待ちは最大3件です。完了後に追加してください。")
     job = Job(
         id=uuid4().hex,
         filename=filename,
         synthetic=filename.startswith("synthetic-"),
         ocr_profile=profile.model_dump(mode="json"),
     )
+    lease = slots.claim() if needs_conversion else None
+    if needs_conversion and lease is None:
+        raise HTTPException(429, "処理待ちは最大3件です。完了後に追加してください。")
     try:
         with TemporaryDirectory(prefix="docling-upload-") as staging:
             source = Path(staging) / ("original" + suffix)
@@ -144,21 +153,21 @@ async def upload(
                 job.pictures = 1
             else:
                 await run_in_threadpool(validate_input, source)
-            return await run_in_threadpool(publish_upload, source, job, folder_id, worker, slots)
+            return await run_in_threadpool(publish_upload, source, job, folder_id, worker, lease)
     except (OSError, RuntimeError) as exc:
-        if needs_conversion:
-            slots.release()
         raise HTTPException(
             500,
             "ローカル保存または処理キューの開始に失敗しました。空き容量とログを確認してください。",
         ) from exc
     except (ValueError, HTTPException) as exc:
-        if needs_conversion:
-            slots.release()
         if isinstance(exc, HTTPException):
             raise
         raise HTTPException(422, str(exc)) from exc
     finally:
+        # Every exit path, including cancellation: a lease already handed to the
+        # worker is left to its execution.
+        if lease is not None:
+            lease.abandon()
         await file.close()
 
 

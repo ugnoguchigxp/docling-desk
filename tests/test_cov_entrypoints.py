@@ -1,3 +1,4 @@
+import json
 import runpy
 import shutil
 from pathlib import Path
@@ -66,6 +67,63 @@ def test_cli_passes_the_bind_address_to_uvicorn(monkeypatch):
     assert seen["kwargs"]["host"] == "127.0.0.1"
     with pytest.raises(SystemExit):
         main(["--port", "nope"])
+
+
+def test_cli_diagnose_prints_features_without_starting_the_server(monkeypatch, capsys):
+    from docling_desk.api import diagnostics
+
+    def report(status):
+        return {
+            "features": [
+                {
+                    "id": "conversion",
+                    "label": "資料の変換",
+                    "optional": False,
+                    "status": status,
+                    "recovery": ["モデルを取得してください。"],
+                    "prerequisites": [],
+                },
+                {
+                    "id": "tex_preview",
+                    "label": "TeXの組版表示",
+                    "optional": True,
+                    "status": "not_configured",
+                    "recovery": [],
+                    "prerequisites": [],
+                },
+            ]
+        }
+
+    calls = []
+    monkeypatch.setattr(
+        uvicorn, "run", lambda *args, **kwargs: calls.append(1)
+    )  # the server must stay down
+    seen = {}
+
+    def build(blob_mirror=None, *, runtime=True):
+        seen["runtime"] = runtime
+        return report(seen["status"])
+
+    monkeypatch.setattr(diagnostics, "build_report", build)
+    seen["status"] = "available"
+    assert main(["--diagnose"]) == 0  # an unset optional feature is not a failure
+    assert seen["runtime"] is False
+    assert "[利用可能] 資料の変換" in capsys.readouterr().out
+    seen["status"] = "not_configured"
+    assert main(["--diagnose", "--json"]) == 1
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["features"][0]["status"] == "not_configured"
+    assert calls == []
+
+
+def test_health_endpoints_do_not_expose_feature_diagnostics(tmp_path, monkeypatch):
+    client, _data = _health(monkeypatch, tmp_path, 9 * 1024**3, lambda *args: [])
+    assert client.get("/health/live").json() == {"status": "ok"}
+    assert client.get("/health/ready").json() == {"status": "ready"}
+    monkeypatch.setattr(health, "model_problems", lambda *args: ["missing:model"])
+    refused = client.get("/health/ready")
+    assert refused.status_code == 503
+    assert refused.json() == {"status": "unavailable", "reasons": ["missing:model"]}
 
 
 def test_module_entry_delegates_to_the_cli(monkeypatch):

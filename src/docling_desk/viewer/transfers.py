@@ -20,6 +20,7 @@ from jsonschema import ValidationError as SchemaError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.datastructures import UploadFile
 
+from docling_desk.atomic_files import atomic_write_bytes
 from docling_desk.viewer.tool_contract import read_contract
 
 MAX_FILE = 50 * 1024 * 1024
@@ -83,16 +84,7 @@ class Transfers:
 
     def save(self, record):
         path = self.path(record["transfer_id"], ".json")
-        temp = self.root / (uuid4().hex + ".tmp")
-        try:
-            with temp.open("x", encoding="utf-8") as stream:
-                os.chmod(temp, 0o600)
-                json.dump(record, stream, ensure_ascii=False)
-                stream.flush()
-                os.fsync(stream.fileno())
-            temp.replace(path)
-        finally:
-            temp.unlink(missing_ok=True)
+        atomic_write_bytes(path, json.dumps(record, ensure_ascii=False).encode("utf-8"), mode=0o600)
 
     def load(self, transfer_id, user, fingerprint):
         try:

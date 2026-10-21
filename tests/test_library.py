@@ -259,18 +259,24 @@ def test_upload_into_folder_and_duplicate_name(client, monkeypatch):
     target = folder(client, "upload")
     file(client, parent=target)
 
-    def submit(fn, path, job, slots):
+    from docling_desk.api import uploads
+
+    def convert(path, job):
         job.state = "success"
         save_job(path, job)
-        slots.release()
 
-    monkeypatch.setattr(client.app.state, "worker", Mock(submit=submit))
+    # The worker runs the slot-owning wrapper inline; the slot returns when it ends.
+    monkeypatch.setattr(uploads, "convert_job", convert)
+    monkeypatch.setattr(
+        client.app.state, "worker", Mock(submit=lambda fn, *args, **kwargs: fn(*args, **kwargs))
+    )
     response = client.post(
         "/api/upload", files={"file": ("report.pdf", b"%PDF-1.4 test")}, data={"folder_id": target}
     )
     assert response.status_code == 202, response.text
     assert response.json()["folder_id"] == target
     assert response.json()["filename"] == "report (2).pdf"
+    assert client.app.state.slots.in_use == 0
     assert (
         client.post(
             "/api/upload",

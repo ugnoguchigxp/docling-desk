@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import threading
 from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -9,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from docling_desk import config
+from docling_desk import activity, config
 from docling_desk.api import (
     assets,
     diagrams,
@@ -24,6 +23,7 @@ from docling_desk.api import (
 from docling_desk.blob_mirror import MirrorWorker, create_mirror
 from docling_desk.documents.conversion import Job, save_job
 from docling_desk.documents.diagram_store import repair_diagrams
+from docling_desk.execution import SlotPool
 from docling_desk.explanation.service import ExplanationManager
 from docling_desk.explanation.store import recover as explanation_recover
 from docling_desk.knowledge.api import create_router as knowledge_router
@@ -40,11 +40,11 @@ from docling_desk.web.security import local_only
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # Each startup owns its executor and admission slots. A previous lifespan
-    # may have shut its executor down; queued work cancelled at shutdown never
-    # reaches run_job, so those slots are discarded with that lifespan.
+    # Each startup owns its executor and admission slots. Work cancelled while
+    # queued at shutdown returns its slot through its lease; running work keeps
+    # it until it ends. Both are discarded with this lifespan.
     worker = ThreadPoolExecutor(max_workers=1)
-    slots = threading.BoundedSemaphore(3)
+    slots = SlotPool(3)
     app.state.worker = worker
     app.state.slots = slots
     try:
@@ -70,14 +70,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.explanation_manager = ExplanationManager()
         app.state.explanation_manager.resume_pending(config.DATA)
         app.state.translation_manager = TranslationManager()
-        for folder in document_folders(config.DATA):
-            job = Job.model_validate_json(job_file(folder).read_text())
-            if job.state in {"queued", "running"}:
-                job.state, job.error = (
-                    "failed",
-                    "前回のサーバー停止で処理が中断されました。再アップロードしてください。",
-                )
-                save_job(folder, job)
+        # Another process may still be converting; its held activity lock says so.
+        # Read the live set and save under the write lock, so an attempt that begins
+        # meanwhile (it registers under the same lock) cannot be failed by mistake.
+        with exclusive_write(config.DATA, "migration"):
+            running = {item["attempt"] for item in activity.live(config.DATA)}
+            for folder in document_folders(config.DATA):
+                job = Job.model_validate_json(job_file(folder).read_text())
+                if activity.read_attempt(config.DATA, folder.name).get("attempt") in running:
+                    continue
+                if job.state in {"queued", "running"}:
+                    job.state, job.error = (
+                        "failed",
+                        "前回のサーバー停止で処理が中断されました。再アップロードしてください。",
+                    )
+                    save_job(folder, job)
         if worker_mirror := getattr(app.state, "blob_worker", None):
             worker_mirror.start()
         yield

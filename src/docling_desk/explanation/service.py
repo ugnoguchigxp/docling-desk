@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from docling_desk.config import MIN_FREE
 from docling_desk.documents.library import LOCK as LIBRARY_LOCK
+from docling_desk.execution import SlotPool
 from docling_desk.explanation.context import (
     document_context,
     numeric_issues,
@@ -132,7 +133,7 @@ def overview(folder: Path) -> dict:
 class ExplanationManager:
     def __init__(self):
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="explanation")
-        self.slots = threading.BoundedSemaphore(3)
+        self.slots = SlotPool(3)
         self.stop = threading.Event()
         self.current = None
         self.web = None
@@ -209,7 +210,7 @@ class ExplanationManager:
                 self.current.cancel()
             if self.web:
                 self.web.cancel()
-        # Queued jobs run briefly to persist interrupted status and release slots.
+        # Queued jobs run briefly to persist interrupted status; each returns its slot when it ends.
         self.executor.shutdown(wait=False)
 
     def submit(
@@ -269,19 +270,20 @@ class ExplanationManager:
             web.preflight()
             if shutil.disk_usage(folder).free < MIN_FREE:
                 raise ExplanationError("storage_space", "保存に必要な空き容量がありません。")
-            if not self.slots.acquire(blocking=False):
+            lease = self.slots.claim()
+            if lease is None:
                 raise ExplanationError(
                     "queue_full", "解説の処理キューが満杯です。完了後に再試行してください。"
                 )
             attempt = uuid4().hex
-            checkpoint = (
-                read_checkpoint(
-                    folder, unit_id, source["source_hash"], profile.metadata()["config_hash"]
-                )
-                if continuing
-                else {}
-            )
             try:
+                checkpoint = (
+                    read_checkpoint(
+                        folder, unit_id, source["source_hash"], profile.metadata()["config_hash"]
+                    )
+                    if continuing
+                    else {}
+                )
                 if not checkpoint:
                     write_checkpoint(
                         folder,
@@ -310,11 +312,21 @@ class ExplanationManager:
                     updated_at=now(),
                 )
                 write_state(folder, state)
-                self.executor.submit(
-                    self._run, folder, unit, source, groups, provider, web, attempt, checkpoint
+                # Last step: once accepted, the queued run owns the slot until it ends.
+                lease.submit(
+                    self.executor,
+                    self._run,
+                    folder,
+                    unit,
+                    source,
+                    groups,
+                    provider,
+                    web,
+                    attempt,
+                    checkpoint,
                 )
             except Exception:
-                self.slots.release()
+                lease.release()  # No-op when submit already returned it.
                 state.update(
                     state="failed",
                     stage="受付失敗",
@@ -616,4 +628,3 @@ class ExplanationManager:
         finally:
             with self.guard:
                 self.current, self.web = None, None
-            self.slots.release()

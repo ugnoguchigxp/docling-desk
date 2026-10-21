@@ -17,7 +17,9 @@ TEXT_SUFFIXES = {".txt", ".text"} | TEX_SUFFIXES
 TEXT_DOCUMENT_SUFFIXES = MARKDOWN_SUFFIXES | TEXT_SUFFIXES
 DOCUMENT_SUFFIXES = {".docx"} | TEXT_DOCUMENT_SUFFIXES
 SUPPORTED_SUFFIXES = {".pdf", ".pptx", ".xlsx"} | DOCUMENT_SUFFIXES
-SUPPORTED_LABEL = "PDF / PPTX / XLSX / DOCX / Markdown / テキスト / TeX / 画像 / draw.io"
+SUPPORTED_LABEL = (
+    "PDF / PPTX / XLSX / DOCX / Markdown / テキスト / TeX / 画像 / draw.io / Excalidraw"
+)
 
 
 def read_text_input(path: Path) -> str:

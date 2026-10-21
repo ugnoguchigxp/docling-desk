@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import os
 import shutil
 import threading
 import time
@@ -20,6 +19,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
+from docling_desk.atomic_files import atomic_write_bytes
 from docling_desk.blob_mirror import notify
 from docling_desk.documents.conversion import Job, save_job
 from docling_desk.documents.diagram_models import (
@@ -99,21 +99,7 @@ def _same_tag(given: str | None, expected: str) -> bool:
 
 
 def write_file(path: Path, raw: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + ".tmp")
-    with temporary.open("wb") as stream:
-        stream.write(raw)
-        stream.flush()
-        os.fsync(stream.fileno())
-    temporary.replace(path)
-    try:
-        descriptor = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(descriptor)
-        finally:
-            os.close(descriptor)
-    except OSError:
-        pass  # directory fsync is unavailable on some platforms
+    atomic_write_bytes(path, raw)
 
 
 def write_json(path: Path, value: object) -> None:

@@ -539,6 +539,11 @@ def test_conversion_validation_previews_and_jobs(tmp_path, monkeypatch):
     _convert_job(err_dir, err_job, ocr_runtime=runtime)
     assert err_job.state == "failed" and err_job.error_code == "ocr_failed"
 
+    # A deleted (missing) document folder is not recreated by a late save.
+    with pytest.raises(FileNotFoundError):
+        save_job(tmp_path / "saved", Job(id="saved", filename="a.txt"))
+    assert not (tmp_path / "saved").exists()
+    (tmp_path / "saved").mkdir()
     save_job(tmp_path / "saved", Job(id="saved", filename="a.txt"))
     assert (tmp_path / "saved" / "job.json").is_file()
     # Drop the cached fake converter after the real class is restored.

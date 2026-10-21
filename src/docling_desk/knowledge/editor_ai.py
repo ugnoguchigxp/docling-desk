@@ -53,7 +53,8 @@ def create_router():
         manager = getattr(request.app.state, "explanation_manager", None)
         if manager is None or manager.stop.is_set():
             raise HTTPException(503, "AI処理を受け付ける準備ができていません。")
-        if not manager.slots.acquire(blocking=False):
+        lease = manager.slots.claim()
+        if lease is None:
             raise HTTPException(429, "AIの処理キューが満杯です。完了後に再試行してください。")
         factory = getattr(request.app.state, "wiki_editor_ai_provider", None)
         try:
@@ -77,16 +78,15 @@ def create_router():
                     with manager.guard:
                         manager.current = None
 
-            future = manager.executor.submit(complete)
+            # Last step: once accepted, the slot returns only when the work ends or
+            # is cancelled while still queued, never while a provider is stopping.
+            future = lease.submit(manager.executor, complete)
         except ExplanationError as exc:
-            manager.slots.release()
+            lease.release()
             raise HTTPException(503, str(exc)) from exc
         except Exception:
-            manager.slots.release()
+            lease.release()
             raise
-        # Release only when the real operation ends (or queued work is cancelled),
-        # never while a disconnected browser's provider is still stopping.
-        future.add_done_callback(lambda _: manager.slots.release())
 
         def event(value):
             return "data: " + json.dumps(value, ensure_ascii=False) + "\n\n"
@@ -153,8 +153,8 @@ def create_router():
                 )
             finally:
                 if not task.done():
-                    provider.cancel()
-                    future.cancel()
+                    # A stop request only: a running provider keeps the slot until it returns.
+                    lease.request_stop(provider.cancel)
                     # Consume a late provider error after a browser cancellation.
                     task.add_done_callback(
                         lambda completed: (

@@ -528,3 +528,30 @@ def test_derived_manifests_and_bindings_wait_for_page_assets(setup):
         "derived/documents/a/editable-preview/manifest.json",
         "derived/documents/a/translation-source.json",
     ]
+
+
+def test_state_save_failure_keeps_the_previous_state_and_leaves_no_temporary(setup, monkeypatch):
+    from docling_desk import atomic_files
+
+    data, store, mirror = setup
+    write(data, "content/a.md", b"one")
+    mirror.push()
+    state = data / "runtime" / "blob-sync.json"
+    before = state.read_bytes()
+
+    def failed(source, destination):
+        raise OSError("killed before replace")
+
+    monkeypatch.setattr(atomic_files.os, "replace", failed)
+    with pytest.raises(OSError):
+        mirror._save({"files": {}, "conflicts": {}})
+    assert state.read_bytes() == before
+    assert not list(state.parent.glob("*.tmp"))
+
+
+def test_leftover_atomic_write_temporaries_are_never_uploaded(setup):
+    data, store, mirror = setup
+    write(data, "content/a.md", b"one")
+    write(data, "content/.a.md.0123abcd.tmp", b"partial")
+    mirror.push()
+    assert set(store.blobs) == {"content/a.md"}

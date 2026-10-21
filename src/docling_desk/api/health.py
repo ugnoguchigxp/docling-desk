@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from docling_desk import config
+from docling_desk.api import diagnostics
 from docling_desk.config import MIN_FREE
 from docling_desk.operations.models import problems as model_problems
 
@@ -45,3 +46,10 @@ def health_ready() -> JSONResponse:
 def storage_status(request: Request) -> dict:
     mirror = getattr(request.app.state, "blob_mirror", None)
     return mirror.status() if mirror else {"backend": "local"}
+
+
+@router.get("/api/diagnostics/features")
+def feature_diagnostics(request: Request) -> JSONResponse:
+    """Per-feature availability and recovery hints. Behind the login, unlike /health/*."""
+    report = diagnostics.build_report(getattr(request.app.state, "blob_mirror", None))
+    return JSONResponse(report, headers={"Cache-Control": "no-store"})

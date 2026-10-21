@@ -801,17 +801,18 @@ def test_verify_commands(tmp_path, monkeypatch, capsys):
     offline = verify.checks(False)
     assert len(offline) == 4
     assert any(
-        command[-2:] == ["-m", "docling_desk.operations.tool_guides"] for command, _ in offline
+        check.command[-2:] == ["-m", "docling_desk.operations.tool_guides"] for check in offline
     )
     assert len(verify.checks(True)) > len(offline)
 
     output = tmp_path / "qa" / "verify.json"
 
-    def command_result(args, cwd):
+    def command_result(args, cwd, extra_env=None, lane=""):
         code = 1 if args[-1] == "lint" else 0
-        return {"command": args, "cwd": str(cwd), "exit_code": code, "seconds": 0.1}
+        return {"command": args, "cwd": str(cwd), "lane": lane, "exit_code": code, "seconds": 0.1}
 
     monkeypatch.setattr(verify, "command_result", command_result)
+    monkeypatch.setattr(verify.distribution_evidence, "source_identity", lambda root: {})
     assert verify.main(["--output", str(output)]) == 0
     assert json.loads(output.read_text(encoding="utf-8"))["ok"] is True
     capsys.readouterr()

@@ -1,0 +1,70 @@
+{
+  "description": "Shared boundary between the frontend (frontend/src/lib/formats.ts) and the server upload check (docling_desk.documents.text/images/diagrams, diagram_store.SUFFIX). Each side loads this file; neither generates the other. `family` is how the server files a name at upload (null: rejected). Where a name decides nothing about content, `content_cases` carry the server's metadata instead.",
+  "names": [
+    { "name": "report.pdf", "family": "pdf" },
+    { "name": "REPORT.PDF", "family": "pdf" },
+    { "name": "deck.pptx", "family": "pptx" },
+    { "name": "Book.XLSX", "family": "xlsx" },
+    { "name": "memo.docx", "family": "docx" },
+    { "name": "note.md", "family": "markdown" },
+    { "name": "note.markdown", "family": "markdown" },
+    { "name": "NOTE.MD", "family": "markdown" },
+    { "name": "readme.txt", "family": "text" },
+    { "name": "readme.text", "family": "text" },
+    { "name": "paper.tex", "family": "tex" },
+    { "name": "paper.latex", "family": "tex" },
+    { "name": "PAPER.LaTeX", "family": "tex" },
+    { "name": "photo.png", "family": "image" },
+    { "name": "photo.JPG", "family": "image" },
+    { "name": "photo.jpeg", "family": "image" },
+    { "name": "photo.gif", "family": "image" },
+    { "name": "photo.webp", "family": "image" },
+    { "name": "graph.drawio", "family": "drawio" },
+    { "name": "graph.DIO", "family": "drawio" },
+    { "name": "graph.xml", "family": "drawio" },
+    { "name": "graph.svg", "family": "drawio" },
+    { "name": "graph.html", "family": "drawio" },
+    { "name": "graph.htm", "family": "drawio" },
+    { "name": "graph.drawio.svg", "family": "drawio" },
+    { "name": "graph.drawio.png", "family": "drawio" },
+    { "name": "GRAPH.DRAWIO.PNG", "family": "drawio" },
+    { "name": "scene.excalidraw", "family": "excalidraw" },
+    { "name": "Scene.EXCALIDRAW", "family": "excalidraw" },
+    { "name": "資料 (最終).pdf", "family": "pdf" },
+    { "name": "archive.tar.pdf", "family": "pdf" },
+    { "name": "image.bmp", "family": null },
+    { "name": "image.tiff", "family": null },
+    { "name": "image.avif", "family": null },
+    { "name": "image.png.exe", "family": null },
+    { "name": "scene.excalidraw.json", "family": null },
+    { "name": "scene.excalidraw.exe", "family": null },
+    { "name": "paper.tex.exe", "family": null },
+    { "name": "notes.exe", "family": null },
+    { "name": "archive.zip", "family": null },
+    { "name": "report.pdf.", "family": null },
+    { "name": "report.pdf ", "family": null },
+    { "name": "noextension", "family": null },
+    { "name": ".pdf", "family": null },
+    { "name": ".excalidraw", "family": null }
+  ],
+  "content_cases": [
+    {
+      "name": "plain.png",
+      "png_text": {},
+      "diagram": false,
+      "note": "an ordinary PNG stays an image"
+    },
+    {
+      "name": "exported.png",
+      "png_text": { "mxfile": "<mxfile/>" },
+      "diagram": true,
+      "note": "a PNG that carries a draw.io model is a diagram whatever its name says"
+    },
+    {
+      "name": "exported.drawio.png",
+      "png_text": { "mxfile": "<mxfile/>" },
+      "diagram": true,
+      "note": "the double extension agrees with the content"
+    }
+  ]
+}

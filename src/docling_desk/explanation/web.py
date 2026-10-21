@@ -1,4 +1,9 @@
-"""Python search/read tools inspired by llm-fetch, with a deterministic contingent search plan."""
+"""Python search/read tools inspired by llm-fetch, with a contingent search plan.
+
+Code enforces the external contract (send permission, address/redirect safety, credentials,
+size/time/count limits). Whether a fetched page is relevant or usable as evidence is a semantic
+judgment made by the final model, not by word lists here.
+"""
 
 from __future__ import annotations
 
@@ -23,12 +28,11 @@ from lxml.etree import LxmlError  # ty: ignore[unresolved-import]  # Installed b
 from docling_desk.explanation.provider import Budget, ExplanationError
 
 DNS_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="explanation-dns")
+# Detects the search service's own bot-check response (a protocol signal of that service),
+# never the content of a fetched page.
 CHALLENGE = re.compile(r"anomaly-modal|challenge-form|bots use DuckDuckGo|captcha", re.I)
-DIRECTIVE = re.compile(
-    r"ignore (?:all |the )?(?:previous|prior) instructions|system prompt|"
-    r"send (?:your|the) (?:api key|credentials)|以前の指示を無視|システムプロンプトを",
-    re.I,
-)
+# Minimum extractable body; shorter pages are empty shells, not candidates.
+MIN_PAGE_CHARS = 150
 
 
 def now() -> str:
@@ -90,13 +94,26 @@ def public_ip(raw: str) -> bool:
 
 
 def generic_query(raw: str) -> str:
+    """Last-resort send guard for shapes that must never leave the machine.
+
+    What counts as a public general term is decided by the first model (``public_only``).
+    Code only refuses an unambiguous secret shape, and HOLDS any query with a run of four or
+    more digits: a public identifier (a published standard number) and a private number
+    (account, serial, amount) cannot be told apart by code, and no privacy-preserving rule for
+    allowing the former has been settled. A held query is recorded, never silently dropped.
+    """
     query = raw.strip()
     if (
         not query
         or len(query) > 150
-        or re.search(r"https?://|\S+@\S+|\d{4,}|sk-[a-zA-Z0-9]+|[\r\n]", query)
+        or re.search(r"https?://|\S+@\S+|sk-[a-zA-Z0-9]+|[\r\n]", query)
     ):
         raise ExplanationError("sensitive_query", "一般的な用語だけで検索してください。")
+    if re.search(r"\d{4,}", query):
+        raise ExplanationError(
+            "held_numeric_query",
+            "一般的な用語だけで検索してください（4桁以上の数字を含む検索語は送信を保留しました）。",
+        )
     return query
 
 
@@ -330,12 +347,10 @@ def extract_page(body: bytes, content_type: str) -> dict:
         text = "\n".join(line.strip() for line in scope.text_content().splitlines() if line.strip())
     else:
         raise ExplanationError("web_type", "本文を確認できるHTML・テキストだけを採用します。")
-    if CHALLENGE.search(text[:2000]) or len(text.strip()) < 150:
+    if len(text.strip()) < MIN_PAGE_CHARS:
         raise ExplanationError("web_quality", "参照先の十分な本文を確認できませんでした。")
-    if DIRECTIVE.search(text):
-        raise ExplanationError(
-            "web_directive", "モデルへの操作指示を含むページを根拠から除外しました。"
-        )
+    # No word-list screening: quoted instructions and boilerplate are judged in context by
+    # the final model, which treats every page as untrusted data and has no tools.
     return {"title": title, "text": text[:6000], "truncated": len(text) > 6000}
 
 
@@ -442,7 +457,12 @@ def research(
     progress=None,
     reserve_seconds=0,
 ) -> dict:
-    """Execute the first turn's contingent plan without further model decisions."""
+    """Fetch candidate pages for the first turn's plan without further model calls.
+
+    Code decides only whether a query may be sent and whether a page was fetched safely within
+    the request/time budgets. It never judges relevance: every readable page becomes an
+    unscreened, untrusted candidate and the final model adopts or rejects it.
+    """
     plans = plans[:4]
     state = {
         "status": "researching",
@@ -486,41 +506,37 @@ def research(
         budget.remaining()
         return min(20, deadline - time.monotonic())
 
-    def relevant(plan, value):
-        terms = [t.casefold().strip() for t in plan["required_terms"] if t.strip()]
-        text = (value.get("title", "") + "\n" + value.get("text", "")).casefold()
-        return bool(terms) and all(t in text for t in terms)
-
     def rank(plan, hit):
+        # Order only: the model's preferred domains first, then the search service's own rank.
         host = urlsplit(hit["url"]).hostname or ""
-        preferred = any(host == d or host.endswith("." + d) for d in plan["preferred_domains"])
-        text = (hit.get("title", "") + " " + hit.get("snippet", "")).casefold()
-        matches = sum(t.casefold() in text for t in plan["required_terms"] if t)
-        return (not preferred, -matches, hit["url"])
+        preferred = any(
+            host == d or host.endswith("." + d) for d in plan.get("preferred_domains", [])
+        )
+        return (not preferred, hit.get("rank", 0), hit["url"])
+
+    def attach(item, topic):
+        topics = item.setdefault("topics", [item.get("topic")])
+        if topic not in topics:
+            topics.append(topic)
+        if topic not in state["covered_topics"]:
+            state["covered_topics"].append(topic)
 
     # Breadth first: give each topic one search/read opportunity before fallbacks.
     for query_key in ("query", "alternate_query"):
         for plan in plans:
-            # A confirmed page can answer several topics without another fetch.
-            for item in state["evidence"]:
-                if relevant(plan, item):
-                    topics = item.setdefault("topics", [item.get("topic")])
-                    if plan["topic"] not in topics:
-                        topics.append(plan["topic"])
-                    if plan["topic"] not in state["covered_topics"]:
-                        state["covered_topics"].append(plan["topic"])
-                        report("確認済みの本文を別の調査項目にも使用")
             if plan["topic"] in state["covered_topics"] or remaining() <= 0:
                 continue
             raw = plan[query_key]
             try:
+                # Sending needs the first model's explicit public-only attestation; an absent
+                # or ambiguous attestation is never read as permission.
+                if plan.get("public_only") is not True:
+                    raise ExplanationError("send_not_confirmed", "送信の許可が確認できません。")
                 query = generic_query(raw)
-            except ExplanationError:
+            except ExplanationError as exc:
                 state["skipped"] += 1
-                state["observations"].append(
-                    {"error_code": "sensitive_query", "topic": plan["topic"]}
-                )
-                report("送信できない検索語を省略")
+                state["observations"].append({"error_code": exc.code, "topic": plan["topic"]})
+                report("送信できない検索語を保留")
                 continue
             if query not in state["completed_queries"] and len(state["search_attempts"]) < 8:
                 if query not in state["queries"]:
@@ -561,6 +577,9 @@ def research(
             read_count = sum(url in hit_urls for url in state["attempted"])
             for hit in hits:
                 url = hit["url"]
+                known = next((e for e in state["evidence"] if e.get("url") == url), None)
+                if known is not None:
+                    attach(known, plan["topic"])
                 if (
                     (url in state["attempted"] and url != state["pending_read"])
                     or len(state["attempted"]) >= 12
@@ -589,36 +608,20 @@ def research(
                     page = None
                 state["pending_read"] = None
                 if page is not None:
-                    # Save readable text even when it answers a different planned
-                    # topic; only relevant pages are passed to the final model.
-                    matching = [p["topic"] for p in plans if relevant(p, page)]
-                    if matching:
-                        existing = next(
-                            (e for e in state["evidence"] if e["text"] == page["text"]), None
+                    # Every readable page is a candidate for the topic it was fetched for.
+                    existing = next(
+                        (e for e in state["evidence"] if e["text"] == page["text"]), None
+                    )
+                    if existing is None:
+                        page.update(
+                            id=f"web-{len(state['evidence']) + 1}",
+                            topic=plan["topic"],
+                            topics=[plan["topic"]],
                         )
-                        if existing is None:
-                            page.update(
-                                id=f"web-{len(state['evidence']) + 1}",
-                                topic=matching[0],
-                                topics=matching,
-                            )
-                            state["evidence"].append(page)
-                        else:
-                            existing["topics"] = list(
-                                dict.fromkeys(
-                                    existing.get("topics", [existing.get("topic")]) + matching
-                                )
-                            )
-                        state["covered_topics"] = list(
-                            dict.fromkeys(state["covered_topics"] + matching)
-                        )
-                    else:
-                        state["observations"].append(
-                            {"url": url, "topic": plan["topic"], "error_code": "irrelevant"}
-                        )
-                report("確認した本文と未解決の項目を保存")
-                if plan["topic"] in state["covered_topics"]:
-                    break
+                        state["evidence"].append(page)
+                        existing = page
+                    attach(existing, plan["topic"])
+                report("取得した候補本文と未解決の項目を保存")
     evidence = state["evidence"]
     if evidence:
         status = "success" if set(state["covered_topics"]) == set(state["topics"]) else "partial"

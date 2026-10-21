@@ -654,6 +654,36 @@ def test_problems_and_main(tmp_path, monkeypatch, capsys):
     assert models.main([]) == 1
 
 
+def test_diagnose_groups_problems_by_kind_without_names_or_paths(tmp_path):
+    manifest = tmp_path / "manifest.json"
+    root = tmp_path / "models"
+    assert models.diagnose(root, manifest)[0]["code"] == "models_manifest_missing"
+    manifest.write_text("{", encoding="utf-8")
+    assert models.diagnose(root, manifest)[0]["code"] == "models_manifest_invalid"
+    manifest.write_text(json.dumps([LAYOUT, TABLE]), encoding="utf-8")
+    missing = models.diagnose(root, manifest)
+    assert missing == [
+        {"code": "models_missing", "state": "not_configured", "recovery": models.FETCH_HINT}
+    ]
+    assert "download_models" in models.FETCH_HINT
+    root.mkdir()
+    (root / f"{LAYOUT['path']}.swap.json").write_text("{}\n", encoding="utf-8")
+    found = {item["code"]: item for item in models.diagnose(root, manifest)}
+    assert found["models_interrupted"]["state"] == "temporary_failure"
+    assert "models recover" in found["models_interrupted"]["recovery"]
+    assert "models_missing" in found
+    for item in found.values():
+        assert LAYOUT["path"] not in json.dumps(item) and str(tmp_path) not in json.dumps(item)
+    folder = root / LAYOUT["path"]
+    fill_layout(folder)
+    (root / f"{LAYOUT['path']}.swap.json").unlink()
+    manifest.write_text(json.dumps([LAYOUT]), encoding="utf-8")
+    unsealed = models.diagnose(root, manifest)
+    assert unsealed[0]["recovery"] == models.SEAL_HINT
+    models.seal(folder, LAYOUT)
+    assert models.diagnose(root, manifest) == []
+
+
 def test_download_publish_and_main(tmp_path, monkeypatch, capsys):
     destination = tmp_path / "models"
     destination.mkdir()

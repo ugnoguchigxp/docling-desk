@@ -1,4 +1,20 @@
 {
   "note": "通知への対応要否は人が記録します。記録のない通知は未判断です。台帳に載ること自体は対応済みではありません。",
+  "schema": {
+    "id": "通知の識別子(GHSA/CVE等)",
+    "ecosystem": "pypi / npm / bun",
+    "name": "対象package",
+    "versions": "通知が指す版",
+    "target_version": "修正版。版更新はこの作業に含めない",
+    "reachability": "到達経路(例: frontend bundle / knowledge-api image / 開発のみ)。assess_advisory の scope と distribution を根拠にする",
+    "status": "unreviewed / not_affected / affected / fixed",
+    "reviewer": "確認者",
+    "reviewed_on": "確認日"
+  },
+  "inventory_run": {
+    "date": "2026-10-21",
+    "by": "Claude (自動棚卸し, 人による確認未了)",
+    "result": "脆弱性スキャン(pnpm audit, bun audit, pip-audit)はネットワーク取得を要するため実行していない。リポジトリ内にも記録済みの通知がない。advisories が空であることは『影響なし』の確認ではなく『未判断』を意味する。"
+  },
   "advisories": []
 }

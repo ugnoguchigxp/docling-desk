@@ -6,11 +6,11 @@ import fcntl
 import hashlib
 import json
 import math
-import os
 from contextlib import contextmanager
 from decimal import Decimal
 from pathlib import Path
-from uuid import uuid4
+
+from docling_desk.atomic_files import atomic_write_bytes
 
 
 class NeedsReview(ValueError):
@@ -85,21 +85,7 @@ def utf16_offset(value: str, offset: int) -> int:
 
 
 def atomic_write(file: Path, text: str) -> None:
-    file.parent.mkdir(parents=True, exist_ok=True)
-    temporary = file.with_name(file.name + "." + uuid4().hex + ".tmp")
-    try:
-        with os.fdopen(
-            os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600),
-            "w",
-            encoding="utf-8",
-            newline="",
-        ) as handle:
-            handle.write(text)
-            handle.flush()
-            os.fsync(handle.fileno())
-        temporary.replace(file)
-    finally:
-        temporary.unlink(missing_ok=True)
+    atomic_write_bytes(file, text.encode("utf-8"), mode=0o600)
 
 
 def write_json(file: Path, value) -> None:

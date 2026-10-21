@@ -8,8 +8,8 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
+from docling_desk.atomic_files import atomic_write_bytes
 from docling_desk.storage import document_folders
 
 LOCK = threading.RLock()
@@ -28,13 +28,7 @@ def fingerprint(value: Any) -> str:
 
 
 def atomic_json(path: Path, value: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
-    try:
-        temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
-        temporary.replace(path)
-    finally:
-        temporary.unlink(missing_ok=True)
+    atomic_write_bytes(path, json.dumps(value, ensure_ascii=False, indent=2).encode("utf-8"))
 
 
 def result_path(folder: Path, language: str, unit_id: str) -> Path:

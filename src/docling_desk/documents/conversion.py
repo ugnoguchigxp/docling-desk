@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import logging
+import os
 import re
+import shutil
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from uuid import uuid4
 from zipfile import BadZipFile, ZipFile
 
 from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
@@ -28,6 +33,9 @@ from docling_core.transforms.serializer.plain_text import PlainTextDocSerializer
 from docling_core.types.doc import DocItem, ImageRefMode, PictureItem, TableItem, TextItem
 from pydantic import BaseModel, Field
 
+from docling_desk import activity
+from docling_desk.atomic_files import atomic_write_bytes, sync_directory
+from docling_desk.blob_mirror import notify
 from docling_desk.config import MAX_BYTES, MAX_PAGES, MODELS
 from docling_desk.documents.images import ImageInfo
 from docling_desk.documents.ocr_profiles import (
@@ -63,7 +71,14 @@ from docling_desk.preview.hashing import digest
 from docling_desk.preview.office_linux import office_html
 from docling_desk.preview.powerpoint_export import export_powerpoint
 from docling_desk.preview.slides import export_slide_layout
-from docling_desk.storage import data_root, job_file, original_file, record_artifacts
+from docling_desk.storage import (
+    data_root,
+    job_file,
+    managed,
+    original_file,
+    record_artifacts,
+    safe_path,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -107,12 +122,15 @@ class Element(BaseModel):
 
 
 def save_job(folder: Path, job: Job) -> None:
+    """Write job.json. The document folder must exist: a late save after the
+    document was deleted raises FileNotFoundError instead of recreating it."""
+    if not folder.is_dir():
+        raise FileNotFoundError(folder)
     record_artifacts(folder, job.model_dump())
     target = job_file(folder)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_suffix(".tmp")
-    temporary.write_text(job.model_dump_json(indent=2), encoding="utf-8")
-    temporary.replace(job_file(folder))
+    if target.parent != folder:  # managed layout: the runtime folder is made on first save
+        target.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_bytes(target, job.model_dump_json(indent=2).encode("utf-8"), create_parent=False)
 
 
 def validate_input(path: Path) -> None:
@@ -307,12 +325,246 @@ def office_preview(source: Path, folder: Path) -> tuple[str | None, str]:
     )
 
 
+@dataclass
+class _Claim:
+    """What the start of an attempt fixed: who runs, on which bytes, and where."""
+
+    attempt: str
+    work: Path
+    source: Path
+    sha256: str
+    size: int
+    mtime_ns: int
+
+
 def convert_job(folder: Path, job: Job, *, ocr_runtime: OcrRuntime | None = None) -> None:
-    with exclusive_write(data_root(folder), "convert"):
-        _convert_job(folder, job, ocr_runtime=ocr_runtime)
+    """Convert one document and publish the result.
+
+    A managed document folder computes outside the write lock and takes it only to
+    start and to publish (docs/refactoring/R13-design.md). Any other folder (a
+    worker's private attempt folder, the legacy layout) shares nothing with other
+    writers, so it keeps the whole run under the write lock.
+    """
+    if not managed(folder):
+        with exclusive_write(data_root(folder), "convert"):
+            _convert_job(folder, job, ocr_runtime=ocr_runtime)
+        return
+    data = data_root(folder)
+    entry = activity.Activity(data, uuid4().hex, "convert", job=job.id)
+    work = activity.work_root(data) / entry.attempt
+    try:
+        with exclusive_write(data, "convert"):
+            claim = _begin_attempt(folder, job, entry, work)
+        if claim is None:
+            return
+        _compute(folder, job, claim, ocr_runtime)
+        if _publish(folder, job, claim):
+            notify()  # after the publication is final, never before
+    finally:
+        # The activity ends last, once the result is published or discarded.
+        shutil.rmtree(work, ignore_errors=True)
+        entry.end()
 
 
-def _convert_job(folder: Path, job: Job, *, ocr_runtime: OcrRuntime | None = None) -> None:
+def _file_sha256(path: Path) -> str:
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def _recorded_sha256(source: Path) -> str | None:
+    """SHA-256 the upload recorded next to the original, if any."""
+    try:
+        value = json.loads((source.parent / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    digest_value = value.get("sha256") if isinstance(value, dict) else None
+    return digest_value if isinstance(digest_value, str) and len(digest_value) == 64 else None
+
+
+def _refuse(job: Job, message: str, folder: Path | None = None) -> None:
+    """Fail the job in memory; with ``folder``, also on disk (under the write lock).
+
+    Pass ``folder`` only once no live attempt exists and the saved state is queued
+    or running: otherwise the refusal must not touch another attempt's job.json.
+    """
+    LOGGER.warning("Conversion of %s was not run or published: %s", job.id, message)
+    job.state, job.error = "failed", message
+    if folder is None:
+        return
+    try:
+        save_job(folder, job)
+        activity.attempt_record(data_root(folder), folder.name).unlink(missing_ok=True)
+    except OSError:
+        LOGGER.exception("The refusal of %s could not be saved", job.id)
+
+
+def _begin_attempt(folder: Path, job: Job, entry: activity.Activity, work: Path) -> _Claim | None:
+    """Fix the input and register the attempt. Runs under the write lock."""
+    data = data_root(folder)
+    try:
+        saved = Job.model_validate_json(job_file(folder).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        _refuse(job, "資料が削除されたため変換を開始しませんでした。")
+        return None
+    if saved.state not in {"queued", "running"}:
+        _refuse(job, "この資料は既に変換済みのため、変換を開始しませんでした。")
+        return None
+    previous = activity.read_attempt(data, folder.name).get("attempt")
+    if saved.state == "running" and previous and activity.is_live(data, str(previous)):
+        _refuse(job, "別の変換が実行中のため、変換を開始しませんでした。")
+        return None
+    source = original_file(folder, Path(job.filename).suffix.lower())
+    if source.is_symlink() or not source.is_file() or not safe_path(data, source):
+        # No live attempt and still queued/running on disk: persist the failure so
+        # job.json does not stay queued (a queued job refuses delete and copy).
+        _refuse(job, "原本が見つからないため変換を開始しませんでした。", folder)
+        return None
+    try:
+        info = source.stat()
+        checksum = _recorded_sha256(source) or _file_sha256(source)
+        entry.begin()
+        activity.clear_stale(data)
+        work.mkdir(parents=True)
+        atomic_write_bytes(
+            activity.attempt_record(data, folder.name),
+            json.dumps(
+                {
+                    "attempt": entry.attempt,
+                    "job": job.id,
+                    "sha256": checksum,
+                    "started": time.time(),
+                    "publishing": None,
+                }
+            ).encode("utf-8"),
+        )
+        claim = _Claim(entry.attempt, work, source, checksum, info.st_size, info.st_mtime_ns)
+        job.state = "running"
+        save_job(folder, job)
+        return claim
+    except Exception as exc:
+        # Not started after all: end the activity and leave a failed job.json
+        # rather than a queued one that nothing will ever run.
+        LOGGER.exception("Conversion of %s could not be started", job.id)
+        entry.end()
+        shutil.rmtree(work, ignore_errors=True)
+        _refuse(job, f"変換を開始できませんでした: {exc}", folder)
+        return None
+
+
+def _compute(folder: Path, job: Job, claim: _Claim, ocr_runtime: OcrRuntime | None) -> None:
+    """The heavy part, in the work directory and without the write lock."""
+    try:
+        target = claim.work / ("original" + claim.source.suffix.lower())
+        checksum = hashlib.sha256()
+        with claim.source.open("rb") as source, target.open("wb") as copy:
+            while chunk := source.read(1024 * 1024):
+                checksum.update(chunk)
+                copy.write(chunk)
+        if checksum.hexdigest() != claim.sha256:
+            raise ValueError("原本が変換の開始後に変更されました。")
+        # OCR operation records stay with the real document: a lost record would
+        # allow a resubmission, and deleting the document must stop OCR calls.
+        _convert_job(claim.work, job, ocr_runtime=ocr_runtime, ledger_folder=folder)
+    except Exception as exc:
+        LOGGER.exception("Conversion failed for %s", job.id)
+        job.state, job.error = "failed", str(exc)
+
+
+def _superseded(folder: Path, job: Job, claim: _Claim) -> tuple[str, bool] | None:
+    """Why this attempt may not publish, and whether it is still the current attempt."""
+    data = data_root(folder)
+    try:
+        saved = Job.model_validate_json(job_file(folder).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return "資料が削除されたため変換結果を公開しませんでした。", False
+    if saved.state != "running":
+        return "変換が取り消されたため結果を公開しませんでした。", False
+    if activity.read_attempt(data, folder.name).get("attempt") != claim.attempt:
+        return "新しい実行に置き換えられたため結果を公開しませんでした。", False
+    source = original_file(folder, Path(job.filename).suffix.lower())
+    try:
+        info = source.stat()
+        unchanged = (
+            not source.is_symlink()
+            and source.is_file()
+            and (info.st_size, info.st_mtime_ns) == (claim.size, claim.mtime_ns)
+            and _recorded_sha256(source) in {None, claim.sha256}
+        )
+    except OSError:
+        unchanged = False
+    if not unchanged:
+        return "変換中に原本が変更または削除されたため結果を公開しませんでした。", True
+    return None
+
+
+def _artifacts(work: Path) -> list[str]:
+    return sorted(
+        path.name
+        for path in work.iterdir()
+        if not path.name.startswith("original.")
+        and path.name not in {"job.json", "manifest.json", "ocr-private"}
+        and not path.name.endswith(".tmp")
+    )
+
+
+def _publish(folder: Path, job: Job, claim: _Claim) -> bool:
+    """Publish under the write lock, after checking that this attempt is still current.
+
+    Artifacts move into the (still unpublished) document folder first; the
+    manifest and job.json follow, and job.json is what readers go by. True when
+    the job's final state was written.
+    """
+    data = data_root(folder)
+    record = activity.attempt_record(data, folder.name)
+    with exclusive_write(data, "convert"):
+        verdict = _superseded(folder, job, claim)
+        if verdict is not None:
+            message, current = verdict
+            _refuse(job, message)
+            if current:
+                save_job(folder, job)
+                record.unlink(missing_ok=True)
+            return current
+        names: list[str] = []
+        try:
+            if job.state in {"success", "partial"}:
+                names = _artifacts(claim.work)
+                saved = activity.read_attempt(data, folder.name)
+                saved["publishing"] = [*names, "manifest.json"]
+                atomic_write_bytes(record, json.dumps(saved).encode("utf-8"))
+                checkpoint("convert_before_publish")
+                for name in names:
+                    target = folder / name
+                    if target.is_symlink() or target.is_file():
+                        target.unlink()
+                    elif target.is_dir():
+                        shutil.rmtree(target)
+                    os.replace(claim.work / name, target)
+                    checkpoint("convert_during_publish")
+                sync_directory(folder)
+                checkpoint("convert_after_publish")
+            save_job(folder, job)
+        except Exception as exc:
+            LOGGER.exception("Publishing the conversion of %s failed", job.id)
+            for name in [*names, "manifest.json"]:
+                target = folder / name
+                if target.is_symlink() or target.is_file():
+                    target.unlink(missing_ok=True)
+                elif target.is_dir():
+                    shutil.rmtree(target, ignore_errors=True)
+            job.state, job.error = "failed", str(exc)
+            save_job(folder, job)
+        record.unlink(missing_ok=True)
+    return True
+
+
+def _convert_job(
+    folder: Path,
+    job: Job,
+    *,
+    ocr_runtime: OcrRuntime | None = None,
+    ledger_folder: Path | None = None,
+) -> None:
     started = time.monotonic()
     job.state = "running"
     save_job(folder, job)
@@ -323,7 +575,7 @@ def _convert_job(folder: Path, job: Job, *, ocr_runtime: OcrRuntime | None = Non
         profile = OcrProfile.model_validate(job.ocr_profile) if job.ocr_profile else load_profile()
         job.ocr_profile = profile.model_dump(mode="json")
         if runtime is None:
-            runtime = make_runtime(profile, folder, digest(source), job.id)
+            runtime = make_runtime(profile, ledger_folder or folder, digest(source), job.id)
         source_text = read_text_input(source) if source.suffix in TEXT_DOCUMENT_SUFFIXES else ""
         if source.suffix in TEXT_SUFFIXES:
             doc = plain_document(source, source_text)

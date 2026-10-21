@@ -503,6 +503,44 @@ def problems(models_dir: Path, manifest_path: Path) -> list[str]:
     return found
 
 
+FETCH_HINT = (
+    "モデルを取得してください。ソース導入は "
+    ".venv/bin/python -m docling_desk.operations.download_models を実行し、"
+    "Dockerはイメージを docker compose up -d --build --wait で再構築します。"
+)
+SEAL_HINT = (
+    ".venv/bin/python -m docling_desk.operations.models を実行して、"
+    "配置済みモデルの検証を完了してください。再取得は不要です。"
+)
+MANIFEST_HINT = "モデルのmanifestを読み込めません。ソースを更新して導入し直してください。"
+MODEL_KINDS = {
+    "missing": ("not_configured", FETCH_HINT),
+    "revision": ("not_configured", FETCH_HINT),
+    "incomplete": ("not_configured", FETCH_HINT),
+    "unverified": ("not_configured", SEAL_HINT),
+    "interrupted": ("temporary_failure", RECOVER_HINT),
+    "manifest_missing": ("not_configured", MANIFEST_HINT),
+    "manifest_invalid": ("not_configured", MANIFEST_HINT),
+}
+
+
+def diagnose(models_dir: Path, manifest_path: Path) -> list[dict[str, str]]:
+    """Group model problems by kind for display; one entry per kind.
+
+    Reads the same local files as ``problems`` and never contacts the network.
+    The entries carry no paths, model names, or file names. ``recover:`` lines are
+    folded into ``interrupted``, whose hint already names the recovery command.
+    """
+    found: dict[str, dict[str, str]] = {}
+    for item in problems(models_dir, manifest_path):
+        kind = item.split(":", 1)[0]
+        if kind == "recover":
+            continue
+        state, hint = MODEL_KINDS.get(kind, ("not_configured", FETCH_HINT))
+        found.setdefault(kind, {"code": f"models_{kind}", "state": state, "recovery": hint})
+    return list(found.values())
+
+
 def _root() -> tuple[Path, Path]:
     from docling_desk.config import MODEL_MANIFEST, MODELS
 

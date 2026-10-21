@@ -14,6 +14,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
+from docling_desk.atomic_files import atomic_write_bytes
 from docling_desk.documents.conversion import Job, save_job
 from docling_desk.documents.images import ImageMetadata
 from docling_desk.explanation.store import LOCK as EXPLANATION_LOCK
@@ -82,15 +83,12 @@ def load(data: Path) -> Library:
 def save(data: Path, library: Library) -> None:
     root = data / "content" / "manifests"
     root.mkdir(parents=True, exist_ok=True)
-    temporary = root / "library.tmp"
-    try:
-        checkpoint("library_save_before_write")
-        temporary.write_text(library.model_dump_json(indent=2), encoding="utf-8")
-        checkpoint("library_save_before_replace")
-        temporary.replace(root / "library.json")
-    except Exception:
-        temporary.unlink(missing_ok=True)
-        raise
+    checkpoint("library_save_before_write")
+    atomic_write_bytes(
+        root / "library.json",
+        library.model_dump_json(indent=2).encode("utf-8"),
+        before_replace=lambda: checkpoint("library_save_before_replace"),
+    )
     checkpoint("library_save_after_replace")
 
 

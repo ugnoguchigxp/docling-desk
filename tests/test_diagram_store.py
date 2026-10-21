@@ -610,3 +610,33 @@ def test_cyclic_revision_chain_does_not_hang_repair_or_listing(tmp_path, caplog)
     assert orphan.exists()  # nothing is deleted when the chain cannot be trusted
     items, following = store.revisions(tmp_path, identifier, None, 10)
     assert [i.number for i in items] == [2, 1] and following is None
+
+
+def test_failed_file_publication_keeps_the_previous_file_and_leaves_no_temporary(
+    tmp_path, monkeypatch
+):
+    from docling_desk import atomic_files
+
+    path = tmp_path / "revisions" / "original.excalidraw"
+    store.write_file(path, b"old")
+
+    def failed(source, destination):
+        raise OSError("killed before replace")
+
+    monkeypatch.setattr(atomic_files.os, "replace", failed)
+    with pytest.raises(OSError):
+        store.write_file(path, b"new")
+    assert path.read_bytes() == b"old"
+    assert not list(path.parent.glob("*.tmp"))
+
+
+def test_repair_removes_a_hidden_temporary_left_by_a_killed_writer(tmp_path):
+    identifier, _ = create(tmp_path)
+    content = store.content_dir(tmp_path, identifier)
+    leftover = content / "revisions" / ".original.excalidraw.deadbeef.tmp"
+    leftover.parent.mkdir(parents=True, exist_ok=True)
+    leftover.write_bytes(b"partial")
+    age(leftover)
+    store.repair_diagrams(tmp_path)
+    assert not leftover.exists()
+    assert manifest(tmp_path, identifier)["current_revision"]

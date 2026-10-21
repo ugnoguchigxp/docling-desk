@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 import shutil
 import threading
@@ -12,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
+from docling_desk.atomic_files import atomic_write_bytes
 from docling_desk.explanation.provider import SCHEMAS, ExplanationError
 from docling_desk.storage import document_folders, job_file
 
@@ -42,22 +42,7 @@ def atomic_json(path: Path, value: dict) -> None:
     raw = json.dumps(value, ensure_ascii=False, indent=2).encode()
     if len(raw) > 20 * 1024**2:
         raise ExplanationError("storage_limit", "解説の保存容量上限を超えています。")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
-    try:
-        with temporary.open("xb") as stream:
-            os.chmod(temporary, 0o600)
-            stream.write(raw)
-            stream.flush()
-            os.fsync(stream.fileno())
-        temporary.replace(path)
-        fd = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-    finally:
-        temporary.unlink(missing_ok=True)
+    atomic_write_bytes(path, raw, mode=0o600)
 
 
 def empty(unit_id: str) -> dict:

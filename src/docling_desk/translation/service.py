@@ -12,6 +12,7 @@ from random import uniform
 from time import monotonic
 from uuid import uuid4
 
+from docling_desk.execution import SlotPool
 from docling_desk.translation.provider import (
     PROMPT_VERSION,
     TranslationError,
@@ -117,7 +118,7 @@ def restore(unit: dict, translated: dict[str, str], restoration: dict) -> dict[s
 class TranslationManager:
     def __init__(self):
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="translation")
-        self.slots = threading.BoundedSemaphore(3)
+        self.slots = SlotPool(3)
         self.stopping = threading.Event()
         self.active_provider: TranslationProvider | None = None
         # These are shared by every document/language submitted to this worker.
@@ -186,7 +187,8 @@ class TranslationManager:
                 raise TranslationError(
                     "not_configured", "翻訳処理は終了中です。再起動後に実行してください。"
                 )
-            if not self.slots.acquire(blocking=False):
+            lease = self.slots.claim()
+            if lease is None:
                 raise TranslationError(
                     "queue_full", "翻訳処理待ちは最大3件です。完了後に実行してください。"
                 )
@@ -210,7 +212,9 @@ class TranslationManager:
                         retry_attempt=0,
                     )
                     atomic_json(result_path(folder, language, unit["id"]), record)
-                self.worker.submit(
+                # Last step: once accepted, the queued run owns the slot until it ends.
+                lease.submit(
+                    self.worker,
                     self._run,
                     folder,
                     language,
@@ -220,7 +224,7 @@ class TranslationManager:
                     schedule,
                 )
             except Exception as exc:
-                self.slots.release()
+                lease.release()  # No-op when submit already returned it.
                 for unit, _ in pending:
                     self._terminal(
                         folder,
@@ -362,7 +366,6 @@ class TranslationManager:
                     )
         finally:
             self.active_provider = None
-            self.slots.release()
 
     def _translate(self, folder, language, unit, attempt, provider, batch, schedule) -> dict:
         for retry in range(schedule.max_retries + 1):

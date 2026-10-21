@@ -1,0 +1,136 @@
+{
+  "note": "package管理に載らない配布物の一覧です。ここに載ることは利用許諾の確認ではありません。確認状況は clearance.json の同名の記録だけが示します。",
+  "recorded_on": "2026-10-21",
+  "assets": [
+    {
+      "name": "docling-slim",
+      "kind": "python-source",
+      "version": "2.132.0",
+      "revision": "a1c5ff2a8c5ab2bf87d7c1eb896b5bc351f51220",
+      "source": "docling/ (git submodule, https://github.com/docling-project/docling.git)",
+      "paths": ["docling/pyproject.toml", "docling/LICENSE"],
+      "distribution": ["docker"],
+      "notice": "wheel/sdist には含まれない(pyproject.toml は docling-slim==2.132.0 をindexから要求する)。Dockerfile は COPY docling/ を --no-deps で導入し、/opt/docling-source にソースも残る。"
+    },
+    {
+      "name": "docling-azure-ocr",
+      "kind": "python-source",
+      "version": "0.1.0",
+      "revision": null,
+      "source": "packages/docling-azure-ocr",
+      "paths": ["packages/docling-azure-ocr/pyproject.toml", "packages/docling-azure-ocr/LICENSE"],
+      "distribution": ["docker"],
+      "notice": "自作の別package。wheel が docling-azure-ocr==0.1.0 を要求するが、index上の配布は確認できない。Dockerfile は同梱ソースを --no-deps で導入する。"
+    },
+    {
+      "name": "ag-grid-community",
+      "kind": "vendor",
+      "version": "35.2.1",
+      "revision": "sha512-ycmGI+1EbUT7i3eg/Kgi1owwnkdHXRufo10Xm6cfSsVPM3TMpvlbLgi28KIPt9DGHZWHq9fOBn7nxMNdv1Yaow==",
+      "source": "https://registry.npmjs.org/ag-grid-community/-/ag-grid-community-35.2.1.tgz",
+      "paths": [
+        "src/docling_desk/resources/static/vendor/ag-grid-community.min.js",
+        "src/docling_desk/resources/static/vendor/ag-grid.min.css",
+        "src/docling_desk/resources/static/vendor/ag-theme-quartz.min.css",
+        "src/docling_desk/resources/static/vendor/ag-grid-LICENSE.txt",
+        "src/docling_desk/resources/static/vendor/manifest.json"
+      ],
+      "distribution": ["wheel", "sdist", "docker"],
+      "notice": "旧画面(static/*.js)が直接読む複製。frontend の ag-grid-community(同版)とは別の配布物。"
+    },
+    {
+      "name": "tabulens (port)",
+      "kind": "vendor",
+      "version": null,
+      "revision": "d0ab62e002125a8e6852aca037c33779e980ad9b0e0f517d99b13ea54e039a6b",
+      "source": "../tabulens/apps/web/src/App.tsx (リポジトリ外の同一作者の作品。manifest.json の port.sha256)",
+      "paths": [
+        "src/docling_desk/resources/static/tabulens-grid.js",
+        "src/docling_desk/resources/static/vendor/tabulens-LICENSE.txt"
+      ],
+      "distribution": ["wheel", "sdist", "docker"],
+      "notice": "移植元はこのリポジトリにない。版は sha256 だけで特定できる。"
+    },
+    {
+      "name": "draw.io viewer",
+      "kind": "vendor",
+      "version": "v32.5.5",
+      "revision": "https://github.com/jgraph/drawio/tree/v32.5.5",
+      "source": "https://github.com/jgraph/drawio/tree/v32.5.5",
+      "paths": [
+        "src/docling_desk/resources/static/vendor/drawio/viewer-static.min.js",
+        "src/docling_desk/resources/static/vendor/drawio/stencils.min.js",
+        "src/docling_desk/resources/static/vendor/drawio/drawio-mathjax.min.js",
+        "src/docling_desk/resources/static/vendor/drawio/LICENSE",
+        "src/docling_desk/resources/static/vendor/drawio/mathjax-LICENSE",
+        "src/docling_desk/resources/static/vendor/drawio/img-LICENSE",
+        "src/docling_desk/resources/static/vendor/drawio/shapes-LICENSE",
+        "src/docling_desk/resources/static/vendor/drawio/stencils-LICENSE",
+        "src/docling_desk/resources/static/vendor/drawio/manifest.json"
+      ],
+      "distribution": ["wheel", "sdist", "docker"],
+      "notice": "LICENSE と mathjax-LICENSE は Apache-2.0 の全文。img/shapes/stencils-LICENSE は、アイコンと図形の素材をAtlassian製品・マーケットプレイスの資産として使うことと、素材を参照・訓練入力とする派生を明示許可なく禁じる追加条件(利用者の図の出力には適用しない)。上流のNOTICEファイルは同梱されていない。"
+    },
+    {
+      "name": "Plate editor-kit registry",
+      "kind": "vendored-source",
+      "version": null,
+      "revision": "https://platejs.org/r/editor-kit.json (取得日 2026-10-16)",
+      "source": "https://platejs.org/r/editor-kit.json and its recursive registry dependencies",
+      "paths": ["frontend/src/plate/LICENSE", "frontend/src/plate/README.md"],
+      "distribution": ["wheel", "sdist", "docker"],
+      "notice": "frontend バンドルへコンパイルされて配布される。ソース自体は配布物に入らない。上流の版は取得日だけで固定される。"
+    },
+    {
+      "name": "shadcn ui primitives",
+      "kind": "vendored-source",
+      "version": null,
+      "revision": "取得日 2026-10-16 (frontend/src/plate/README.md)",
+      "source": "https://ui.shadcn.com (Plate registry 経由)",
+      "paths": ["frontend/src/plate/ui-primitives/LICENSE"],
+      "distribution": ["wheel", "sdist", "docker"],
+      "notice": "frontend バンドルへコンパイルされて配布される。"
+    },
+    {
+      "name": "excalidraw fonts",
+      "kind": "font",
+      "version": "0.18.1",
+      "revision": null,
+      "source": "frontend/node_modules/@excalidraw/excalidraw/dist/prod/fonts/ (export-static.mjs が static/frontend/excalidraw/fonts へ複製)",
+      "paths": ["src/docling_desk/resources/static/frontend/excalidraw/fonts"],
+      "families": ["Assistant", "Cascadia", "ComicShanns", "Excalifont", "Liberation", "Lilita", "Nunito", "Virgil", "Xiaolai"],
+      "distribution": ["wheel", "sdist", "docker"],
+      "notice": "@excalidraw/excalidraw のnpm packageにフォントごとのライセンス文は含まれない。licenses.txt にもフォントの条件はない。"
+    },
+    {
+      "name": "KaTeX fonts",
+      "kind": "font",
+      "version": "0.16.47",
+      "revision": null,
+      "source": "frontend/node_modules/katex (vite がバンドル。assets/KaTeX_*.woff2/woff/ttf)",
+      "paths": ["src/docling_desk/resources/static/frontend/assets"],
+      "distribution": ["wheel", "sdist", "docker"],
+      "notice": "ttf と woff も出力に含まれる。katex の LICENSE は licenses.txt に入るが、フォント個別の条件は確認していない。"
+    },
+    {
+      "name": "tiktoken encodings (cl100k_base, o200k_base)",
+      "kind": "runtime-download",
+      "version": null,
+      "revision": null,
+      "source": "https://openaipublic.blob.core.windows.net/encodings/ (tiktoken が初回利用時に取得)",
+      "paths": [],
+      "distribution": ["docker", "python"],
+      "notice": "src/docling_desk/knowledge/{store,service,answer,api}.py と explanation/context.py が tiktoken.get_encoding を呼ぶ。取得先・hash・保存先(TIKTOKEN_CACHE_DIR)は Dockerfile/compose.yaml で固定されていない。モデル台帳(manifest.json)にも載っていない。"
+    },
+    {
+      "name": "openai-codex-cli-bin bundled binaries",
+      "kind": "runtime-binary",
+      "version": "0.160.0",
+      "revision": null,
+      "source": "PyPI openai-codex-cli-bin==0.160.0 (requirements-lock.txt)",
+      "paths": [],
+      "distribution": ["docker", "python"],
+      "notice": "package内に codex、codex-code-mode-host、rg(ripgrep)、zsh の実行ファイルが入る(.venv の RECORD と codex-package.json で確認)。dist-info にライセンスファイルがなく、同梱された第三者製品の条件は確認できていない。"
+    }
+  ]
+}

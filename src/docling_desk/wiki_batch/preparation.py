@@ -10,11 +10,11 @@ import json
 import os
 import re
 import shutil
-import tempfile
 import unicodedata
 from pathlib import Path
 from urllib.parse import urlparse
 
+from docling_desk.atomic_files import atomic_write_bytes
 from docling_desk.knowledge.catalog import safe_file
 
 from .folder_catalog import catalog
@@ -120,17 +120,11 @@ def link_path(target: Path, current: Path) -> str:
 
 
 def atomic_write(path: Path, text: str) -> None:
+    raw = text.encode("utf-8")
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists() and path.read_bytes() == text.encode("utf-8"):
+    if path.exists() and path.read_bytes() == raw:
         return
-    with tempfile.NamedTemporaryFile(
-        "w", encoding="utf-8", newline="", dir=path.parent, delete=False
-    ) as temp:
-        temp.write(text)
-        temp.flush()
-        os.fsync(temp.fileno())
-        temporary = Path(temp.name)
-    temporary.replace(path)
+    atomic_write_bytes(path, raw, mode=0o600)
 
 
 def read_json(path: Path, fallback):

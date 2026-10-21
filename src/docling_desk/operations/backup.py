@@ -15,6 +15,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from docling_desk import activity
 from docling_desk.sqlite_writer import connect
 from docling_desk.storage import knowledge_database
 
@@ -77,9 +78,15 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+# Work in progress and its registry are never data: they are rebuilt or discarded.
+NOT_PAYLOAD = (("runtime", "activity"), ("runtime", "conversions"))
+
+
 def _payload_files(data: Path):
     for path in sorted(data.rglob("*")):
         relative = path.relative_to(data)
+        if relative.parts[:2] in NOT_PAYLOAD:
+            continue
         wiki_content = relative.parts[:3] == (
             "content",
             "wiki",
@@ -209,6 +216,14 @@ def _flock(handle, blocking: bool) -> bool:
     return True
 
 
+def _computing(data: Path) -> dict | None:
+    """A conversion that computes without the write lock, shown by its activity lock."""
+    found = activity.live(data)
+    if not found:
+        return None
+    return _active(found[0].get("purpose") or "convert", found[0].get("pid"))
+
+
 def writer_status(data: Path) -> dict:
     """Live conversion or index writer. A stopped process does not keep the lock."""
     if not data.is_dir():
@@ -222,7 +237,7 @@ def writer_status(data: Path) -> dict:
         return legacy
     path = data / LOCK_NAME
     if not path.is_file():
-        return _idle()
+        return _computing(data) or _idle()
     guard = _guard(key)
     if not guard.acquire(blocking=False):
         owner = _OWNERS.get(key) or {}
@@ -235,7 +250,7 @@ def writer_status(data: Path) -> dict:
             record = _parse_record(handle.read())
             return _active(record.get("purpose"), record.get("pid"))
         fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-        return _idle()
+        return _computing(data) or _idle()
     finally:
         if handle is not None:
             handle.close()
@@ -310,6 +325,10 @@ def backup_local(data: Path, archive: Path) -> dict:
     if archive.exists():
         raise ValueError("バックアップ先は未作成のディレクトリにしてください。")
     with exclusive_write(data, "backup", wait=0):
+        # Computing conversions do not hold the write lock; their activity locks do.
+        # Registration needs the write lock, so none can start while this scan runs.
+        if activity.sweep(data):
+            raise ValueError(REFUSAL)
         archive.mkdir()
         try:
             return _backup_into(data, archive)

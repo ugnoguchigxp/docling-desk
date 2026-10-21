@@ -12,6 +12,8 @@ import json
 import shutil
 from pathlib import Path
 
+from docling_desk import activity
+from docling_desk.atomic_files import atomic_write_bytes
 from docling_desk.blob_mirror import notify
 from docling_desk.sqlite_writer import connect
 
@@ -139,9 +141,7 @@ def record_original(folder: Path, filename: str, created: float) -> None:
         "key": source.relative_to(data_root(folder) / "content").as_posix(),
         "sha256": checksum,
     }
-    temporary = target.with_suffix(".tmp")
-    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
-    temporary.replace(target)
+    atomic_write_bytes(target, json.dumps(value, ensure_ascii=False, indent=2).encode("utf-8"))
 
 
 def record_artifacts(folder: Path, job: dict) -> None:
@@ -152,9 +152,12 @@ def record_artifacts(folder: Path, job: dict) -> None:
         "job": {k: v for k, v in job.items() if k not in {"ocr_profile", "error", "error_code"}},
     }
     target = folder / "manifest.json"
-    temporary = target.with_suffix(".tmp")
-    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
-    temporary.replace(target)
+    # A late save into a deleted document must fail, not bring its folder back.
+    atomic_write_bytes(
+        target,
+        json.dumps(value, ensure_ascii=False, indent=2).encode("utf-8"),
+        create_parent=False,
+    )
 
 
 def document_paths(folder: Path) -> tuple[Path, ...]:
@@ -275,3 +278,6 @@ def migrate_layout(data: Path) -> None:
         if source.is_file() and not (source.parent / "manifest.json").exists():
             record_original(folder, job["filename"], job["created"])
     migrate_database(data / "knowledge" / "local.sqlite", knowledge_database(data))
+    # Conversions that died leave a work directory, an attempt record and possibly
+    # artifacts of an unpublished document. Live ones are recognised by their lock.
+    activity.clear_stale(data)
