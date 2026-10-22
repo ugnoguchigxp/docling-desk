@@ -10,6 +10,7 @@ import threading
 import time
 from dataclasses import dataclass
 from email.utils import parsedate_to_datetime
+from typing import Protocol
 from urllib.parse import urlsplit
 from uuid import uuid4
 
@@ -23,6 +24,16 @@ class EmbeddingError(Exception):
         super().__init__(message)
         self.retryable = retryable
         self.delay = delay
+
+
+class EmbeddingProvider(Protocol):
+    @property
+    def profile(self) -> str: ...
+
+    @property
+    def gate_key(self) -> str: ...
+
+    def request(self, texts: list[str]) -> tuple[list[list[float]], float]: ...
 
 
 @dataclass(frozen=True)
@@ -162,7 +173,7 @@ def retry_delay(headers) -> float:
 
 def paced_request(
     store: Store,
-    provider: AzureEmbedding,
+    provider: EmbeddingProvider,
     texts: list[str],
     stop: threading.Event,
     cancelled=lambda: False,

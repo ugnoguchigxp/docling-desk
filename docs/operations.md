@@ -1,6 +1,6 @@
 # 運用手順
 
-2026年10月21日更新（導入・診断・更新）。ここにある導入・診断・更新の手順が現行の操作です。末尾の2026年10月6日・7日の記録は、その時点の検証です。README内のテスト件数は、その変更を入れた時点の記録であり、今の全体結果ではありません。
+2026年10月22日更新（導入・診断・更新）。ここにある導入・診断・更新の手順が現行の操作です。末尾の2026年10月6日・7日の記録は、その時点の検証です。README内のテスト件数は、その変更を入れた時点の記録であり、今の全体結果ではありません。
 
 ## 導入
 
@@ -13,19 +13,11 @@ macOSのソース導入とLinuxのDocker導入が現行の二つです。[README
 ```sh
 git clone --recurse-submodules https://github.com/ugnoguchigxp/docling-desk.git docling-desktop
 cd docling-desktop
-python3.12 -m venv .venv
-sh scripts/bootstrap-python.sh .venv/bin/python
-.venv/bin/python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1 torchvision==0.29.1
-.venv/bin/python -m pip install -r requirements-lock.txt
-.venv/bin/python -m pip install --no-deps ./docling ./packages/docling-azure-ocr
-.venv/bin/python -m pip install --no-deps --no-build-isolation -e .
-corepack pnpm@10.24.0 --dir frontend install --frozen-lockfile
-corepack pnpm@10.24.0 --dir frontend build
-corepack pnpm@10.24.0 --dir frontend export:static
-.venv/bin/python -m docling_desk.operations.download_models
-.venv/bin/python -m docling_desk.operations.models
+python3.12 scripts/setup.py
 ./run.sh
 ```
+
+`scripts/setup.py` は仮想環境、固定した依存関係、画面のビルド、モデル取得、診断を順に実行します。`python3.12 scripts/setup.py --plan` で、変更せずに手順を確認できます。既存の `.env` は読み込まず、途中の失敗では停止します。`--skip-models` は開発用で、導入完了にはなりません。
 
 `download_models` が初回のモデル取得で、インターネット接続が必要です。モデルはmanifestのrevisionを確認してから公開ディレクトリへ切り替えます。取得に失敗した途中ディレクトリは起動対象になりません。`.venv/bin/python -m docling_desk.operations.models` が `models match manifest` を出すまで、画面の `/health/ready` は `unavailable` です。理由は `missing:`、`revision:`、`incomplete:`、`unverified:`、`interrupted:`、`recover:`、`disk_space`、`frontend_missing` のいずれかです。`incomplete:` は必須の重み・設定・索引の欠落、空ファイル、設定の破損を区別します。`unverified:` はファイル名が揃っていても、更新時のヘッダ確認が済んでいない状態です。health確認は重み全体を読み直しません。差し替えの途中で止まった場合は `.venv/bin/python -m docling_desk.operations.models recover` が、manifestと一致する完了済みディレクトリだけを戻します。一致しなければ手順を表示し、`.previous` は確認前に消しません。
 
@@ -86,6 +78,12 @@ docker compose up -d --build --wait
 新規にアップロードしたOffice資料のプレビュー生成は変換処理の中で行われるため、`conversion` も必要です（診断の `depends_on`）。保存済みのプレビューの閲覧にはモデルは不要です。
 
 `GET /api/diagnostics/features` は通常のAPIと同じログイン（`DOCLING_AUTH_MODE=jwt` では未ログインは401）の下にあり、`Cache-Control: no-store` を返します。各機能は `status`、不足の `reasons`、復旧方法の `recovery`、任意設定の `notes`、前提ごとの `prerequisites` を持ちます。画面を開いたときと復旧操作の後に取得し、短い間隔で繰り返さないでください（モデルの検証でファイルを読みます）。`--diagnose` は終了コード0（必須機能の `conversion` と `local_viewing` が `available`）または1を返し、`--json` で同じ内容をJSONで出します。
+
+## 処理情報が破損した資料
+
+`job.json` が読めない資料は、一覧にエラーを表示して原本を保持します。他の資料の起動・一覧・検索は継続します。破損した情報を自動で上書きしたり、抽出成功として扱ったりはしません。複製は復元するまで拒否します。旧配置でmanifestがない場合も、保存済み原本の拡張子を保持します。
+
+復旧するときはサーバーとバッチを停止し、まず現在の保存領域を退避します。次の手順で正常なバックアップを空の別領域へ復元し、資料ID、原本のハッシュ、処理結果が同じ世代であることを確認してください。確認後に復元先を `DOCLING_DATA_DIR` に指定して再起動します。破損したJSONを推測で作り直したり、状態だけを `success` に変えたりしないでください。
 
 ## バックアップと復元
 
@@ -272,3 +270,20 @@ CI=1 pnpm test:e2e:synthetic
 切り分けでは、画面を表示するChrome 154.0.8037.98でも全69件と印刷・翻訳各12回の計24件が成功しました。ただし、フルChrome 154・Chromium 153.0.8010.12をheadlessで起動する方式ではクリックが背面iframeへ届く不安定さが残りました。バックグラウンド実行用ブラウザーとの違いは記録していますが、内部原因は断定していません。画面を表示する方式での繰り返し実行は不要であり、標準のバックグラウンド方式で回帰を検証できます。
 
 今回のレビューはこの表示・配信・印刷・一覧取得の差分が対象です。実プリンター、本番nginx、Azure本番の検証・配置は行っていません。
+
+## レビュー後の検証コマンド
+
+2026年10月22日の修正・測定結果と未完了項目は[修正・検証台帳](review-fixes-2026-10.md)にあります。次の測定は合成資料用で、実利用者の品質評価とは分けます。
+
+```sh
+# 正本を作成し、同期後の件数・本文・出典を照合する検索測定
+.venv/bin/python -m docling_desk.evaluation.search_bench --documents 100 --chunks-each 100 --dimensions 1024 --repeats 30 --output .cache/search-bench.json
+# HTTP経由、8並列の検索→文脈取得と検索サーバーRSS
+.venv/bin/python -m docling_desk.evaluation.scale --output .cache/scale-bench.json
+# 合成資料と実モデルによる回答評価。Codex認証が必要で、モデルを呼び出します
+.venv/bin/python -m docling_desk.evaluation.rag_quality --live --case-id carry-natural-002 --query-mode natural --output .cache/rag-quality.json
+# 未確認の配布条件があれば終了コード1。棚卸し済みだけでは合格しません
+.venv/bin/python -m docling_desk.operations.supply --check-release --output .cache/clearance.json
+```
+
+配布候補の検証には型検査とclearanceを含みます。`scripts/verify_package.py` はsdistからwheelを作り、vendorのハッシュと告知の同梱を確認して、別保存領域で取込み・検索・削除まで実行します。clearanceの人手確認は別に必要です。RAG評価の `authored` は用意した本文表現を検索する対照条件で、自然文質問の合格証拠にはしません。モデル判定が良好でも、正解資料がdraftで人手確認がない間は `quality_passed` はfalseです。

@@ -8,7 +8,7 @@ being sent, which leaves the stored files and their hashes untouched.
 from __future__ import annotations
 
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterable, Awaitable, Callable
 
 from fastapi import Request
 from fastapi.responses import Response
@@ -56,7 +56,16 @@ async def prefix_urls(
         or "/vendor/" in request.url.path
     ):
         return response
-    body = b"".join([chunk async for chunk in response.body_iterator])  # type: ignore[attr-defined]
+    iterator = getattr(response, "body_iterator", None)
+    if isinstance(iterator, AsyncIterable):
+        body = b"".join(
+            [
+                chunk.encode(response.charset) if isinstance(chunk, str) else bytes(chunk)
+                async for chunk in iterator
+            ]
+        )
+    else:
+        body = bytes(response.body)
     try:
         text = body.decode("utf-8")
     except UnicodeDecodeError:

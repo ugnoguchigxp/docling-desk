@@ -246,6 +246,38 @@ def test_asset_paths_exist_and_vendor_hashes_match():
         assert hashlib.sha256((vendor / "drawio" / name).read_bytes()).hexdigest() == digest
 
 
+def test_release_gate_refuses_inventory_without_human_clearance(tmp_path, monkeypatch):
+    from docling_desk.operations import supply
+
+    output = tmp_path / "clearance.json"
+    assert supply.main(["--check-release", "--output", str(output)]) == 1
+    result = json.loads(output.read_text())
+    assert result["distributed_not_cleared"] > 0
+    assert result["clearance_ok"] is False
+    assert result["artifact_check"] == "not_run"
+    monkeypatch.setattr(supply, "unreviewed_distribution", lambda report: [])
+    assert supply.main(["--check-release"]) == 0
+
+
+def test_wheel_check_detects_tampered_and_missing_vendor_bytes(tmp_path):
+    from zipfile import ZipFile
+
+    from docling_desk.operations.supply import artifact_problems
+
+    resources = tmp_path / "src/docling_desk/resources"
+    vendor = resources / "static/vendor"
+    vendor.mkdir(parents=True)
+    (vendor / "manifest.json").write_text(
+        json.dumps({"files": {"example.js": hashlib.sha256(b"original").hexdigest()}})
+    )
+    wheel = tmp_path / "test.whl"
+    with ZipFile(wheel, "w") as archive:
+        archive.writestr("docling_desk/resources/static/vendor/example.js", b"changed")
+    problems = artifact_problems(tmp_path, wheel)
+    assert "hash:docling_desk/resources/static/vendor/example.js" in problems
+    assert "notice:docling_desk/resources/static/frontend/licenses.txt" in problems
+
+
 def test_docling_submodule_matches_the_recorded_revision(ledger):
     project = tomllib.loads((ROOT / "docling/pyproject.toml").read_text(encoding="utf-8"))
     assets = json.loads((ROOT / "supply/assets.json").read_text(encoding="utf-8"))["assets"]

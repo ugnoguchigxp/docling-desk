@@ -204,7 +204,7 @@ def source_view(job_id: str, language: str = "original") -> HTMLResponse:
     response = text_document_view(job_id, language)
     # Add controls only after the common document sanitizer. Source is escaped
     # text and is never executed, including TeX commands and embedded HTML.
-    raw = response.body.decode("utf-8")
+    raw = bytes(response.body).decode("utf-8")
     raw = raw.replace(
         "</head>",
         '<link rel="stylesheet" href="/static/source-viewer.css">'

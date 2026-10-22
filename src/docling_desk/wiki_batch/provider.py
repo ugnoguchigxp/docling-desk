@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlsplit
@@ -20,10 +21,10 @@ from .files import FatalProviderError, NeedsReview, RetryLater, Stopped
 
 @dataclass
 class Runtime:
-    now: object = lambda: int(time.time() * 1000)
-    sleep: object = lambda ms: time.sleep(ms / 1000)
-    stopping: object = lambda: False
-    log: object = print
+    now: Callable[[], int] = lambda: int(time.time() * 1000)
+    sleep: Callable[[int], None] = lambda ms: time.sleep(ms / 1000)
+    stopping: Callable[[], bool] = lambda: False
+    log: Callable[[str], None] = print
 
 
 def wait_until(store, runtime, target):

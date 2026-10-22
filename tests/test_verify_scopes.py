@@ -5,7 +5,7 @@ import pytest
 
 from docling_desk.operations import verify
 
-LIGHT = ["lint", "python", "tool_guides", "models"]
+LIGHT = ["lint", "python", "types", "tool_guides", "models"]
 
 
 def lanes(items):
@@ -18,13 +18,13 @@ def test_default_scope_stays_the_lightweight_offline_run():
     assert lanes(verify.checks(False, "default")) == LIGHT
     assert not any(item.env for item in items)
     with_js = verify.checks(True)
-    assert lanes(with_js)[:4] == LIGHT
-    assert set(lanes(with_js)[4:]) == {"javascript"}
+    assert lanes(with_js)[: len(LIGHT)] == LIGHT
+    assert set(lanes(with_js)[len(LIGHT) :]) == {"javascript"}
 
 
 def test_wider_scopes_are_explicit_and_additive():
     browser = verify.checks(False, "browser")
-    assert lanes(browser)[:4] == LIGHT
+    assert lanes(browser)[: len(LIGHT)] == LIGHT
     assert "javascript" in lanes(browser) and "browser" in lanes(browser)
     assert "frontend_build" not in lanes(browser)
     assert "package" not in lanes(browser)

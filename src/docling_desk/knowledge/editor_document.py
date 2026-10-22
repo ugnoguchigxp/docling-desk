@@ -60,9 +60,10 @@ class EditorDocument(BaseModel):
             raise ValueError("記事の最上位には段落などのブロックが必要です。")
         visit(self.value)
         for discussion in self.discussions:
-            if not isinstance(discussion.get("comments"), list):
+            comments = discussion.get("comments")
+            if not isinstance(comments, list):
                 raise ValueError("コメントの編集状態が不正です。")
-            for comment in discussion["comments"]:
+            for comment in comments:
                 if not isinstance(comment, dict) or not isinstance(
                     comment.get("contentRich"), list
                 ):

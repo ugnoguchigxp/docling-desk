@@ -91,6 +91,9 @@ def main() -> None:
             stdout=subprocess.DEVNULL,
         )
         wheel = next(wheels.glob("*.whl"))
+        from docling_desk.operations.supply import artifact_problems
+
+        assert not (problems := artifact_problems(ROOT, wheel)), problems
         target = workspace / "installed"
         with ZipFile(wheel) as archive:
             names = archive.namelist()

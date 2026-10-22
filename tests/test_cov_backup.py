@@ -799,7 +799,12 @@ def test_verify_commands(tmp_path, monkeypatch, capsys):
     assert verify.accepted(other) is False
 
     offline = verify.checks(False)
-    assert len(offline) == 4
+    assert len(offline) == 5
+    assert any(
+        check.command[1:]
+        == ["-m", "ty", "check", "src", "packages/docling-azure-ocr/src", "--error-on-warning"]
+        for check in offline
+    )
     assert any(
         check.command[-2:] == ["-m", "docling_desk.operations.tool_guides"] for check in offline
     )

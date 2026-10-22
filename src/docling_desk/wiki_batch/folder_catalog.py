@@ -50,7 +50,7 @@ def catalog(root, sources, directories, records, title_rules=None):
             )
             heading = (
                 {"path": markdown.relative_to(root).as_posix(), "heading": match[1]}
-                if match
+                if match and markdown is not None
                 else None
             )
             if directory.name not in title_rules and heading:

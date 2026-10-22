@@ -39,6 +39,24 @@ class Node:
         return os.stat_result((self.mode, 0, 0, 0, self.uid, 0, 0, 0, 0, 0))
 
 
+def test_row_shared_index_preserves_first_duplicate_and_position_lookup():
+    cursor = sqlite_writer.Cursor(
+        {
+            "rowcount": 2,
+            "lastrowid": None,
+            "description": [["Name"], ["NAME"], ["other"]],
+            "rows": [["first", "duplicate", 1], ["second", "duplicate", 2]],
+        },
+        sqlite3.Row,
+    )
+    first, second = cursor.fetchall()
+    assert first["name"] == "first" and second["NAME"] == "second"
+    assert first[-1] == 1 and first[1:] == ("duplicate", 1)
+    assert first.keys() == ["Name", "NAME", "other"]
+    with pytest.raises(IndexError):
+        second["absent"]
+
+
 def test_runtime_rejects_and_accepts(tmp_path, monkeypatch):
     monkeypatch.setattr(sqlite_writer, "Path", lambda *_args, **_kwargs: Node(symlink=True))
     with pytest.raises(sqlite3.OperationalError, match="接続先"):

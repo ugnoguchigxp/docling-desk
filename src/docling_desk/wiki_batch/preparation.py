@@ -270,7 +270,7 @@ def gather_records() -> list[dict]:
         if csvs:
             with csvs[0].open(encoding="utf-8-sig", newline="") as handle:
                 reader = csv.DictReader(handle)
-                columns = reader.fieldnames or []
+                columns = list(reader.fieldnames or [])
                 rows = list(reader)
             if any(None in row or any(value is None for value in row.values()) for row in rows):
                 raise ValueError(f"Malformed CSV: {csvs[0]}")

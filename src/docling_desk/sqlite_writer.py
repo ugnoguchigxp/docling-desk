@@ -81,8 +81,16 @@ def _socket() -> socket.socket:
 class Row:
     """The integer/name lookup and mapping interface used by sqlite3.Row callers."""
 
-    def __init__(self, columns, values):
+    def __init__(self, columns, values, name_index=None):
         self.columns, self.values = columns, tuple(values)
+        self._name_index = self.column_index(columns) if name_index is None else name_index
+
+    @staticmethod
+    def column_index(columns):
+        result = {}
+        for index, name in enumerate(columns):
+            result.setdefault(name.casefold(), index)
+        return result
 
     def keys(self):
         return self.columns
@@ -90,10 +98,8 @@ class Row:
     def __getitem__(self, key):
         if isinstance(key, str):
             try:
-                key = next(
-                    i for i, name in enumerate(self.columns) if name.casefold() == key.casefold()
-                )
-            except StopIteration:
+                key = self._name_index[key.casefold()]
+            except KeyError:
                 raise IndexError("No item with that key") from None
         return self.values[key]
 
@@ -110,8 +116,9 @@ class Cursor:
         self.lastrowid = result["lastrowid"]
         self.description = result["description"]
         columns = [entry[0] for entry in self.description or []]
+        name_index = Row.column_index(columns)
         self._rows = iter(
-            Row(columns, row) if row_factory is sqlite3.Row else tuple(row)
+            Row(columns, row, name_index) if row_factory is sqlite3.Row else tuple(row)
             for row in result["rows"]
         )
 
@@ -235,6 +242,12 @@ def _session(sock, writer_lock):
             for line in stream:
                 request = json.loads(line)
                 operation = request["op"]
+                if operation != "open" and db is None:
+                    stream.write(
+                        b'{"error":"ProgrammingError","message":"Connection has not been opened"}\n'
+                    )
+                    stream.flush()
+                    break
                 if operation == "open":
                     readonly = request["uri"] and parse_qs(urlsplit(request["path"]).query).get(
                         "mode"
@@ -258,6 +271,8 @@ def _session(sock, writer_lock):
                             uri=request["uri"],
                         )
                         result = {"pid": os.getpid()}
+                    elif db is None:
+                        raise sqlite3.ProgrammingError("Connection has not been opened")
                     elif operation in {"execute", "executemany"}:
                         cursor = getattr(db, operation)(request["sql"], request["parameters"])
                         result = {

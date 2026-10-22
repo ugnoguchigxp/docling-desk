@@ -97,14 +97,19 @@ def test_a_distribution_candidate_needs_the_models_a_dev_check_may_lack():
     assert dev["lanes"]["models"]["status"] == "not_run"
     candidate = evidence("abc123", bundle, lanes, candidate=True)
     assert candidate["ok"] is False and candidate["profile"] == "distribution_candidate"
-    ready = evidence("abc123", bundle, {**lanes, "models": "passed"}, candidate=True)
+    ready = evidence(
+        "abc123", bundle, {**lanes, "models": "passed", "clearance": "passed"}, candidate=True
+    )
     assert ready["ok"] is True
+    uncleared = evidence("abc123", bundle, {**lanes, "models": "passed"}, candidate=True)
+    assert uncleared["ok"] is False
+    assert uncleared["lanes"]["clearance"]["status"] == "not_run"
 
 
 def test_a_candidate_from_a_dirty_or_unknown_tree_is_not_ok():
     bundle = {"ok": True, "sha256": "x", "problems": []}
     lanes = {"frontend_build": "success", "browser": "success", "http": "success"}
-    passed = {**lanes, "models": "passed"}
+    passed = {**lanes, "models": "passed", "clearance": "passed"}
     clean = evidence("abc123", bundle, passed, source={"dirty": False}, candidate=True)
     assert clean["ok"] is True and clean["source_problems"] == []
     dirty = evidence("abc123", bundle, passed, source={"dirty": True}, candidate=True)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import builtins
 import hashlib
 import json
 from pathlib import Path
@@ -212,11 +213,11 @@ class ToolGuides:
             result[name] = item
         return result
 
-    def cursor(self, kind: str, identity: list, offset: int) -> str:
+    def cursor(self, kind: str, identity: builtins.list, offset: int) -> str:
         payload = [self.revision, kind, identity, offset]
         return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
 
-    def offset(self, cursor: str | None, kind: str, identity: list) -> int:
+    def offset(self, cursor: str | None, kind: str, identity: builtins.list) -> int:
         if cursor is None:
             return 0
         try:
@@ -339,7 +340,7 @@ class ToolGuides:
             payload = GUIDE_INPUTS[name].model_validate(arguments)
         except ValidationError:
             raise HTTPException(422, "invalid_tool_guide_input") from None
-        result = self.list(payload) if name == "list_tool_guides" else self.get(payload)
+        result = self.list(payload) if isinstance(payload, GuideListInput) else self.get(payload)
         if len(json.dumps(result, ensure_ascii=False).encode()) > MAX_RESPONSE_BYTES:
             raise HTTPException(413, "tool_guide_response_too_large")
         return result
@@ -357,7 +358,7 @@ def install_tool_guides(app, gateway) -> None:
     async def read(request: Request, name: str, authorization: str, guide_id: str | None = None):
         token = authorization.removeprefix("Bearer ") if authorization.startswith("Bearer ") else ""
         user, fingerprint = gateway.token_actor(token)
-        arguments = dict(request.query_params)
+        arguments: dict[str, str | int] = dict(request.query_params)
         for field in ("limit", "max_chars"):
             if field in arguments:
                 try:

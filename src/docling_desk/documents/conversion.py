@@ -121,6 +121,62 @@ class Element(BaseModel):
     captions: list[str]
 
 
+def read_job(folder: Path) -> Job:
+    """Read one job, isolating corrupt metadata without rewriting or deleting it.
+
+    A failed descriptor keeps the document visible and its original downloadable.
+    It never exposes derived output as a successful extraction. Restoring a valid
+    record from a backup immediately restores the normal read path.
+    """
+    path = job_file(folder)
+    try:
+        if not safe_path(data_root(folder), path):
+            raise ValueError("unsafe metadata path")
+        job = Job.model_validate_json(path.read_bytes())
+        if job.id != folder.name:
+            raise ValueError("mismatched document ID")
+        return job
+    except (OSError, ValueError):
+        LOGGER.warning("Document metadata unavailable: %s", folder.name)
+    filename = folder.name
+    if managed(folder):
+        manifest = data_root(folder) / "content/documents" / folder.name / "manifest.json"
+        try:
+            if safe_path(data_root(folder), manifest):
+                recorded = json.loads(manifest.read_bytes())
+                name = recorded.get("filename")
+                if isinstance(name, str) and name and Path(name).name == name:
+                    filename = name
+        except (OSError, ValueError, AttributeError):
+            pass
+    if filename == folder.name:
+        # Legacy records can predate manifests. Retain the stored original's
+        # extension so its download remains available, without inventing metadata.
+        locations = [folder]
+        if managed(folder):
+            locations.append(data_root(folder) / "content/documents" / folder.name)
+        originals = [
+            candidate
+            for location in locations
+            for candidate in location.glob("original.*")
+            if candidate.is_file() and safe_path(data_root(folder), candidate)
+        ]
+        if len(originals) == 1:
+            filename += originals[0].suffix
+    try:
+        created = path.stat().st_mtime
+    except OSError:
+        created = 0
+    return Job(
+        id=folder.name,
+        filename=filename,
+        state="failed",
+        created=created,
+        error_code="metadata_corrupt",
+        error="資料の処理情報が破損または読取不能です。原本は保持しています。バックアップから処理情報を復元してください。",
+    )
+
+
 def save_job(folder: Path, job: Job) -> None:
     """Write job.json. The document folder must exist: a late save after the
     document was deleted raises FileNotFoundError instead of recreating it."""

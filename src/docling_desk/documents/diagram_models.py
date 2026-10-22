@@ -126,7 +126,12 @@ def _number(value: object) -> bool:
 
 
 def _coordinate(value: object, label: str) -> None:
-    if not _number(value) or abs(value) > MAX_COORDINATE or not math.isfinite(value):
+    if (
+        not isinstance(value, int | float)
+        or isinstance(value, bool)
+        or abs(value) > MAX_COORDINATE
+        or not math.isfinite(value)
+    ):
         raise invalid(f"{label}は絶対値{MAX_COORDINATE:,}以下の有限の数値にしてください。")
 
 

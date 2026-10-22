@@ -182,7 +182,7 @@ def create_router(manager: Callable) -> APIRouter:
             raise HTTPException(413, "画像は3 MiB以内にしてください。")
         try:
             with Image.open(io.BytesIO(raw)) as picture:
-                extension, media_type = IMAGE_TYPES[picture.format]
+                extension, media_type = IMAGE_TYPES[picture.format or ""]
                 picture.verify()
         except (KeyError, OSError, UnidentifiedImageError, Image.DecompressionBombError) as exc:
             raise HTTPException(422, "PNG・JPEG・GIF・WebPの画像を選択してください。") from exc

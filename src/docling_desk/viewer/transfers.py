@@ -177,6 +177,8 @@ async def transfer_tool(gateway, name, user, arguments):
     try:
         payload = TRANSFER_INPUTS[name].model_validate(arguments)
         if name == "replace_document_source":
+            if not isinstance(payload, ReplaceInput):
+                raise ValueError()
             source_id = str(UUID(payload.source_id))
         else:
             source_id = None
@@ -190,7 +192,7 @@ async def transfer_tool(gateway, name, user, arguments):
         expected = "replace" if source_id else "import"
         if record["operation"] != expected or record["source_id"] != source_id:
             raise HTTPException(409, "document_transfer_target_mismatch")
-        if source_id and record["etag"] != payload.etag:
+        if isinstance(payload, ReplaceInput) and record["etag"] != payload.etag:
             raise HTTPException(409, "document_transfer_base_mismatch")
         if record["key"] and record["key"] != payload.idempotency_key:
             raise HTTPException(409, "document_transfer_key_mismatch")
@@ -214,7 +216,7 @@ async def transfer_tool(gateway, name, user, arguments):
             return cached
         route = f"/api/v1/sources/{source_id}/revisions" if source_id else "/api/v1/sources"
         headers = {"Idempotency-Key": payload.idempotency_key}
-        if source_id:
+        if isinstance(payload, ReplaceInput):
             headers["If-Match"] = payload.etag
         form = {"metadata": json.dumps(record["metadata"], ensure_ascii=False)}
         if record["ocr_provider"] is not None:
@@ -300,13 +302,19 @@ def install_transfers(app, gateway):
                 if not isinstance(file, UploadFile):
                     raise HTTPException(422, "invalid_document_transfer_input")
                 try:
-                    metadata = json.loads(form["metadata"])
+                    metadata_raw = form["metadata"]
+                    if not isinstance(metadata_raw, str):
+                        raise ValueError()
+                    metadata = json.loads(metadata_raw)
                     Draft202012Validator(
                         contract["components"]["schemas"]["SourceMetadata"]
                     ).validate(metadata)
                     if ("source_id" in form) != ("etag" in form):
                         raise ValueError()
-                    source_id = str(UUID(form["source_id"])) if "source_id" in form else None
+                    source_raw = form.get("source_id")
+                    if source_raw is not None and not isinstance(source_raw, str):
+                        raise ValueError()
+                    source_id = str(UUID(source_raw)) if source_raw is not None else None
                     etag = form.get("etag")
                     if source_id and (
                         not isinstance(etag, str)

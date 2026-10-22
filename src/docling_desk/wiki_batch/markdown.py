@@ -76,6 +76,8 @@ def split_markdown(body, title, category="", glossary=False, maximum=1800):
         current = group
         group += 1
         match = re.fullmatch(r"(\s*)([\s\S]*?)(\s*)", raw)
+        if match is None:
+            raise ValueError("Markdown単位の分割に失敗しました。")
         text, keep = (match[2], existing) if existing is not None else keep_text(match[2])
         parts = []
         while utf16_length(text) > maximum:

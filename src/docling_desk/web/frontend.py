@@ -30,7 +30,7 @@ def frontend_index() -> Response:
     return HTMLResponse(page, headers=headers)
 
 
-def default_index() -> FileResponse:
+def default_index() -> Response:
     # Set only this flag to roll back the UI; saved documents are never restored.
     if os.environ.get("DOCLING_LEGACY_UI") == "1":
         return legacy_index()
@@ -38,7 +38,7 @@ def default_index() -> FileResponse:
 
 
 @router.get("/ui/")
-def ui_index() -> FileResponse:
+def ui_index() -> Response:
     return frontend_index()
 
 

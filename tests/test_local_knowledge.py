@@ -643,6 +643,30 @@ def test_old_profile_queue_does_not_replay_with_new_credentials(tmp_path, monkey
         knowledge.close()
 
 
+def test_profile_change_while_waiting_for_embedding_gate_does_not_send(tmp_path, monkeypatch):
+    provider = AzureEmbedding("https://example.openai.azure.com", "secret", "deployment", "v1")
+    knowledge = Knowledge(tmp_path, provider)
+    knowledge.close()
+    job = knowledge.create_task("search", {"query": "test", "mode": "semantic"})
+
+    def waiting(store, captured_provider, inputs, stop, invalidated):
+        knowledge.provider = AzureEmbedding(
+            provider.endpoint, provider.key, provider.deployment, "v2"
+        )
+        invalidated()
+        pytest.fail("changed credentials reached provider request")
+
+    monkeypatch.setattr(local_knowledge, "paced_request", waiting)
+    knowledge.stop.clear()
+    knowledge.thread = threading.Thread(target=knowledge.work)
+    knowledge.thread.start()
+    try:
+        result = wait_task(knowledge, job["id"])
+        assert result["state"] == "failed" and "設定" in result["error"]
+    finally:
+        knowledge.close()
+
+
 def test_worker_recovers_from_temporary_sqlite_failure(tmp_path, monkeypatch):
     import sqlite3
     from contextlib import contextmanager

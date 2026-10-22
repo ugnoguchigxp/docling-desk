@@ -516,10 +516,15 @@ def research(
 
     def attach(item, topic):
         topics = item.setdefault("topics", [item.get("topic")])
+        if not isinstance(topics, list):
+            raise ExplanationError("web_response", "Web調査の保存済み話題が不正です。")
         if topic not in topics:
             topics.append(topic)
-        if topic not in state["covered_topics"]:
-            state["covered_topics"].append(topic)
+        covered = state["covered_topics"]
+        if not isinstance(covered, list):
+            raise ExplanationError("web_response", "Web調査の保存済み話題が不正です。")
+        if topic not in covered:
+            covered.append(topic)
 
     # Breadth first: give each topic one search/read opportunity before fallbacks.
     for query_key in ("query", "alternate_query"):

@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import HTTPException
 
 from docling_desk import config
-from docling_desk.documents.conversion import Job
+from docling_desk.documents.conversion import Job, read_job
 from docling_desk.documents.library import (
     LOCK,
     decorate,
@@ -31,9 +31,9 @@ def job_folder(job_id: str) -> Path:
 
 def job_detail(job_id: str) -> Job:
     with LOCK:
-        job = Job.model_validate_json(job_file(job_folder(job_id)).read_text())
+        job = read_job(job_folder(job_id))
         return decorate(load_library(config.DATA), job)
 
 
 def json_job(folder: Path) -> dict:
-    return Job.model_validate_json((job_file(folder)).read_text()).model_dump()
+    return read_job(folder).model_dump()

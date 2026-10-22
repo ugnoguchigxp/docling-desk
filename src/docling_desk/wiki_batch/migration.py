@@ -106,7 +106,11 @@ def import_workspace(source: Path, target: Path, data: Path):
                                 (key, value),
                             )
             for record in inventory:
-                if file_hash(safe_file(source, record["path"])) != record["sha256"]:
+                relative = record["path"]
+                if (
+                    not isinstance(relative, str)
+                    or file_hash(safe_file(source, relative)) != record["sha256"]
+                ):
                     raise NeedsReview("コピー中に移行元の資料が更新されました。")
             Repository(staging, data)
             write_json(

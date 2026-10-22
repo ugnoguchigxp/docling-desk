@@ -400,7 +400,7 @@ def mutation_probes(cases: list[dict]) -> dict:
     paraphrase_judgment = judge_answer(
         paraphrase_case, paraphrase["answer"], _stored_texts(paraphrase)
     )
-    detected = sum(item["detected"] for item in results)
+    detected = sum(bool(item["detected"]) for item in results)
     return {
         "execution_mode": "mutation_probe",
         "planted": len(results),

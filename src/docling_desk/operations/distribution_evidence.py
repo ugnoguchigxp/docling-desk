@@ -16,10 +16,10 @@ from docling_desk.config import checkout_root
 ROOT = checkout_root()
 ASSET = re.compile(r"""(?:src|href)=["'](/static/frontend/assets/[^"']+)["']""")
 REQUIRED = ("frontend_build", "browser", "http")
-OPTIONAL = ("models", "docker", "azure", "saved_documents")
+OPTIONAL = ("models", "clearance", "docker", "azure", "saved_documents")
 # A distribution candidate also needs the pinned models. A development check
 # tolerates their absence and records the lane as not_run.
-CANDIDATE_REQUIRED = (*REQUIRED, "models")
+CANDIDATE_REQUIRED = (*REQUIRED, "models", "clearance")
 # Evidence and plans are outputs of a run, not part of the source it describes.
 DIGEST_EXCLUDED = ("docs/refactoring/", "qa/refactoring/")
 LOCKFILES = (
@@ -217,6 +217,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--browser", default="not_run")
     parser.add_argument("--http", default="not_run")
     parser.add_argument("--models", default="not_run")
+    parser.add_argument("--clearance", default="not_run")
     parser.add_argument(
         "--candidate",
         action="store_true",
@@ -232,6 +233,7 @@ def main(argv: list[str] | None = None) -> int:
         "browser": args.browser,
         "http": args.http,
         "models": args.models,
+        "clearance": args.clearance,
         "docker": args.docker,
         "azure": args.azure,
         "saved_documents": args.saved_documents,

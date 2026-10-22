@@ -8,6 +8,7 @@ import math
 import sqlite3
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 from uuid import uuid4
 
@@ -15,15 +16,23 @@ import tiktoken
 
 from docling_desk.documents.library import LOCK, ancestors, load
 from docling_desk.knowledge.answer import AnswerProvider
-from docling_desk.knowledge.embedding_azure import AzureEmbedding, EmbeddingError, paced_request
+from docling_desk.knowledge.embedding_azure import EmbeddingError, EmbeddingProvider, paced_request
 from docling_desk.knowledge.store import Store, digest, normalized
 from docling_desk.knowledge.terms import expand_terms
 
 
 class Knowledge:
-    def __init__(self, data: Path, provider: AzureEmbedding | None = None):
+    def __init__(
+        self,
+        data: Path,
+        provider: EmbeddingProvider | None = None,
+        *,
+        answer_factory: Callable[[], AnswerProvider] | None = None,
+    ):
         self.store = Store(data)
         self.provider = provider
+        self.answer_factory = answer_factory
+        self.config_error = ""
         self.active_answer = None
         self.owner = uuid4().hex
         self.stop = threading.Event()
@@ -82,12 +91,18 @@ class Knowledge:
                 ),
             )
         self.wake.set()
-        return self.task(task_id)
+        return self.require_task(task_id)
 
     def task(self, task_id: str) -> dict | None:
         with self.store.connection() as db:
             row = db.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
             return task_value(row) if row else None
+
+    def require_task(self, task_id: str) -> dict:
+        task = self.task(task_id)
+        if task is None:
+            raise EmbeddingError("処理情報が見つかりません。再実行してください。")
+        return task
 
     def cancel(self, task_id: str):
         active_answer = self.active_answer
@@ -209,18 +224,22 @@ class Knowledge:
     def embed(self, texts: list[str], task_id: str) -> list[list[float]]:
         if not self.provider:
             raise EmbeddingError("Azure embeddingが未設定です。全文検索は利用できます。")
-        profile = self.provider.profile
+        provider = self.provider
+        profile = provider.profile
         hashes = [digest(text) for text in texts]
         cached = self.vectors(hashes)
         missing = list(dict.fromkeys(h for h in hashes if h not in cached))
         if missing:
             inputs = [texts[hashes.index(h)] for h in missing]
-            indexing = self.task(task_id)["kind"] == "index"
+            indexing = self.require_task(task_id)["kind"] == "index"
 
             def invalidated():
                 if self.cancelled(task_id):
                     return True
-                if self.provider.profile != self.task(task_id)["input"].get("_embedding_profile"):
+                current_provider = self.provider
+                if current_provider is None or current_provider.profile != self.require_task(
+                    task_id
+                )["input"].get("_embedding_profile"):
                     raise EmbeddingError(
                         "Azure embeddingの設定が変更されました。処理を再実行してください。"
                     )
@@ -228,7 +247,7 @@ class Knowledge:
                     self.refresh()
                     current = {c["text_hash"] for c in self.store.chunks()}
                     return any(h not in current for h in missing)
-                self.validate_scope(self.task(task_id)["input"])
+                self.validate_scope(self.require_task(task_id)["input"])
                 return False
 
             vectors = None
@@ -237,7 +256,7 @@ class Knowledge:
                 try:
                     vectors = paced_request(
                         self.store,
-                        self.provider,
+                        provider,
                         inputs,
                         self.stop,
                         invalidated,
@@ -246,6 +265,8 @@ class Knowledge:
                 except EmbeddingError as exc:
                     if not exc.retryable or attempt == 2 or self.cancelled(task_id):
                         raise
+            if vectors is None:
+                raise EmbeddingError("embeddingの処理結果を確認できませんでした。")
             with self.store.connection() as db:
                 db.execute("BEGIN IMMEDIATE")
                 known_dimensions = {
@@ -306,7 +327,7 @@ class Knowledge:
             if c["text_hash"] not in hashes and c["text_hash"] not in cached:
                 hashes.add(c["text_hash"])
                 texts.append(c["text"])
-        progress = self.task(task_id)["progress"]
+        progress = self.require_task(task_id)["progress"]
         self.update(task_id, total=progress + len(texts))
         if self.cancelled(task_id):
             raise EmbeddingError("処理を中止しました。")
@@ -323,13 +344,19 @@ class Knowledge:
         self.validate_scope(value)
         if value["mode"] == "text":
             result = self.search(value)
-            return self.retrieval(self.create_task("text", value, result)["id"])
+            result = self.retrieval(self.create_task("text", value, result)["id"])
+            if result is None:
+                raise EmbeddingError("検索結果を確認できませんでした。")
+            return result
         if not self.provider:
             raise ValueError("Azure embeddingが未設定です。全文検索を選んでください。")
         cached = self.vectors([digest(value["query"])])
         if cached:
             output = self.search(value, cached[digest(value["query"])])
-            return self.retrieval(self.create_task("search", value, output)["id"])
+            result = self.retrieval(self.create_task("search", value, output)["id"])
+            if result is None:
+                raise EmbeddingError("検索結果を確認できませんでした。")
+            return result
         return self.create_task("search", value)
 
     def start_answer(self, value: dict) -> dict:
@@ -356,7 +383,7 @@ class Knowledge:
         }
         if not output["results"]:
             return empty
-        provider = AnswerProvider()
+        provider = self.answer_factory() if self.answer_factory else AnswerProvider()
         self.active_answer = (task_id, provider)
         try:
             if self.cancelled(task_id):
@@ -377,7 +404,10 @@ class Knowledge:
             evidence, citations = [], []
             self.refresh()
             with LOCK:
-                chunks = {c["id"]: c for c in self.selected_chunks(value)}
+                chunks = {
+                    c["id"]: c
+                    for c in self.selected_chunks(value, [h["chunk_id"] for h in output["results"]])
+                }
                 for hit in output["results"]:
                     if hit["chunk_id"] not in chunks:
                         raise ValueError("出典が更新されました。RAGをやり直してください。")
@@ -396,7 +426,10 @@ class Knowledge:
             self.active_answer = None
         self.refresh()
         with LOCK:
-            allowed = {c["id"] for c in self.selected_chunks(value)}
+            allowed = {
+                c["id"]
+                for c in self.selected_chunks(value, [h["chunk_id"] for h in output["results"]])
+            }
             if any(hit["chunk_id"] not in allowed for hit in output["results"]):
                 raise ValueError("出典が更新されました。RAGをやり直してください。")
         return {
@@ -414,15 +447,18 @@ class Knowledge:
         if folder is not None and (not folder or folder not in load(self.store.data).folders):
             raise ValueError("検索対象のフォルダーが見つかりません。")
 
-    def selected_chunks(self, value):
-        chunks = self.store.chunks()
+    def selected_chunks(self, value, chunk_ids: list[str] | None = None):
+        chunks = self.store.chunks(chunk_ids) if chunk_ids is not None else self.store.chunks()
         folder = value.get("folder_id")
         folders = load(self.store.data) if folder is not None else None
-        if folder is not None and folder not in folders.folders:
+        if folder is not None and folders is not None and folder not in folders.folders:
             return []
         result = []
+        metadata_by_source = {}
         for c in chunks:
-            metadata = json.loads(c["metadata"])
+            if c["source_id"] not in metadata_by_source:
+                metadata_by_source[c["source_id"]] = json.loads(c["metadata"])
+            metadata = metadata_by_source[c["source_id"]]
             if value.get("kind", "all") != "all" and c["kind"] != value["kind"]:
                 continue
             if value.get("source_id") and c["source_id"] != value["source_id"]:
@@ -430,11 +466,13 @@ class Knowledge:
             if value.get("namespace") and c["namespace"] != value["namespace"]:
                 continue
             if folder is not None and (
-                c["kind"] != "document"
+                folders is None
+                or c["kind"] != "document"
                 or folder
                 not in [metadata.get("folder_id"), *ancestors(folders, metadata.get("folder_id"))]
             ):
                 continue
+            c["_metadata"] = metadata
             result.append(c)
         return result
 
@@ -473,7 +511,7 @@ class Knowledge:
                     for words in alternatives
                 )
                 and not (
-                    json.loads(c["metadata"]).get("collection", c["namespace"]) == "glossary"
+                    c["_metadata"].get("collection", c["namespace"]) == "glossary"
                     and normalized(c["title"]) == query
                     and c["title"] != value["query"].strip()
                 )
@@ -506,11 +544,11 @@ class Knowledge:
                 [c for c in chunks if c["id"] in scores],
                 key=lambda c: (
                     -scores[c["id"]],
-                    json.loads(c["metadata"]).get("language") != "ja",
+                    c["_metadata"].get("language") != "ja",
                     c["id"],
                 ),
             ):
-                group = json.loads(c["metadata"]).get("translation_group")
+                group = c["_metadata"].get("translation_group")
                 identity = (
                     (c["namespace"], group) if group and not value.get("source_id") else c["id"]
                 )
@@ -535,8 +573,11 @@ class Knowledge:
             task = self.task(task_id)
             if task and task.get("output", {}).get("results"):
                 # Revalidate both revision and scope after a move/delete/reimport.
-                allowed = {c["id"]: c for c in self.selected_chunks(task["input"])}
                 original = task["output"]["results"]
+                allowed = {
+                    c["id"]: c
+                    for c in self.selected_chunks(task["input"], [r["chunk_id"] for r in original])
+                }
                 task["output"]["results"] = [
                     result_value(allowed[r["chunk_id"]], r["score"])
                     for r in original
@@ -558,7 +599,7 @@ class Knowledge:
             raise ValueError("検索結果に含まれない、または更新・削除された断片は取得できません。")
         self.refresh()
         with LOCK:
-            chunks = {c["id"]: c for c in self.selected_chunks(task["input"])}
+            chunks = {c["id"]: c for c in self.selected_chunks(task["input"], chunk_ids)}
             used, seen, citations, text = 0, set(), [], []
             encoding = tiktoken.get_encoding("cl100k_base")
             for cid in dict.fromkeys(chunk_ids):

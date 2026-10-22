@@ -138,7 +138,7 @@ async function editorLicenses(name, from = dependencyRoot) {
     await readFile(join(folder, "package.json"), "utf8"),
   );
   const files = (await readdir(folder)).filter((file) =>
-    /^licen[cs]e(?:\.[a-z]+)?$/i.test(file),
+    /^(?:licen[cs]e|notice|copying)(?:[._-].*)?$/i.test(file),
   );
   const notices = await Promise.all(
     files.map((file) => readFile(join(folder, file), "utf8")),
@@ -152,6 +152,17 @@ async function editorLicenses(name, from = dependencyRoot) {
   );
   for (const dependency of Object.keys(metadata.dependencies || {}))
     await editorLicenses(dependency, modules);
+  // pnpm installs peers beside the package that actually consumes them. Preserve
+  // their notices too; optional/uninstalled host integrations add no shipped code.
+  for (const peer of Object.keys(metadata.peerDependencies || {})) {
+    try {
+      await realpath(join(modules, peer));
+    } catch (error) {
+      if (error.code === "ENOENT") continue;
+      throw error;
+    }
+    await editorLicenses(peer, modules);
+  }
 }
 const frontendPackage = JSON.parse(
   await readFile(new URL("../package.json", import.meta.url), "utf8"),

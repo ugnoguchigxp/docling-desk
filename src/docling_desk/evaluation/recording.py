@@ -7,6 +7,7 @@ import os
 import platform
 import subprocess
 from pathlib import Path
+from typing import TypedDict
 
 import psutil
 
@@ -145,7 +146,16 @@ def percentile(samples: list[float], fraction: float) -> float | None:
     return ordered[index]
 
 
-def _timing(samples: list[dict], key: str) -> dict:
+class Timing(TypedDict):
+    n: int
+    p50: float | None
+    p95: float | None
+    max: float | None
+    method: str
+    guarantee: bool
+
+
+def _timing(samples: list[dict], key: str) -> Timing:
     values = [sample[key] for sample in samples if sample.get(key) is not None]
     return {
         "n": len(values),
@@ -177,6 +187,8 @@ def summarize_samples(samples: list[dict], budgets: dict | None = None) -> dict:
     successes = [sample for sample in samples if sample["outcome"] == "success"]
     search_limit = budgets["text_search_p95_seconds"]
     context_limit = budgets["context_p95_seconds"]
+    if not isinstance(search_limit, int | float) or not isinstance(context_limit, int | float):
+        raise ValueError("検索・文脈の性能予算は秒数で指定してください。")
     budget_exceeded = [
         sample
         for sample in successes

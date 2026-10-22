@@ -404,7 +404,10 @@ class Store:
             self.files.publish(records)
         self._wiki_signature = digest(self.files.manifest.read_text(encoding="utf-8"))
         checkpoint("wiki_import_after_commit")
-        return [self.source(sid) for sid in ids]
+        imported = [self.source(sid) for sid in ids]
+        if any(source is None for source in imported):
+            raise ValueError("公開したWiki記事を索引から確認できません。再同期してください。")
+        return [source for source in imported if source is not None]
 
     def delete_wiki(self, source_id: str):
         with exclusive_write(self.data, "index"):
@@ -540,12 +543,21 @@ class Store:
             pass
         return [catalog], "document-catalog-v1", catalog["text"]
 
-    def chunks(self) -> list[dict]:
+    def chunks(self, chunk_ids: list[str] | None = None) -> list[dict]:
+        if chunk_ids == []:
+            return []
+        selection = (
+            "" if chunk_ids is None else " AND c.id IN (" + ",".join("?" for _ in chunk_ids) + ")"
+        )
         with self.connection(readonly=True) as db:
             return [
-                dict(row)
-                for row in db.execute("""SELECT c.id,c.source_id,c.revision,c.text,c.text_hash,c.context_id,c.locator,s.kind,s.title,s.namespace,s.metadata
-                FROM chunks c JOIN sources s ON s.id=c.source_id WHERE s.deleted=0 AND c.revision=s.revision""")
+                dict(zip(row.keys(), row, strict=True))
+                for row in db.execute(
+                    """SELECT c.id,c.source_id,c.revision,c.text,c.text_hash,c.context_id,c.locator,s.kind,s.title,s.namespace,s.metadata
+                FROM chunks c JOIN sources s ON s.id=c.source_id WHERE s.deleted=0 AND c.revision=s.revision"""
+                    + selection,
+                    chunk_ids or [],
+                )
             ]
 
     def context(self, chunk_id: str) -> str:

@@ -277,7 +277,14 @@ class Repository:
                 }
             )
         seen, result = set(), []
-        for hit in sorted(hits, key=lambda h: (-h["score"], h["language"] != "ja", h["key"])):
+
+        def rank(hit):
+            score = hit["score"]
+            if not isinstance(score, int | float):
+                raise ValueError("検索スコアが不正です。")
+            return (-score, hit["language"] != "ja", hit["key"])
+
+        for hit in sorted(hits, key=rank):
             if hit["key"] not in seen:
                 seen.add(hit["key"])
                 result.append(hit)

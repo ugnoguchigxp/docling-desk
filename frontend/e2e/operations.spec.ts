@@ -1437,6 +1437,10 @@ test("production cold-load measurements and lazy table bundle", async ({
 test("TeX upload switches between typeset pages and source viewer", async ({
   page,
 }) => {
+  // The renderer allows 120s for initial Tectonic resource acquisition.
+  // Keep that contract plus time for the upload and PDF/UI assertions; the
+  // ordinary 60s test budget cannot observe the renderer's terminal state.
+  test.setTimeout(150_000);
   test.skip(
     spawnSync("tectonic", ["--version"]).status !== 0,
     "Optional Tectonic engine is not installed",

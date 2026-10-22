@@ -77,19 +77,11 @@ Markdownの記事を分類ごとに取り込み、目次から見出しへ移動
 ```sh
 git clone --recurse-submodules https://github.com/ugnoguchigxp/docling-desk.git docling-desktop
 cd docling-desktop
-python3.12 -m venv .venv
-sh scripts/bootstrap-python.sh .venv/bin/python
-.venv/bin/python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1 torchvision==0.29.1
-.venv/bin/python -m pip install -r requirements-lock.txt
-.venv/bin/python -m pip install --no-deps ./docling ./packages/docling-azure-ocr
-.venv/bin/python -m pip install --no-deps --no-build-isolation -e .
-corepack pnpm@10.24.0 --dir frontend install --frozen-lockfile
-corepack pnpm@10.24.0 --dir frontend build
-corepack pnpm@10.24.0 --dir frontend export:static
-.venv/bin/python -m docling_desk.operations.download_models
-.venv/bin/python -m docling_desk.operations.models
+python3.12 scripts/setup.py
 ./run.sh
 ```
+
+`scripts/setup.py` は仮想環境、固定した依存関係、画面のビルド、モデル取得、診断を順に実行します。`python3.12 scripts/setup.py --plan` で、変更せずに手順を確認できます。既存の `.env` は読み込まず、途中の失敗では停止します。`--skip-models` は開発用で、導入完了にはなりません。
 
 `download_models` が初回のモデル取得で、インターネット接続が必要です（取得後の抽出はローカルで動作します）。`operations.models` が `models match manifest` を表示すれば準備完了です。http://127.0.0.1:8765 で開けます。仮想環境を有効にしなくても、各コマンドは同じPython環境を使用します。
 

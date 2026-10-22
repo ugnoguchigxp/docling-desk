@@ -18,7 +18,7 @@ router = APIRouter()
 
 
 @router.get("/")
-def index() -> FileResponse:
+def index() -> Response:
     return default_index()
 
 

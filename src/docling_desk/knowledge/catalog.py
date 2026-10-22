@@ -78,7 +78,7 @@ def evidence_body(body: str) -> str:
 
 def csv_rows(body: str) -> tuple[list[str], list[dict]]:
     reader = csv.DictReader(io.StringIO(body))
-    columns = reader.fieldnames
+    columns = list(reader.fieldnames or [])
     if not columns or len(columns) != len(set(columns)) or len(columns) > 100:
         raise ValueError("CSV目次の列が不正です。")
     rows = []

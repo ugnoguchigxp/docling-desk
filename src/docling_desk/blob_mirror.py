@@ -75,10 +75,9 @@ class AzureBlobStore:
         from azure.storage.blob import BlobServiceClient
 
         # Bounded retries and timeouts: an unreachable account must not hang a pass or shutdown.
-        options = {"retry_total": 2, "connection_timeout": 10, "read_timeout": 60}
         if config.BLOB_CONNECTION_STRING:
             service = BlobServiceClient.from_connection_string(
-                config.BLOB_CONNECTION_STRING, **options
+                config.BLOB_CONNECTION_STRING, retry_total=2, connection_timeout=10, read_timeout=60
             )
         else:
             from azure.identity import DefaultAzureCredential
@@ -86,7 +85,13 @@ class AzureBlobStore:
             credential = DefaultAzureCredential(
                 managed_identity_client_id=config.BLOB_CLIENT_ID or None
             )
-            service = BlobServiceClient(config.BLOB_ACCOUNT_URL, credential=credential, **options)
+            service = BlobServiceClient(
+                config.BLOB_ACCOUNT_URL,
+                credential=credential,
+                retry_total=2,
+                connection_timeout=10,
+                read_timeout=60,
+            )
         return cls(service.get_container_client(config.BLOB_CONTAINER), config.BLOB_PREFIX)
 
     def _name(self, key: str) -> str:

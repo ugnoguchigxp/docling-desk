@@ -7,7 +7,6 @@ import io
 import json
 import re
 import signal
-import sys
 import time
 from pathlib import Path
 
@@ -2330,27 +2329,26 @@ def test_provider_wait_config_and_transport(tmp_path, monkeypatch):
     )
     with pytest.raises(NeedsReview, match="再試行上限"):
         client.request("draft", request, "call-stale", "job-1")
-    # time.monotonic is the process-wide clock. Freeze it only for the read-loop
-    # check; a stuck clock makes httpx and the SQLite client wait forever.
-    real_monotonic = time.monotonic
-    arm = {"on": False}
+    # Replace only the provider's clock. HTTP and SQLite retain real clocks;
+    # the delayed response drives the timeout without depending on source lines.
+    from types import SimpleNamespace
 
-    def monotonic():
-        if arm["on"] and sys._getframe(1).f_lineno == 159:
-            arm["on"] = False
-            return real_monotonic() + 1000
-        return real_monotonic()
+    from docling_desk.wiki_batch import provider as provider_module
+
+    elapsed = {"seconds": 0}
 
     class Late(httpx.SyncByteStream):
         def __iter__(self):
-            arm["on"] = True
+            elapsed["seconds"] = 1000
             yield b'{"status":"completed","output_text":"late"}'
 
-    monkeypatch.setattr("docling_desk.wiki_batch.provider.time.monotonic", monotonic)
+    monkeypatch.setattr(
+        provider_module, "time", SimpleNamespace(monotonic=lambda: elapsed["seconds"])
+    )
     responses.append(httpx.Response(200, stream=Late()))
     with pytest.raises(RetryLater):
         client.request("draft", request, "call-timeout", "job-1")
-    monkeypatch.setattr("docling_desk.wiki_batch.provider.time.monotonic", real_monotonic)
+    monkeypatch.setattr(provider_module, "time", time)
     responses.append(httpx.Response(200, content=b"x" * (2 * 1024 * 1024 + 1)))
     with pytest.raises(NeedsReview, match="上限"):
         client.request("draft", request, "call-size", "job-1")

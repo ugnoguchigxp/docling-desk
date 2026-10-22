@@ -7,11 +7,15 @@ and date. An automated inventory record (status "inventoried") never clears anyt
 
 from __future__ import annotations
 
+import argparse
+import hashlib
 import json
 import re
+import sys
 import tomllib
 from importlib import metadata
 from pathlib import Path
+from zipfile import ZipFile
 
 import yaml
 
@@ -586,22 +590,64 @@ def unreviewed_distribution(report: dict) -> list[dict]:
     return rows
 
 
-def main() -> None:
+def artifact_problems(root: Path, wheel: Path) -> list[str]:
+    """Check shipped vendor bytes/notices against the versioned source manifests."""
+    problems = []
+    resources = root / "src/docling_desk/resources"
+    with ZipFile(wheel) as archive:
+        names = set(archive.namelist())
+        for manifest in (resources / "static/vendor").rglob("manifest.json"):
+            files = json.loads(manifest.read_text())["files"]
+            for name, recorded in files.items():
+                digest = recorded["sha256"] if isinstance(recorded, dict) else recorded
+                relative = (manifest.parent / name).relative_to(resources)
+                packaged = "docling_desk/resources/" + relative.as_posix()
+                if packaged not in names:
+                    problems.append("missing:" + packaged)
+                elif hashlib.sha256(archive.read(packaged)).hexdigest() != digest:
+                    problems.append("hash:" + packaged)
+        for relative in (
+            "static/frontend/licenses.txt",
+            "static/vendor/ag-grid-LICENSE.txt",
+            "static/vendor/tabulens-LICENSE.txt",
+            "static/vendor/drawio/LICENSE",
+            "static/vendor/drawio/mathjax-LICENSE",
+            "static/vendor/drawio/img-LICENSE",
+            "static/vendor/drawio/shapes-LICENSE",
+            "static/vendor/drawio/stencils-LICENSE",
+        ):
+            packaged = "docling_desk/resources/" + relative
+            if packaged not in names or not archive.read(packaged).strip():
+                problems.append("notice:" + packaged)
+    return problems
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Inventory distribution provenance and clearance")
+    parser.add_argument("--check-release", action="store_true")
+    parser.add_argument("--wheel", type=Path)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[3]
     report = inventory(root)
     rows = unreviewed_distribution(report)
-    print(
-        json.dumps(
-            {
-                "packages": len(report["packages"]),
-                "assets": len(report["assets"]),
-                "distributed_not_cleared": len(rows),
-                "items": rows,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-    )
+    problems = artifact_problems(root, args.wheel) if args.wheel else None
+    result = {
+        "packages": len(report["packages"]),
+        "assets": len(report["assets"]),
+        "distributed_not_cleared": len(rows),
+        "items": rows,
+        "artifact_problems": problems,
+        "artifact_check": "not_run" if problems is None else "failed" if problems else "passed",
+        "clearance_ok": not rows,
+        "note": "棚卸し・バイト照合は人による配布条件の確認を代替しません。",
+    }
+    encoded = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(encoded)
+    print(encoded)
+    return 1 if args.check_release and (rows or problems) else 0
 
 
 def assess_advisory(report: dict, advisory: dict) -> dict:
@@ -656,4 +702,4 @@ def assess_advisory(report: dict, advisory: dict) -> dict:
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

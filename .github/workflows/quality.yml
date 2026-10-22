@@ -103,6 +103,7 @@ jobs:
           PYTHONPATH: src:packages/docling-azure-ocr/src
         run: |
           python -m ruff check . --exclude docling --exclude qa
+          python -m ty check src packages/docling-azure-ocr/src --error-on-warning
           DOCLING_ENV_FILE=/dev/null python -m pytest tests -q
           python -m docling_desk.operations.tool_guides
           python -m docling_desk.operations.models

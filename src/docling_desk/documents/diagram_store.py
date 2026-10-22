@@ -15,6 +15,7 @@ import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import overload
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -145,6 +146,14 @@ def _revision(content: Path, revision_id: str) -> dict:
         raise HTTPException(404, "版が見つかりません。") from None
 
 
+@overload
+def _draft_info(draft: dict) -> DraftInfo: ...
+
+
+@overload
+def _draft_info(draft: None) -> None: ...
+
+
 def _draft_info(draft: dict | None) -> DraftInfo | None:
     if draft is None:
         return None
@@ -221,7 +230,7 @@ def _publish(content: Path, manifest: dict, operation: dict | None = None) -> No
         if entry["created"] >= now - OPERATION_TTL
     }
     dropped = [entry["id"] for key, entry in operations.items() if key not in keep]
-    if replaced and replaced["id"] != operation["id"]:
+    if replaced and operation is not None and replaced["id"] != operation["id"]:
         dropped.append(replaced["id"])
     manifest["operations"] = keep
     write_json(content / "manifest.json", manifest)

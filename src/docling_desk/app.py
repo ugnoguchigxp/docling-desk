@@ -21,14 +21,14 @@ from docling_desk.api import (
     uploads,
 )
 from docling_desk.blob_mirror import MirrorWorker, create_mirror
-from docling_desk.documents.conversion import Job, save_job
+from docling_desk.documents.conversion import read_job, save_job
 from docling_desk.documents.diagram_store import repair_diagrams
 from docling_desk.execution import SlotPool
 from docling_desk.explanation.service import ExplanationManager
 from docling_desk.explanation.store import recover as explanation_recover
 from docling_desk.knowledge.api import create_router as knowledge_router
 from docling_desk.operations.backup import exclusive_write
-from docling_desk.storage import document_folders, job_file, migrate_layout
+from docling_desk.storage import document_folders, migrate_layout
 from docling_desk.translation.service import TranslationManager
 from docling_desk.translation.store import interrupt_pending
 from docling_desk.web.auth import authenticate
@@ -76,7 +76,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         with exclusive_write(config.DATA, "migration"):
             running = {item["attempt"] for item in activity.live(config.DATA)}
             for folder in document_folders(config.DATA):
-                job = Job.model_validate_json(job_file(folder).read_text())
+                job = read_job(folder)
                 if activity.read_attempt(config.DATA, folder.name).get("attempt") in running:
                     continue
                 if job.state in {"queued", "running"}:

@@ -65,7 +65,7 @@ def inspect_image(source: Path) -> ImageInfo:
         with warnings.catch_warnings():
             warnings.simplefilter("error", Image.DecompressionBombWarning)
             with Image.open(io.BytesIO(raw)) as picture:
-                extension, media_type = IMAGE_TYPES[picture.format]
+                extension, media_type = IMAGE_TYPES[picture.format or ""]
                 expected = "jpg" if source.suffix.lower() == ".jpeg" else source.suffix[1:].lower()
                 if expected != extension:
                     raise ValueError("画像の形式と拡張子が一致しません。")

@@ -443,7 +443,10 @@ def blob_storage(mirror: object | None, *, runtime: bool) -> list[Check]:
         )
         return checks
     try:
-        state = mirror.status()  # type: ignore[attr-defined]
+        status = getattr(mirror, "status", None)
+        if not callable(status):
+            raise ValueError("Blob mirror has no status reader")
+        state = status()
     except Exception:  # noqa: BLE001 - a broken state file must not fail the report
         LOG.warning("Blob mirror status unreadable", exc_info=True)
         checks.append(

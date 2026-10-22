@@ -138,7 +138,7 @@ class UserPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid")
     scopes: list[Grant] = Field(min_length=1, max_length=100)
     mcp_token: str | None = Field(default=None, min_length=32, max_length=256)
-    actions: list[Literal["read", "write"]] = Field(default_factory=lambda: ["read"], min_length=1)
+    actions: list[Literal["read", "write"]] = Field(default=["read"], min_length=1)
     api_client: str | None = None
 
 
@@ -177,6 +177,8 @@ def encoded(value: dict) -> str:
 
 
 class Gateway:
+    guide_contract_error: bool = False
+
     def __init__(self, config_file: Path, transport: httpx.AsyncBaseTransport | None = None):
         self.config_file, self.transport = config_file, transport
         self.pending: dict[str, dict] = {}
@@ -316,7 +318,9 @@ class Gateway:
                 async with client.stream(
                     method,
                     config["api_url"].rstrip("/") + path,
-                    **({"files": files, "data": form} if files is not None else {"json": body}),
+                    files=files,
+                    data=form if files is not None else None,
+                    json=body if files is None else None,
                     headers={
                         "authorization": f"Bearer {config['api_token']}",
                         "x-knowledge-actor": f"{head}.{claims}.{signature}",

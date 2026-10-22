@@ -15,7 +15,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 from docling_desk.atomic_files import atomic_write_bytes
-from docling_desk.documents.conversion import Job, save_job
+from docling_desk.documents.conversion import Job, read_job, save_job
 from docling_desk.documents.images import ImageMetadata
 from docling_desk.explanation.store import LOCK as EXPLANATION_LOCK
 from docling_desk.explanation.store import active as explanation_active
@@ -26,7 +26,6 @@ from docling_desk.storage import (
     document_folder,
     document_folders,
     document_paths,
-    job_file,
     original_file,
     record_original,
     remove_document,
@@ -124,10 +123,7 @@ def destination_exists(library: Library, parent: str | None) -> None:
 
 
 def read_jobs(data: Path) -> list[Job]:
-    return [
-        Job.model_validate_json(p.read_text())
-        for p in (job_file(f) for f in document_folders(data))
-    ]
+    return [read_job(folder) for folder in document_folders(data)]
 
 
 def placement(library: Library, job: Job) -> Placement:
@@ -266,6 +262,10 @@ def operate(data: Path, request: Operation) -> dict:
         ]
         if request.action == "copy" and any(j.excalidraw for j in affected_jobs):
             raise HTTPException(409, "図表の複製には対応していません。")
+        if request.action == "copy" and any(
+            j.error_code == "metadata_corrupt" for j in affected_jobs
+        ):
+            raise HTTPException(409, "破損した資料の処理情報を復元してから複製してください。")
         if request.action in {"delete", "copy"} and any(
             j.state in {"queued", "running"} for j in affected_jobs
         ):

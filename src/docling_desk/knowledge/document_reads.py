@@ -115,7 +115,9 @@ def read_document(folder: Path, options: ReadOptions) -> dict:
                 "level": heading_level(item) if heading_level(item) is not None else level,
                 "parent": item.parent.cref if item.parent else None,
                 "pages": sorted({p.page_no for p in item.prov}) if kind != "document" else [],
-                "heading": item.text if heading_level(item) is not None else None,
+                "heading": item.text
+                if isinstance(item, TextItem) and heading_level(item) is not None
+                else None,
             }
         )
     names = sheet_names(doc) if kind == "sheet" else {}
@@ -151,8 +153,8 @@ def read_document(folder: Path, options: ReadOptions) -> dict:
                         (
                             i
                             for i in range(start + 1, len(items))
-                            if heading_level(items[i]) is not None
-                            and heading_level(items[i]) <= start_level
+                            if (level := heading_level(items[i])) is not None
+                            and level <= start_level
                         ),
                         len(items),
                     )

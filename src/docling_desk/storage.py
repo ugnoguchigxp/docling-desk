@@ -249,6 +249,8 @@ def migrate_database(source: Path, target: Path) -> None:
 
 def migrate_layout(data: Path) -> None:
     """Run at startup, under the shared write lock and before starting workers."""
+    from docling_desk.documents.conversion import read_job
+
     for name in ("content", "derived", "runtime"):
         if not safe_path(data, data / name):
             raise ValueError("保存先のシンボリックリンクは移行できません。")
@@ -265,13 +267,16 @@ def migrate_layout(data: Path) -> None:
             raise ValueError("新旧の保存領域に同じ資料IDがあります。")
         folder.replace(target)
     for folder in document_folders(data):
+        if (folder / "job.json").is_file():
+            _move(folder / "job.json", job_file(folder))
+        record = read_job(folder)
+        if record.error_code == "metadata_corrupt":
+            continue
+        job = record.model_dump()
         for source in folder.glob("original.*"):
             target = data / "content" / "documents" / folder.name / source.name
             _move(source, target)
         migrate_database(folder / "explanations" / "index.sqlite", explanation_database(folder))
-        if (folder / "job.json").is_file():
-            _move(folder / "job.json", job_file(folder))
-        job = json.loads(job_file(folder).read_text())
         if not (folder / "manifest.json").exists():
             record_artifacts(folder, job)
         source = original_file(folder, Path(job["filename"]).suffix.lower())

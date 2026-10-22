@@ -30,7 +30,7 @@ def parse(body: str) -> tuple[str, list[dict], list[dict]]:
                 "title": label,
                 "level": int(token.tag[1:]),
                 "anchor": f"{base}-{counts[base]}",
-                "line": token.map[0],
+                "line": token.map[0] if token.map else 0,
             }
         )
     title = outline[0]["title"] if outline else ""
@@ -187,7 +187,7 @@ def render(
         for child in token.children or []:
             if child.type == "link_open":
                 child.attrSet("data-wiki-href", child.attrGet("href") or "")
-                href, external = link(child.attrGet("href") or "")
+                href, external = link(str(child.attrGet("href") or ""))
                 child.attrSet("href", href or "#")
                 if not href:
                     child.attrSet("aria-disabled", "true")
@@ -201,13 +201,13 @@ def render(
                     child.attrSet("target", "_blank")
                     child.attrSet("rel", "noopener noreferrer")
             if child.type == "image":
-                if is_wiki_image(child.attrGet("src") or ""):
-                    child.attrSet("src", config.url(child.attrGet("src")))
+                if is_wiki_image(str(child.attrGet("src") or "")):
+                    child.attrSet("src", config.url(str(child.attrGet("src") or "")))
                     child.attrSet("loading", "lazy")
                     continue
                 # Remote images do not cause unrequested network access or leak article locations.
                 label = f"[画像: {child.content}]"
-                src = child.attrGet("src") or ""
+                src = str(child.attrGet("src") or "")
                 try:
                     parsed = urlsplit(src)
                     resolved = posixpath.normpath(

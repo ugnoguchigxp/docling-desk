@@ -35,6 +35,7 @@ SCOPES = ("default", "browser", "distribution")
 MODELS_COMMAND = ["-m", "docling_desk.operations.models"]
 ALL_LANES = (
     "lint",
+    "types",
     "python",
     "tool_guides",
     "models",
@@ -43,6 +44,7 @@ ALL_LANES = (
     "browser",
     "package",
     "http",
+    "clearance",
     "docker",
     "azure",
     "saved_documents",
@@ -106,6 +108,19 @@ def checks(
             "lint",
         ),
         Check([python, "-m", "pytest", "tests", "-q"], ROOT, "python"),
+        Check(
+            [
+                python,
+                "-m",
+                "ty",
+                "check",
+                "src",
+                "packages/docling-azure-ocr/src",
+                "--error-on-warning",
+            ],
+            ROOT,
+            "types",
+        ),
         Check([python, "-m", "docling_desk.operations.tool_guides"], ROOT, "tool_guides"),
         Check([python, *MODELS_COMMAND], ROOT, "models"),
     ]
@@ -136,6 +151,11 @@ def checks(
     if scope == "distribution":
         items.extend(
             [
+                Check(
+                    [python, "-m", "docling_desk.operations.supply", "--check-release"],
+                    ROOT,
+                    "clearance",
+                ),
                 Check([python, "scripts/verify_package.py"], ROOT, "package"),
                 Check(
                     [python, "-m", "pytest", "tests/test_distribution_http.py", "-q"], ROOT, "http"

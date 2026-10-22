@@ -170,7 +170,7 @@ def create_mcp(gateway: Gateway):
     from docling_desk.viewer.transfers import TRANSFER_INPUTS
 
     def register(name):
-        async def operation(arguments: dict) -> dict:
+        async def operation(arguments: dict):
             result = await invoke(name, arguments)
             if name == "get_document_page_image":
                 encoded = result.pop("body_base64")
@@ -198,6 +198,8 @@ def create_mcp(gateway: Gateway):
             operation.__annotations__["return"] = Annotated[CallToolResult, PageImageResult]
         elif name in DOCUMENT_OUTPUTS:
             operation.__annotations__["return"] = DOCUMENT_OUTPUTS[name]
+        else:
+            operation.__annotations__["return"] = dict
 
         operation.__annotations__["arguments"] = Annotated[
             dict,
