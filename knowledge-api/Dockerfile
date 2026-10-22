@@ -1,9 +1,17 @@
 FROM oven/bun:1.4.2-slim AS dependencies
+# OS store only: Bun 1.4.2 still has an affected embedded CA bundle.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ca-certificates)" ge 20250419+deb13u1 \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
 
 FROM oven/bun:1.4.2-slim
+# OS store only: Bun 1.4.2 still has an affected embedded CA bundle.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ca-certificates)" ge 20250419+deb13u1 \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=dependencies /app/node_modules/ node_modules/
 COPY package.json ./

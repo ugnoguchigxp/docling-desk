@@ -186,6 +186,9 @@ async function openPrintDialog(page: Page, id: string, previewText?: string) {
   await expect(page.locator("#saveMenu")).toHaveAttribute("open", "");
   if (await source.count())
     await expect(source).toHaveCSS("pointer-events", "none");
+  // The iframe's compositor surface must see the menu's pointer-events change
+  // before a mouse click; CSS readiness alone can still send it into the frame.
+  await waitForViewerSurface(page);
   const trigger = page.getByRole("button", {
     name: "プリントプレビュー",
     exact: true,
@@ -271,7 +274,9 @@ for (const [kind, id] of [
     ).toBeEnabled();
     await page.getByLabel("印刷範囲", { exact: true }).selectOption("range");
     await page.getByLabel("印刷する範囲").fill("0");
-    await expect(page.getByRole("alert")).toContainText("範囲は1");
+    await expect(
+      page.locator("#printPreviewDialog").getByRole("alert"),
+    ).toContainText("範囲は1");
     await expect(
       page.getByRole("button", { name: "印刷・PDF保存" }),
     ).toBeDisabled();

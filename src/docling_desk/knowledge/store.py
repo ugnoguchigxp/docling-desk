@@ -23,11 +23,18 @@ from docling_desk.knowledge.catalog import (
     split_frontmatter,
 )
 from docling_desk.knowledge.content import parse
+from docling_desk.knowledge.diagram_text import drawio_sections, excalidraw_sections
 from docling_desk.knowledge.files import WikiFiles, article_etag, sha256
 from docling_desk.operations.backup import exclusive_write
 from docling_desk.operations.faults import checkpoint
 from docling_desk.sqlite_writer import connect
-from docling_desk.storage import document_folder, knowledge_database, migrate_database
+from docling_desk.storage import (
+    document_folder,
+    knowledge_database,
+    migrate_database,
+    original_file,
+    safe_path,
+)
 
 
 def digest(value: str) -> str:
@@ -429,45 +436,11 @@ class Store:
                     if job["state"] not in {"success", "partial"}:
                         continue
                     folder = document_folder(self.data, job["id"])
-                    if folder.is_symlink():
+                    if not safe_path(self.data, folder):
                         continue
-                    child = folder / "rag-index.jsonl"
-                    parent = folder / "rag.jsonl"
-                    try:
-                        raw_parent = parent.read_text(encoding="utf-8")
-                        raw_child = (
-                            child.read_text(encoding="utf-8") if child.is_file() else raw_parent
-                        )
-                        contexts = {c["id"]: c for c in read_jsonl(raw_parent)}
-                        children = read_jsonl(raw_child)
-                        if any(
-                            c.get("parent_id") and c["parent_id"] not in contexts for c in children
-                        ):
-                            raise ValueError("Missing parent")
-                    except (OSError, ValueError, KeyError):
-                        continue
+                    sections, raw_parent, raw_child = self.document_sections(folder, job)
                     sid = "doc-" + job["id"]
                     present.add(sid)
-                    sections = []
-                    for chunk in children:
-                        if not chunk.get("text", "").strip():
-                            continue
-                        context = contexts.get(chunk.get("parent_id"), chunk)
-                        sections.append(
-                            {
-                                "text": chunk["text"],
-                                "context": context.get("text", chunk["text"]),
-                                "parent_id": context.get("id"),
-                                "refs": context.get("refs", []),
-                                "context_refs": chunk.get("context_refs", []),
-                                "provenance": context.get("provenance", []),
-                                "relations": context.get("relations", []),
-                                "row_range": chunk.get("row_range", []),
-                                "pages": context.get("pages", []),
-                                "unit": context.get("unit"),
-                                "heading": " / ".join(chunk.get("headings", [])),
-                            }
-                        )
                     self.replace(
                         db,
                         {
@@ -495,6 +468,77 @@ class Store:
                     if row[0] not in present:
                         db.execute("UPDATE sources SET deleted=1 WHERE id=?", (row[0],))
                         self.remove_chunks(db, row[0])
+
+    def document_sections(self, folder: Path, job: dict) -> tuple[list[dict], str, str]:
+        """Adapt saved content to the same sections, revision and citations as RAG files."""
+        names = list(
+            dict.fromkeys([job["filename"], job.get("original_filename") or job["filename"]])
+        )
+        catalog = {"text": "\n".join(names), "heading": "資料情報"}
+        try:
+            if job.get("image"):
+                metadata = job.get("image_metadata", {})
+                text = "\n".join(
+                    [
+                        *names,
+                        metadata.get("description", ""),
+                        *metadata.get("tags", []),
+                        metadata.get("default_alt", ""),
+                        metadata.get("default_credit", ""),
+                        metadata.get("source_url", ""),
+                    ]
+                ).strip()
+                return [{"text": text, "heading": "画像の登録情報"}], job["image"]["sha256"], text
+            if job.get("excalidraw") or job.get("diagram"):
+                source = original_file(folder, Path(names[-1]).suffix.lower())
+                if not safe_path(self.data, source):
+                    raise ValueError("Unsafe diagram source")
+                if job.get("excalidraw"):
+                    raw = source.read_text(encoding="utf-8")
+                    sections = excalidraw_sections(raw)
+                else:
+                    raw, sections = drawio_sections(source)
+                return (
+                    sections or [catalog],
+                    "diagram-text-v1",
+                    raw + (catalog["text"] if not sections else ""),
+                )
+            child, parent = folder / "rag-index.jsonl", folder / "rag.jsonl"
+            if not all(safe_path(self.data, path) for path in (parent, child)):
+                raise ValueError("Unsafe document index")
+            raw_parent = parent.read_text(encoding="utf-8")
+            raw_child = child.read_text(encoding="utf-8") if child.is_file() else raw_parent
+            contexts = {c["id"]: c for c in read_jsonl(raw_parent)}
+            children = read_jsonl(raw_child)
+            if any(c.get("parent_id") and c["parent_id"] not in contexts for c in children):
+                raise ValueError("Missing parent")
+            sections = []
+            for chunk in children:
+                if not chunk.get("text", "").strip():
+                    continue
+                context = contexts.get(chunk.get("parent_id"), chunk)
+                sections.append(
+                    {
+                        "text": chunk["text"],
+                        "context": context.get("text", chunk["text"]),
+                        "parent_id": context.get("id"),
+                        "refs": context.get("refs", []),
+                        "context_refs": chunk.get("context_refs", []),
+                        "provenance": context.get("provenance", []),
+                        "relations": context.get("relations", []),
+                        "row_range": chunk.get("row_range", []),
+                        "pages": context.get("pages", []),
+                        "unit": context.get("unit"),
+                        "heading": " / ".join(chunk.get("headings", [])),
+                    }
+                )
+            if sections:
+                return sections, raw_parent, raw_child
+        except (OSError, ValueError, KeyError, TypeError):
+            # Missing/broken text artifacts must not hide the library entry by
+            # name, or publish text from a previously indexed diagram version.
+            pass
+        return [catalog], "document-catalog-v1", catalog["text"]
 
     def chunks(self) -> list[dict]:
         with self.connection(readonly=True) as db:

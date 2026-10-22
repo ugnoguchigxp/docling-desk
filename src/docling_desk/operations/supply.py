@@ -324,10 +324,15 @@ def _bun_packages(lock_text: str, package_json: dict, source: str) -> list[dict]
 
 
 def _docker_packages(dockerfile: str) -> list[str]:
-    match = re.search(r"apt-get install -y --no-install-recommends\s+(.*?)&&", dockerfile, re.S)
-    if not match:
-        return []
-    return [part for part in match.group(1).split() if not part.startswith("\\") and part != "\\"]
+    matches = re.finditer(r"apt-get install -y --no-install-recommends\s+(.*?)&&", dockerfile, re.S)
+    return list(
+        dict.fromkeys(
+            part
+            for match in matches
+            for part in match.group(1).split()
+            if not part.startswith("\\")
+        )
+    )
 
 
 def _base_images(root: Path) -> list[dict]:

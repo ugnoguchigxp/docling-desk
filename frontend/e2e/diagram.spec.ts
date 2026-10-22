@@ -77,13 +77,22 @@ test("create a diagram, draw a rectangle with text, save, reload, and keep the c
 
   const canvas = editorCanvas(page);
   await expect(canvas).toBeVisible();
+  // The editor need not own keyboard focus after the create dialog closes.
+  // Select the tool through its accessible control before drawing.
+  const rectangleTool = editorRoot(page).getByRole("radio", {
+    name: "矩形",
+    exact: true,
+  });
+  // Excalidraw places the visible icon over the native radio. Click its
+  // enclosing label, as a user does, and verify that the tool was selected.
+  await rectangleTool.locator("..").click();
+  await expect(rectangleTool).toBeChecked();
   const box = await canvas.boundingBox();
   if (!box) throw new Error("the Excalidraw canvas has no layout");
   const left = box.x + box.width / 3,
     top = box.y + box.height / 3;
 
-  // "r" selects the rectangle tool; dragging draws it.
-  await page.keyboard.press("r");
+  // Dragging with the selected tool draws a rectangle.
   await page.mouse.move(left, top);
   await page.mouse.down();
   await page.mouse.move(left + 240, top + 120, { steps: 8 });

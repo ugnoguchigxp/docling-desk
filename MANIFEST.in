@@ -1,4 +1,6 @@
 include contracts/knowledge-api.openapi.json
+include requirements-bootstrap.txt
+include scripts/bootstrap-python.sh
 include contracts/viewer-embedding.schema.json
 include contracts/mcp-tools.json
 include contracts/tool-guides.openapi.json

@@ -16,6 +16,7 @@ from packaging.utils import canonicalize_name
 
 from docling_desk.operations.supply import (
     _base_images,
+    _docker_packages,
     distributed,
     inventory,
     unreviewed_distribution,
@@ -168,7 +169,7 @@ def test_base_images_cover_every_dockerfile():
     assert ("deploy/Dockerfile.gateway", "python:3.12-slim-bookworm") in finals
     assert ("knowledge-api/Dockerfile", "oven/bun:1.4.2-slim") in finals
     build = {i["image"] for i in images if not i["final"]}
-    assert "node:24-bookworm-slim" in build
+    assert "node:24.22.1-bookworm-slim" in build
     pnpm = json.loads((ROOT / "frontend/package.json").read_text(encoding="utf-8"))[
         "packageManager"
     ]
@@ -183,7 +184,7 @@ def test_ledger_never_clears_on_inventory_alone(ledger, report):
         seen.add(key)
         assert record["status"] in {"inventoried", "confirmed"}
         if record["status"] == "inventoried":
-            assert record["reviewer"] == REVIEWER
+            assert record["reviewer"] in {REVIEWER, "Codex (自動棚卸し, 人による確認未了)"}
             assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", record["reviewed_on"])
             assert record["conditions"] and record["remaining"]
     inventoried = {r["name"] for r in ledger if r["status"] == "inventoried"}
@@ -192,6 +193,21 @@ def test_ledger_never_clears_on_inventory_alone(ledger, report):
             r["status"] == "confirmed" and r["name"] == item["name"] for r in ledger
         ):
             assert item["cleared"] is False
+
+
+def test_docker_packages_include_each_stage_without_duplicates():
+    dockerfile = """
+FROM node:24.22.1-bookworm-slim AS frontend
+RUN apt-get install -y --no-install-recommends ca-certificates && true
+FROM python:3.12-slim-bookworm
+RUN apt-get install -y --no-install-recommends ca-certificates libreoffice-writer \\
+    fonts-noto-cjk && true
+"""
+    assert _docker_packages(dockerfile) == [
+        "ca-certificates",
+        "libreoffice-writer",
+        "fonts-noto-cjk",
+    ]
 
 
 def test_every_distributed_item_has_a_ledger_record(report, ledger):

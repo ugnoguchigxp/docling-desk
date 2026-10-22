@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1
-FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS frontend
+FROM --platform=$BUILDPLATFORM node:24.22.1-bookworm-slim AS frontend
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ca-certificates)" ge 20250419~deb12u2 \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /build/frontend
 RUN npm install --global pnpm@10.24.0
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
@@ -8,6 +11,12 @@ COPY frontend/ ./
 RUN pnpm build && pnpm export:static
 
 FROM --platform=$BUILDPLATFORM python:3.12-slim-bookworm AS models
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ca-certificates)" ge 20250419~deb12u2 \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements-bootstrap.txt /opt/security/requirements-bootstrap.txt
+COPY scripts/bootstrap-python.sh /opt/security/scripts/bootstrap-python.sh
+RUN sh /opt/security/scripts/bootstrap-python.sh python
 WORKDIR /build
 ENV PYTHONPATH=/build/src DOCLING_MODELS_DIR=/build/models DOCLING_ENV_FILE=/dev/null
 RUN pip install --no-cache-dir huggingface-hub==1.33.0 python-dotenv==1.2.4
@@ -15,6 +24,12 @@ COPY src/docling_desk/ src/docling_desk/
 RUN python -m docling_desk.operations.download_models
 
 FROM python:3.12-slim-bookworm AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ca-certificates)" ge 20250419~deb12u2 \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements-bootstrap.txt /opt/security/requirements-bootstrap.txt
+COPY scripts/bootstrap-python.sh /opt/security/scripts/bootstrap-python.sh
+RUN sh /opt/security/scripts/bootstrap-python.sh python
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
     HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 \
     HF_HOME=/tmp/huggingface DOCLING_DATA_DIR=/var/lib/docling/data \

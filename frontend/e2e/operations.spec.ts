@@ -547,6 +547,9 @@ test("bundle delivery, CSS order, Origin restrictions and legacy fallback", asyn
   ]);
   expect(links.slice(6)).toEqual([
     expect.stringMatching(
+      /^\/static\/frontend\/assets\/preload-helper-[\w-]+\.css$/,
+    ),
+    expect.stringMatching(
       /^\/static\/frontend\/assets\/DocumentViewer-[\w-]+\.css$/,
     ),
     expect.stringMatching(/^\/static\/frontend\/assets\/index-[\w-]+\.css$/),
@@ -841,6 +844,7 @@ test("translation submit has one POST, selected units, force and pacing", async 
     "pointer-events",
     "none",
   );
+  await waitForViewerSurface(page);
   await page.locator("#translationScope").selectOption("selected");
   await page.locator("#translationUnitList input").first().uncheck();
   await page.locator("#translationSubmit").click();
@@ -1276,7 +1280,7 @@ test("a missing table chunk keeps document navigation available", async ({
     "表の画面を読み込めませんでした",
   );
   await expect(
-    page.getByRole("button", { name: "再読み込み", exact: true }),
+    page.getByRole("button", { name: "もう一度読み込む", exact: true }),
   ).toBeVisible();
   await page.locator("#tab-preview").click();
   await expect(page.locator("#original")).toBeVisible();
@@ -1464,7 +1468,14 @@ Hello TeX. $E=mc^2$
   const preview = page.frameLocator("#original");
   await expect(preview.locator(".pdf-page")).toHaveCount(2);
   const first = preview.frameLocator('.pdf-page[data-number="1"] iframe');
-  await expect(first.locator("svg")).toBeVisible();
+  const pageImage = first.locator(".page-canvas > img");
+  await expect(pageImage).toBeVisible();
+  await expect(pageImage).toHaveJSProperty("complete", true);
+  await expect
+    .poll(() =>
+      pageImage.evaluate((image: HTMLImageElement) => image.naturalWidth),
+    )
+    .toBeGreaterThan(0);
   await expect(first.locator("body")).toContainText("Hello");
   await preview
     .getByRole("button", { name: "次のページ", exact: true })
@@ -1485,7 +1496,12 @@ Hello TeX. $E=mc^2$
   });
   await page.getByRole("button", { name: "組版表示", exact: true }).click();
   await expect(preview.locator(".pdf-page")).toHaveCount(2);
-  await expect(first.locator("svg")).toBeVisible();
+  await expect(pageImage).toBeVisible();
+  await expect
+    .poll(() =>
+      pageImage.evaluate((image: HTMLImageElement) => image.naturalWidth),
+    )
+    .toBeGreaterThan(0);
   await expect
     .poll(() =>
       preview

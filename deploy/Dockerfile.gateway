@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1
-FROM node:24-bookworm-slim AS frontend
+FROM node:24.22.1-bookworm-slim AS frontend
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ca-certificates)" ge 20250419~deb12u2 \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /build/frontend
 RUN npm install --global pnpm@10.24.0
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
@@ -8,6 +11,12 @@ COPY frontend/ ./
 RUN pnpm build && pnpm export:static
 
 FROM python:3.12-slim-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ca-certificates)" ge 20250419~deb12u2 \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements-bootstrap.txt /opt/security/requirements-bootstrap.txt
+COPY scripts/bootstrap-python.sh /opt/security/scripts/bootstrap-python.sh
+RUN sh /opt/security/scripts/bootstrap-python.sh python
 ENV PYTHONPATH=/app/src PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 DOCLING_ENV_FILE=/dev/null
 WORKDIR /app
 COPY integrations/mcp/requirements.txt /tmp/mcp-requirements.txt

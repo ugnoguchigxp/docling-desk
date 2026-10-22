@@ -8,19 +8,20 @@ macOSのソース導入とLinuxのDocker導入が現行の二つです。[README
 
 ### macOS（ソースから）
 
-必要なもの：Git、Python 3.12、Node.js 22.12以上（corepack同梱版）。pnpm 10.24.0は `frontend/package.json` の指定に従い `corepack pnpm` が取得します。corepackが使えないNodeでは `npm install --global pnpm@10.24.0` で同じ版を入れ、`corepack pnpm` を `pnpm` に読み替えます。PyTorch 2.14.1のmacOS用wheelはarm64（macOS 14以上）です。Pythonは `pyproject.toml` が3.12〜3.14を許しますが、CI・Dockerは3.12です。
+必要なもの：Git、Python 3.12、Node.js 24.22.1（`.node-version` と同じ版。導入前に `node --version` で確認）。pnpm 10.24.0は `frontend/package.json` の指定に従い `corepack pnpm@10.24.0` が取得します。corepackが使えないNodeでは `npm install --global pnpm@10.24.0` で同じ版を入れ、`corepack pnpm@10.24.0` を `pnpm` に読み替えます。PyTorch 2.14.1のmacOS用wheelはarm64（macOS 14以上）です。Pythonは `pyproject.toml` が3.12〜3.14を許しますが、CI・Dockerは3.12です。
 
 ```sh
 git clone --recurse-submodules https://github.com/ugnoguchigxp/docling-desk.git docling-desktop
 cd docling-desktop
 python3.12 -m venv .venv
+sh scripts/bootstrap-python.sh .venv/bin/python
 .venv/bin/python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1 torchvision==0.29.1
 .venv/bin/python -m pip install -r requirements-lock.txt
 .venv/bin/python -m pip install --no-deps ./docling ./packages/docling-azure-ocr
 .venv/bin/python -m pip install --no-deps --no-build-isolation -e .
-corepack pnpm --dir frontend install --frozen-lockfile
-corepack pnpm --dir frontend build
-corepack pnpm --dir frontend export:static
+corepack pnpm@10.24.0 --dir frontend install --frozen-lockfile
+corepack pnpm@10.24.0 --dir frontend build
+corepack pnpm@10.24.0 --dir frontend export:static
 .venv/bin/python -m docling_desk.operations.download_models
 .venv/bin/python -m docling_desk.operations.models
 ./run.sh

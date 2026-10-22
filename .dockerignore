@@ -1,6 +1,9 @@
 **
 !Dockerfile
 !requirements-lock.txt
+!requirements-bootstrap.txt
+!scripts/
+!scripts/bootstrap-python.sh
 !pyproject.toml
 !README.md
 !LICENSE
