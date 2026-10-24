@@ -75,7 +75,8 @@ def _backup_sqlite(source: Path, destination: Path) -> None:
 
 
 def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 # Work in progress and its registry are never data: they are rebuilt or discarded.
@@ -492,6 +493,20 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(exc, file=sys.stderr)
         return 1
+    except sqlite3.Error as exc:
+        # Includes the SQLite Writer disconnecting (reported as OperationalError).
+        print(
+            f"SQLiteの処理に失敗しました（{type(exc).__name__}: {exc}）。"
+            "他の処理が終わっていることを確認し、時間をおいて再実行してください。",
+            file=sys.stderr,
+        )
+        return 3
+    except OSError as exc:
+        print(
+            f"ファイル操作に失敗しました（{exc}）。空き容量と権限を確認して再実行してください。",
+            file=sys.stderr,
+        )
+        return 3
     print(json.dumps(result, ensure_ascii=False))
     return 0
 

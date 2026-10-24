@@ -170,8 +170,9 @@ def test_migration_refuses_conflicting_original_without_overwrite(tmp_path):
     target = tmp_path / "content/documents" / old.name / "original.pdf"
     target.parent.mkdir(parents=True)
     target.write_bytes(b"different document")
-    with pytest.raises(ValueError, match="異なる内容"):
-        migrate(tmp_path)
+    with exclusive_write(tmp_path, "migration"):
+        skipped = migrate_layout(tmp_path)
+    assert skipped == [old.name]
     assert target.read_bytes() == b"different document"
     assert (
         document_folder(tmp_path, old.name) / "original.pdf"

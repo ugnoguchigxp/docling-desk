@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    # Security updates only: the lock carries hashes and is regenerated on purpose.
+    open-pull-requests-limit: 0
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+  - package-ecosystem: bun
+    directory: /knowledge-api
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0

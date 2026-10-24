@@ -21,12 +21,11 @@ def frontend_index() -> Response:
     if not index.is_file():
         raise HTTPException(503, "画面のビルドがありません。frontendをビルドしてください。")
     headers = {"Cache-Control": "no-cache"}
-    if not config.ROOT_PATH:
+    root = config.root()
+    if not root:
         return FileResponse(index, headers=headers)
     # The page and its assets live below the proxy prefix; the UI reads it from here.
-    page = index.read_text(encoding="utf-8").replace(
-        "<head>", "<head>" + base_meta(config.ROOT_PATH), 1
-    )
+    page = index.read_text(encoding="utf-8").replace("<head>", "<head>" + base_meta(root), 1)
     return HTMLResponse(page, headers=headers)
 
 

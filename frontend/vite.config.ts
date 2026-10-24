@@ -20,7 +20,7 @@ export default defineConfig(({ command }) => ({
       ["/api", "/files", "/view", "/static", "/legacy"].map((path) => [
         path,
         {
-          target: process.env.UI_BACKEND || "http://127.0.0.1:8765",
+          target: process.env.UI_BACKEND || "http://127.0.0.1:28765",
           changeOrigin: false,
         },
       ]),

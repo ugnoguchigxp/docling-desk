@@ -1,6 +1,7 @@
 **
 !Dockerfile
 !requirements-lock.txt
+!requirements-torch.txt
 !requirements-bootstrap.txt
 !scripts/
 !scripts/bootstrap-python.sh

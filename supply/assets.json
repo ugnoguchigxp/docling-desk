@@ -5,12 +5,12 @@
     {
       "name": "docling-slim",
       "kind": "python-source",
-      "version": "2.132.0",
-      "revision": "a1c5ff2a8c5ab2bf87d7c1eb896b5bc351f51220",
+      "version": "2.142.1",
+      "revision": "498c1b60fc2071b41e6da1719d0a85eb604113e0",
       "source": "docling/ (git submodule, https://github.com/docling-project/docling.git)",
       "paths": ["docling/pyproject.toml", "docling/LICENSE"],
       "distribution": ["docker"],
-      "notice": "wheel/sdist には含まれない(pyproject.toml は docling-slim==2.132.0 をindexから要求する)。Dockerfile は COPY docling/ を --no-deps で導入し、/opt/docling-source にソースも残る。"
+      "notice": "wheel/sdist には含まれない(pyproject.toml は docling-slim==2.142.1 をindexから要求する)。Dockerfile は COPY docling/ を --no-deps で導入し、/opt/docling-source にソースも残る。"
     },
     {
       "name": "docling-azure-ocr",

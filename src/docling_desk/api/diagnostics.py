@@ -528,6 +528,15 @@ def _feature(
     }
 
 
+def auth_summary() -> dict[str, Any]:
+    """Which login applies and why; never a credential or its length."""
+    return {
+        "mode": config.AUTH_MODE,
+        "explicit": config.AUTH_MODE_EXPLICIT,
+        "larm_credential": bool(config.LARM_TOKEN),
+    }
+
+
 def build_report(blob_mirror: object | None = None, *, runtime: bool = True) -> dict[str, Any]:
     """The report served at ``GET /api/diagnostics/features``.
 
@@ -537,6 +546,7 @@ def build_report(blob_mirror: object | None = None, *, runtime: bool = True) -> 
     return {
         "version": VERSION,
         "platform": _platform(),
+        "auth": auth_summary(),
         "features": [
             _feature(
                 "local_viewing",
@@ -607,7 +617,11 @@ def build_report(blob_mirror: object | None = None, *, runtime: bool = True) -> 
 
 def format_text(report: dict[str, Any]) -> str:
     names = {AVAILABLE: "利用可能", NOT_CONFIGURED: "未設定", TEMPORARY: "一時的な問題"}
-    lines = []
+    auth = report.get("auth") or {}
+    modes = {"none": "なし（ループバックのみ）", "jwt": "JWT", "larm": "LARM_API_TOKEN"}
+    lines = [f"認証: {modes.get(auth.get('mode'), auth.get('mode'))}"]
+    if auth.get("larm_credential") and auth.get("mode") != "larm":
+        lines.append("    LARM_API_TOKENがありますが、DOCLING_AUTH_MODEの指定により使用しません。")
     for feature in report["features"]:
         lines.append(f"[{names[feature['status']]}] {feature['label']}")
         for hint in feature["recovery"]:

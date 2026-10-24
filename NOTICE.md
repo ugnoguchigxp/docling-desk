@@ -3,7 +3,7 @@
 Docling Desk's own code is distributed under the MIT license in LICENSE.
 Dependencies, model artifacts, fonts, and third-party components retain their own licenses.
 
-- Docling (`docling-slim` 2.132.0, MIT) is a pinned upstream Git submodule at revision `a1c5ff2a8c5ab2bf87d7c1eb896b5bc351f51220`. Its license remains in `docling/LICENSE`. The Docker image installs it from that source (kept under `/opt/docling-source`); the wheel and sdist only declare the dependency and do not contain it.
+- Docling (`docling-slim` 2.142.1, MIT) is a pinned upstream Git submodule at revision `498c1b60fc2071b41e6da1719d0a85eb604113e0` (tag v2.142.1). Its license remains in `docling/LICENSE`. The Docker image installs it from that source (kept under `/opt/docling-source`); the wheel and sdist only declare the dependency and do not contain it.
 - The Azure OCR adapter is also available as a separate package under `packages/docling-azure-ocr` (MIT). The Docker image installs it from that source.
 - Wiki import/translation code was adapted from a non-public implementation by the same author (see `integrations/wiki/reference-assets.json`); retained notices are in `src/docling_desk/wiki_batch/NOTICE.md` and `licenses/` beside it.
 - PDF rendering and text extraction use PDFium through `pypdfium2` 5.13.0 (Apache-2.0 or BSD-3-Clause; the bundled PDFium binary carries its own BSD-style and third-party notices in the wheel's license files). No AGPL-licensed PDF library is used; PyMuPDF was removed and a guard test (`tests/test_no_pymupdf.py`) keeps it out.

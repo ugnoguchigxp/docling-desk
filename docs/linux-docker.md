@@ -14,18 +14,18 @@ docker compose up -d --build --wait
 
 既存のcheckoutでサブモジュールが空なら、先に `git submodule update --init --recursive` を実行します。初回のモデル取得はイメージのビルド中（`Dockerfile` のmodelsステージ）に行われ、ビルド時だけパッケージ・モデル取得のためインターネットが必要です。取得元とモデル版は `src/docling_desk/resources/models/manifest.json` に固定しており、抽出時はモデルをダウンロードしません。
 
-画面は **http://127.0.0.1:18765**。既存のmacOSサーバーの8765とは別ポートです。アップロードした資料・抽出結果・訳文・解説はDockerの名前付きボリューム `<Composeプロジェクト名>_docling-data` に保存し、ホストの既存 `data/` は読み込みません。`docling-desktop` フォルダーから起動した場合は `docling-desktop_docling-data` です。既存データを移す場合は、サーバーを停止した状態で別途コピーしてください。
+画面は **http://127.0.0.1:28765**。macOSのソース版と同じ28765です。同じマシンで両方を起動する場合は `DOCLING_PORT` で変更してください。アップロードした資料・抽出結果・訳文・解説はDockerの名前付きボリューム `<Composeプロジェクト名>_docling-data` に保存し、ホストの既存 `data/` は読み込みません。`docling-desktop` フォルダーから起動した場合は `docling-desktop_docling-data` です。既存データを移す場合は、サーバーを停止した状態で別途コピーしてください。
 
 ボリューム内の `/var/lib/docling/data/` も、原本・Wikiの `content/`、成果物の `derived/`、SQLiteとジョブの `runtime/`、サムネイルの `cache/` に分かれます。旧配置のデータを使う場合は、旧Webプロセスとバッチを停止してバックアップを取得し、新バージョンを起動してください。起動時にIDと原本バイトを維持して移行します。[保存構成と移行](content-storage.md)を参照してください。
 
-`docker run -p 8765:8765` のように直接起動すると、コンテナは全インターフェースで待ち受け、認証なしで公開されます。必ず `-p 127.0.0.1:8765:8765` のようにループバックへ限定するか、同梱のCompose設定を使ってください。
+`docker run -p 28765:28765` のように直接起動すると、コンテナは全インターフェースで待ち受け、認証なしで公開されます。必ず `-p 127.0.0.1:28765:28765` のようにループバックへ限定するか、同梱のCompose設定を使ってください。
 
 ReactのビルドもDocker内で行います。ホストのPython、Node.js、Office、Swift、認証ファイルを利用する必要はありません。コンテナはUID/GID 10001の一般ユーザーで起動します。
 
 ```sh
 docker compose ps
-curl --fail http://127.0.0.1:18765/health/live
-curl --fail http://127.0.0.1:18765/health/ready
+curl --fail http://127.0.0.1:28765/health/live
+curl --fail http://127.0.0.1:28765/health/ready
 docker compose logs --tail 100 -f
 docker compose stop
 docker compose start --wait
@@ -62,7 +62,8 @@ docker compose up -d --build --force-recreate --wait
 
 ```sh
 docker compose cp samples docling:/tmp/samples
-docker compose exec -T docling python scripts/smoke_linux.py --samples /tmp/samples
+docker compose cp scripts/smoke_linux.py docling:/tmp/smoke_linux.py
+docker compose exec -T docling python /tmp/smoke_linux.py --samples /tmp/samples
 ```
 
 全件 `state: success` となり、プレビュー、表、RAGの取得、PPTX/PDFのサムネイル、Excelのシート切り替え、OCR本文が検証できれば成功です。初期化や変換に失敗したときは `docker compose logs --tail 100` を確認し、原因を直して再ビルド・再実行します。一部完了や失敗を成功扱いにしません。
@@ -77,7 +78,9 @@ Azure OCRを使う場合は、VM上のプロジェクト直下の`.env`へ`DOCLI
 
 | 環境変数 | 用途・既定値 |
 |---|---|
-| `DOCLING_PORT` | Composeのホスト側ポート。18765 |
+| `DOCLING_PORT` | Composeのホスト側ポート。28765 |
+| `DOCLING_MEMORY_LIMIT` / `DOCLING_CPUS` | コンテナのメモリ・CPUの上限。既定 `8g` / `4`。大きな資料をまとめて変換する場合に引き上げる |
+| `DOCLING_IMAGE_TAG` | イメージのタグ。既定 `linux`。更新前の版を残して戻せるよう、更新ごとに別のタグを付ける |
 | `DOCLING_DATA_DIR` | コンテナ内の保存先。`/var/lib/docling/data`。`content/`・`derived/`・`runtime/`・`cache/` の基準 |
 | `DOCLING_MODELS_DIR` | コンテナ内のモデル。`/opt/docling/models` |
 | `DOCLING_ALLOWED_HOSTS` | 許可するHostをカンマ区切り。Azureでは利用するFQDNを追加。`localhost,127.0.0.1` もヘルスチェック用に残す |
@@ -115,17 +118,18 @@ Container Appsでは次の設定を適用します。
 
 | 項目 | 設定 |
 |---|---|
-| ingress | target port 8765、HTTPS。検証はinternal ingressまたはアクセス制限付きで行う |
+| ingress | target port 28765、HTTPS。検証はinternal ingressまたはアクセス制限付きで行う |
 | プロセス | Uvicorn workerは1。コンテナの起動コマンドをそのまま使う |
 | スケール | minReplicas=1、maxReplicas=1、single revision。抽出・翻訳・解説キューはプロセス内管理のため、複数レプリカ・scale-to-zeroには未対応 |
 | 保存 | Azure Filesを `/var/lib/docling/data` へReadWriteマウント。UID/GID 10001で書き込めることを確認。コンテナローカルディスクは資料の永続保存に使わない |
 | 接続元制限 | FQDNを `DOCLING_ALLOWED_HOSTS`、HTTPS URLを `DOCLING_ALLOWED_ORIGINS` に設定 |
-| 認証 | 既定では認証なし。ホストアプリのJWTを共有する `DOCLING_AUTH_MODE=jwt` を使えるほか、ネットワーク設定でも制限する。[リバースプロキシ配下での公開](reverse-proxy.md)を参照 |
+| 権限 | UID 10001で動作し、全capabilityを外し、権限昇格を禁止する。LibreOfficeは変換ごとに新しいプロセスグループで起動し、時間切れではグループ全体を終了する |
+| 認証 | 既定では認証なし。`LARM_API_TOKEN` を渡すと自動でLARM連携の認証になる。ホストアプリのJWTを共有する `DOCLING_AUTH_MODE=jwt` も使えるほか、ネットワーク設定でも制限する。[リバースプロキシ配下での公開](reverse-proxy.md)を参照 |
 | Secret | APIキーはSecret参照から環境変数に注入。イメージやYAMLへキーを直接書かない |
 
 この保存設定は現在のファイルシステム実装向けです。Blobへのミラーは `DOCLING_STORAGE=azure-blob` で有効にできます（[Blobミラー](content-storage.md#blobミラー)）。ローカルが正本で、Blobは複製と復旧用です。検索索引のSQLiteと `cache/` は複製しません。
 
-HTTPのstartup/liveness/readiness probeを使う場合は、`Host: localhost` ヘッダーを指定します。ポート8765、startup/livenessは `/health/live`、readinessは `/health/ready`。Host制限があるため、任意の内部IPをHostにしたHTTP probeは使いません。startupは初回ロード時間を許容する閾値に設定してください。DockerのHEALTHCHECKだけでAzure側probeの設定を済ませたことにはしません。
+HTTPのstartup/liveness/readiness probeを使う場合は、`Host: localhost` ヘッダーを指定します。ポート28765、startup/livenessは `/health/live`、readinessは `/health/ready`。Host制限があるため、任意の内部IPをHostにしたHTTP probeは使いません。startupは初回ロード時間を許容する閾値に設定してください。DockerのHEALTHCHECKだけでAzure側probeの設定を済ませたことにはしません。
 
 バックグラウンド処理中の再起動は処理を中断します。デプロイ前にジョブ・翻訳・解説の完了を確認し、同じ保存領域に新旧リビジョンが同時に書き込まないよう切り替えます。停止した抽出ジョブは再アップロードが必要です。保存済みの完了結果は再起動後も使えます。複数プロセス化にはキュー・ロック・レート制限を共有する変更が別途必要です。
 

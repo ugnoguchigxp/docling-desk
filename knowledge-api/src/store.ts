@@ -45,6 +45,10 @@ export type RevisionRow = {
   indexed_at: string | null;
   warnings: string;
 };
+/** Global safety limit of queued/running jobs per kind, shared by every client. */
+export const QUEUE_LIMIT = 3;
+/** Share of the global limit one client may hold, so a single client cannot starve the others. */
+export const CLIENT_QUEUE_LIMIT = 2;
 export type JobRow = {
   id: string;
   source_id: string | null;
@@ -263,6 +267,14 @@ export class Store {
         .get(kind)?.n ?? 0
     );
   }
+  /** Queued/running jobs of one client: extract jobs follow the source owner, answer jobs the requester. */
+  outstandingFor(kind: "extract" | "answer", clientId: string) {
+    const sql =
+      kind === "extract"
+        ? "SELECT count(*) n FROM jobs j JOIN sources s ON s.id=j.source_id WHERE j.kind='extract' AND j.state IN ('queued','running') AND s.owner_client=?"
+        : "SELECT count(*) n FROM jobs j JOIN answers a ON a.id=j.id WHERE j.kind='answer' AND j.state IN ('queued','running') AND a.client_id=?";
+    return this.db.query<{ n: number }, string>(sql).get(clientId)?.n ?? 0;
+  }
   enqueue(
     kind: JobRow["kind"],
     source: string | null,
@@ -342,7 +354,12 @@ export class Store {
           m.external_key ?? null,
         ]);
       }
-      if (admit && this.outstanding("extract") >= 3)
+      if (
+        admit &&
+        (this.outstanding("extract") >= QUEUE_LIMIT ||
+          this.outstandingFor("extract", existing?.owner_client ?? p.clientId) >=
+            CLIENT_QUEUE_LIMIT)
+      )
         throw new ApiError(429, "queue_full", "Document queue is full", true);
       this.db.run(
         "INSERT INTO revisions(id,source_id,filename,suffix,sha256,created_at) VALUES(?,?,?,?,?,?)",
@@ -747,6 +764,12 @@ export class Store {
   prune() {
     this.db.run("DELETE FROM retrievals WHERE expires<?", [Date.now()]);
     this.db.run("DELETE FROM idempotency WHERE expires<?", [Date.now()]);
-    this.db.run("DELETE FROM answers WHERE expires<?", [Date.now()]);
+    const now = Date.now();
+    // Answer jobs carry the query and principal grants in their payload; they follow the answer's expiry.
+    this.db.run(
+      "DELETE FROM jobs WHERE kind='answer' AND state NOT IN ('queued','running') AND (id IN (SELECT id FROM answers WHERE expires<?) OR id NOT IN (SELECT id FROM answers))",
+      [now],
+    );
+    this.db.run("DELETE FROM answers WHERE expires<?", [now]);
   }
 }

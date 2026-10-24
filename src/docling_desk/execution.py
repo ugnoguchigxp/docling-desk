@@ -20,9 +20,12 @@ not be refused or allowed from it (see the activity contract in the R14 report).
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections.abc import Callable
 from concurrent.futures import Executor, Future
+
+LOGGER = logging.getLogger(__name__)
 
 
 class LeaseReleased(RuntimeError):
@@ -128,7 +131,7 @@ class SlotLease:
         if isinstance(future, Future):
             self._future = future
             # Covers work cancelled while queued, which never reaches _execute.
-            future.add_done_callback(lambda _: self.release())
+            future.add_done_callback(self._finished)
         return future
 
     def request_stop(self, cancel: Callable[[], object] | None = None) -> bool:
@@ -143,6 +146,24 @@ class SlotLease:
             cancel()
         future = self._future
         return future is not None and future.cancel()
+
+    def _finished(self, future: Future) -> None:
+        """Done callback: nobody reads the Future, so log what the work raised.
+
+        The slot is returned even if logging itself fails.
+        """
+        try:
+            if not future.cancelled():
+                error = future.exception()
+                if error is not None:
+                    LOGGER.error(
+                        "Background work ended with an unhandled exception",
+                        exc_info=(type(error), error, error.__traceback__),
+                    )
+        except Exception:  # pragma: no cover - logging must never keep the slot
+            pass
+        finally:
+            self.release()
 
     def _execute(self, fn: Callable, args: tuple, kwargs: dict):
         try:

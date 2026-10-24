@@ -328,7 +328,7 @@ def test_supply_inventory_does_not_clear_unknown_licenses():
     assert indirect["direct"] is False
     assert indirect["scope"] == "development"
     hono = next(item for item in report["packages"] if item["name"] == "hono")
-    assert hono["version"] == "4.12.8" and hono["scope"] == "runtime"
+    assert hono["version"] == "4.13.13" and hono["scope"] == "runtime"
     models = {item["name"]: item for item in report["assets"] if item["kind"] == "model"}
     assert set(models) == {
         "docling-project/docling-layout-heron",

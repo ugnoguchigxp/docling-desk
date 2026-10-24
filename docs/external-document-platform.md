@@ -139,11 +139,20 @@ async with streamablehttp_client(
         await mcp.initialize()
         await mcp.call_tool("list_document_scopes", {})
         create_key = str(uuid4())  # ホストが初回送信前に記録し、再送で再利用する。
-        result = await mcp.call_tool("create_document_draft", {"arguments": {
-            "body": "# 記事\n\n本文。\n",
-            "metadata": {"title": "記事", "collection_id": "documents", "source_kind": "wiki"},
-            "idempotency_key": create_key,
-        }})
+        result = await mcp.call_tool(
+            "create_document_draft",
+            {
+                "arguments": {
+                    "body": "# 記事\n\n本文。\n",
+                    "metadata": {
+                        "title": "記事",
+                        "collection_id": "documents",
+                        "source_kind": "wiki",
+                    },
+                    "idempotency_key": create_key,
+                }
+            },
+        )
         if result.isError:
             raise RuntimeError("下書き作成を確認できないため、結果照会へ進む")
         draft = result.structuredContent or json.loads(result.content[0].text)

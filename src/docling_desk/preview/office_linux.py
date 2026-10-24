@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import html
+import os
 import shutil
+import signal
 import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -52,6 +54,41 @@ def normalize_merged_cells(table, worksheet, sheet: dict) -> None:
             column_index += int(cell.get("colspan", "1"))
 
 
+def _kill_group(process: subprocess.Popen) -> None:
+    """SIGKILL the whole process group; the leader's pid is the group id."""
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def run_in_group(command: list[str], timeout: float) -> subprocess.CompletedProcess:
+    """Like ``subprocess.run(timeout=...)``, but the child leads its own process group.
+
+    ``soffice`` is a launcher that starts ``soffice.bin``. ``subprocess.run`` kills
+    only the launcher on timeout and leaves the real office process running, so the
+    whole group is killed instead (also when interrupted).
+    """
+    process = subprocess.Popen(
+        command,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+    except BaseException:
+        _kill_group(process)
+        try:
+            process.communicate(timeout=10)  # reap the leader and drain the pipes
+        except subprocess.TimeoutExpired:
+            pass  # something left the group and still holds the pipes; do not hang
+        raise
+    return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+
+
 def convert_office(source: Path, destination: Path, output_format: str) -> Path:
     binary = shutil.which("libreoffice") or shutil.which("soffice")
     if not binary:
@@ -61,7 +98,7 @@ def convert_office(source: Path, destination: Path, output_format: str) -> Path:
     with TemporaryDirectory(prefix="docling-office-") as work:
         profile = Path(work) / "profile"
         try:
-            result = subprocess.run(
+            result = run_in_group(
                 [
                     binary,
                     f"-env:UserInstallation={profile.as_uri()}",
@@ -75,10 +112,7 @@ def convert_office(source: Path, destination: Path, output_format: str) -> Path:
                     str(destination.resolve()),
                     str(source.resolve()),
                 ],
-                capture_output=True,
-                text=True,
                 timeout=150,
-                check=False,
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("LibreOfficeの変換が時間内に完了しませんでした。") from exc

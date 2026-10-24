@@ -27,7 +27,7 @@ import type { AnswerProvider, EmbeddingProvider, Extractor } from "./providers";
 import { checkpoint } from "./quality";
 import { errorResponse, responseSchemas } from "./responses";
 import { Retrieval } from "./retrieval";
-import { nowISO, type SourceRow, type Store } from "./store";
+import { CLIENT_QUEUE_LIMIT, nowISO, QUEUE_LIMIT, type SourceRow, type Store } from "./store";
 import { readAnswer, Worker } from "./worker";
 
 export type ApiOptions = {
@@ -250,6 +250,21 @@ export function createApi(options: ApiOptions) {
   });
   app.onError((e, c) => {
     const error = e instanceof ApiError ? e : new ApiError(500, "internal_error");
+    if (!(e instanceof ApiError)) {
+      // Server-side only: name and a bounded message with the request id. No headers, bodies or query strings.
+      const name = e instanceof Error ? e.name : typeof e;
+      const message = (e instanceof Error ? e.message : String(e)).slice(0, 300);
+      console.error(
+        JSON.stringify({
+          event: "unhandled_error",
+          request_id: c.get("requestId") ?? null,
+          method: c.req.method,
+          path: c.req.path,
+          error: name,
+          message,
+        }),
+      );
+    }
     if (error.status === 429) c.header("Retry-After", "60");
     return c.json(
       {
@@ -487,7 +502,11 @@ export function createApi(options: ApiOptions) {
         .get(existing.id)
         ? 1
         : 0;
-    if (admission.active + store.outstanding("extract") - replacing > 3)
+    if (
+      admission.active + store.outstanding("extract") - replacing > QUEUE_LIMIT ||
+      store.outstandingFor("extract", existing?.owner_client ?? initial.clientId) - replacing >=
+        CLIENT_QUEUE_LIMIT
+    )
       throw new ApiError(429, "queue_full", "Document queue is full", true);
     const releaseSpace = await admission.reserve(file.size);
     const sourceId = existing?.id ?? randomUUID();
@@ -584,7 +603,11 @@ export function createApi(options: ApiOptions) {
     const s = store.getSource(parse(id, c.req.param("source_id")), p);
     const result = store.tx(() => {
       store.match(s, c.req.header("if-match") ?? null);
-      if (store.outstanding("extract") >= 3) throw new ApiError(429, "queue_full");
+      if (
+        store.outstanding("extract") >= QUEUE_LIMIT ||
+        store.outstandingFor("extract", s.owner_client) >= CLIENT_QUEUE_LIMIT
+      )
+        throw new ApiError(429, "queue_full");
       if (!store.revision(s.current_revision)?.fts_ready)
         throw new ApiError(409, "extraction_not_ready");
       if (
@@ -615,7 +638,11 @@ export function createApi(options: ApiOptions) {
     const jobId = store.tx(() => {
       const source = store.getSource(s.id, refresh(p, clients()));
       store.match(source, c.req.header("if-match") ?? null);
-      if (store.outstanding("extract") >= 3) throw new ApiError(429, "queue_full");
+      if (
+        store.outstanding("extract") >= QUEUE_LIMIT ||
+        store.outstandingFor("extract", source.owner_client) >= CLIENT_QUEUE_LIMIT
+      )
+        throw new ApiError(429, "queue_full");
       if (
         store.db
           .query(
@@ -678,7 +705,12 @@ export function createApi(options: ApiOptions) {
         store.source(j.source_id ?? "")?.current_revision !== j.source_revision
       )
         throw new ApiError(409, "source_changed");
-      if (store.outstanding(j.kind) >= 3) throw new ApiError(429, "queue_full");
+      if (store.outstanding(j.kind) >= QUEUE_LIMIT) throw new ApiError(429, "queue_full");
+      if (j.kind === "extract") {
+        const owner = store.source(j.source_id ?? "")?.owner_client;
+        if (owner && store.outstandingFor("extract", owner) >= CLIENT_QUEUE_LIMIT)
+          throw new ApiError(429, "queue_full");
+      }
       const payload = { ...JSON.parse(j.payload), allow_ocr_resubmit: input.allow_ocr_resubmit };
       if (j.error_code === "submission_unknown" && !input.allow_ocr_resubmit)
         throw new ApiError(
@@ -706,7 +738,11 @@ export function createApi(options: ApiOptions) {
     const input = parse(answerSchema, await json(c.req.raw));
     narrow(p, input.scope);
     const answerId = store.tx(() => {
-      if (store.outstanding("answer") >= 3) throw new ApiError(429, "answer_queue_full");
+      if (
+        store.outstanding("answer") >= QUEUE_LIMIT ||
+        store.outstandingFor("answer", p.clientId) >= CLIENT_QUEUE_LIMIT
+      )
+        throw new ApiError(429, "answer_queue_full");
       const aid = store.enqueue("answer", null, null, { principal: p, input });
       store.db.run(
         "INSERT INTO answers(id,client_id,subject,state,payload,expires) VALUES(?,?,?,'queued',?,?)",

@@ -107,8 +107,9 @@ def _python_packages(path: Path, root: Path | None = None) -> list[dict]:
     direct = _pyproject_direct(root)
     packages = []
     for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "==" not in line:
+        # Hash options follow the requirement, on the line or on continuation lines.
+        line = line.split(" --hash", 1)[0].removesuffix("\\").strip()
+        if not line or line.startswith(("#", "-")) or "==" not in line:
             continue
         requirement, _, marker = line.partition(";")
         name, version = requirement.strip().split("==", 1)

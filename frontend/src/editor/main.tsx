@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { RawEditor, sourceEdit } from "./RawEditor";
+import { AppErrorBoundary } from "../components/AppErrorBoundary";
 import "../components/app-tokens.css";
 import "./style.css";
 
@@ -56,14 +57,57 @@ async function request(path: string, body?: unknown) {
     headers: { "content-type": "application/json" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  const data = await response.json();
-  if (!response.ok)
+  // A gateway error (502 HTML page, empty body) is not JSON: report the status.
+  const text = await response.text();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let data: any = null;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    /* handled below */
+  }
+  if (!response.ok) {
+    const detail = data?.detail ?? data?.error?.code;
     throw new RequestError(
       response.status,
-      data.detail ?? data.error?.code ?? "request_failed",
+      typeof detail === "string"
+        ? detail
+        : data === null
+          ? `サーバーから正しい応答がありませんでした (HTTP ${response.status})`
+          : "request_failed",
+    );
+  }
+  if (data === null)
+    throw new RequestError(
+      response.status,
+      "サーバーの応答を読み込めませんでした。",
     );
   return data;
 }
+const POLL_MS = 2000;
+const SESSION_LOST = [401, 403, 404, 410];
+const savedState = (data: Document) =>
+  "保存版確定済み · " +
+  (data.status.search === "failed"
+    ? "全文検索反映失敗"
+    : data.status.fts_ready
+      ? "全文検索反映完了"
+      : "検索反映待ち") +
+  " · " +
+  (!data.status.semantic_configured
+    ? "意味検索未設定"
+    : data.status.semantic_ready
+      ? "意味検索反映完了"
+      : data.status.error_code
+        ? "意味検索反映失敗"
+        : "意味検索反映待ち");
+/** True once the index state can no longer change by itself. */
+const indexSettled = (data: Document) =>
+  data.status.search === "failed" ||
+  (data.status.fts_ready &&
+    (!data.status.semantic_configured ||
+      data.status.semantic_ready ||
+      !!data.status.error_code));
 function target() {
   const query = new URLSearchParams(location.search);
   if (query.get("draft_id")) return { draft_id: query.get("draft_id") };
@@ -91,12 +135,16 @@ export function Editor() {
     [mode, setMode] = useState<"rich" | "source">("rich"),
     [generation, setGeneration] = useState(0),
     [savedSource, setSavedSource] = useState<Document | null>(null),
-    [backup, setBackup] = useState("");
+    [backup, setBackup] = useState(""),
+    [expired, setExpired] = useState(false);
   const pending = useRef<{
     name: string;
     arguments: Record<string, unknown>;
   } | null>(null);
   const writing = useRef(false);
+  const bodyRef = useRef(body);
+  const dirtyRef = useRef(false);
+  bodyRef.current = body;
   const call = useCallback(
     (name: string, args: Record<string, unknown>) =>
       request(`/editor/session/${session}/tools`, { name, arguments: args }),
@@ -184,19 +232,12 @@ export function Editor() {
       void request(`/editor/session/${session}`).catch((e) => {
         if (!stopped) {
           setError("接続が失効しました。再接続が必要です: " + String(e));
-          if (
-            e instanceof RequestError &&
-            [401, 403, 404, 410].includes(e.status)
-          ) {
-            setDraft(null);
-            setBody("");
-            setTitle("");
-            setStatus("");
-            setScope(null);
-            setDocuments([]);
-            setBackup("");
-            setSavedSource(null);
-            pending.current = null;
+          if (e instanceof RequestError && SESSION_LOST.includes(e.status)) {
+            // Never discard what the user typed: keep it on screen (read-only)
+            // and in the copy/download area until they reconnect.
+            setExpired(true);
+            if (dirtyRef.current)
+              setBackup((previous) => previous || bodyRef.current);
           }
         }
       });
@@ -208,7 +249,18 @@ export function Editor() {
   }, [session, call, showDraft]);
   const dirty =
     !!draft && (body !== draft.body || title !== draft.metadata.title);
-  const working = busy || preparing;
+  dirtyRef.current = dirty;
+  const working = busy || preparing || expired;
+  const unsaved = dirty || !!backup;
+  useEffect(() => {
+    if (!unsaved) return;
+    const before = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", before);
+    return () => window.removeEventListener("beforeunload", before);
+  }, [unsaved]);
   const awaitingCommit = pending.current?.name === "commit_document_draft";
   const write = useCallback(
     async (name: string, args: Record<string, unknown>, retry = false) => {
@@ -309,40 +361,39 @@ export function Editor() {
     }
   };
   const savedSourceId = savedSource?.source_id;
+  const savedRevision = savedSource?.source_revision;
   useEffect(() => {
-    if (!savedSourceId || !session) return;
+    if (!savedSourceId || !session || expired) return;
     let stopped = false;
-    const timer = setInterval(() => {
-      void call("get_document", { source_id: savedSourceId })
-        .then((data) => {
-          if (stopped) return;
-          setSavedSource(data);
-          setStatus(
-            "保存版確定済み · " +
-              (data.status.search === "failed"
-                ? "全文検索反映失敗"
-                : data.status.fts_ready
-                  ? "全文検索反映完了"
-                  : "検索反映待ち") +
-              " · " +
-              (!data.status.semantic_configured
-                ? "意味検索未設定"
-                : data.status.semantic_ready
-                  ? "意味検索反映完了"
-                  : data.status.error_code
-                    ? "意味検索反映失敗"
-                    : "意味検索反映待ち"),
-          );
-        })
-        .catch((e) => {
-          if (!stopped) setError(String(e));
-        });
-    }, 2000);
+    let timer: ReturnType<typeof setTimeout>;
+    // One request at a time: the next one is scheduled only after the previous
+    // answer, stops once indexing has settled and skips hidden tabs.
+    const tick = async () => {
+      if (stopped) return;
+      if (document.hidden) {
+        timer = setTimeout(() => void tick(), POLL_MS);
+        return;
+      }
+      try {
+        const data = await call("get_document", { source_id: savedSourceId });
+        if (stopped) return;
+        setSavedSource(data);
+        setStatus(savedState(data));
+        if (indexSettled(data)) return;
+      } catch (e) {
+        if (stopped) return;
+        setError(String(e));
+        if (e instanceof RequestError && SESSION_LOST.includes(e.status))
+          return;
+      }
+      timer = setTimeout(() => void tick(), POLL_MS);
+    };
+    timer = setTimeout(() => void tick(), POLL_MS);
     return () => {
       stopped = true;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
-  }, [savedSourceId, session, call]);
+  }, [savedSourceId, savedRevision, session, expired, call]);
   const refresh = async () => {
     if (!draft) return;
     try {
@@ -352,6 +403,24 @@ export function Editor() {
     } catch (e) {
       setError(String(e));
     }
+  };
+  const copyBackup = async () => {
+    try {
+      await navigator.clipboard.writeText(backup);
+      setStatus("退避した入力をコピーしました");
+    } catch {
+      setStatus("コピーできませんでした。退避した入力を手動で選択してください");
+    }
+  };
+  const downloadBackup = () => {
+    const url = URL.createObjectURL(
+      new Blob([backup], { type: "text/markdown;charset=utf-8" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${title.trim().replace(/[\\/:*?"<>|]/g, "_") || "backup"}.md`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
   const attach = async (file: File) => {
     if (!draft) return;
@@ -474,6 +543,12 @@ export function Editor() {
         {status}
         {dirty ? " · 未保存の変更あり" : ""}
       </p>
+      {expired && (
+        <p role="alert">
+          接続が失効したため、編集内容は保存されていません。画面の内容は読み取り専用で保持しています。
+          下の「退避した入力」からコピーまたは保存してから、再接続してください。
+        </p>
+      )}
       {error && (
         <aside role="alert">
           <p>{error}</p>
@@ -613,10 +688,19 @@ export function Editor() {
         <details open>
           <summary>退避した入力</summary>
           <textarea aria-label="退避した入力" value={backup} readOnly />
+          <p>
+            <button onClick={() => void copyBackup()}>コピー</button>
+            <button onClick={downloadBackup}>Markdownとして保存</button>
+          </p>
         </details>
       )}
     </main>
   );
 }
 const root = document.getElementById("root");
-if (root) createRoot(root).render(<Editor />);
+if (root)
+  createRoot(root).render(
+    <AppErrorBoundary>
+      <Editor />
+    </AppErrorBoundary>,
+  );

@@ -83,7 +83,7 @@ python3.12 scripts/setup.py
 
 `scripts/setup.py` は仮想環境、固定した依存関係、画面のビルド、モデル取得、診断を順に実行します。`python3.12 scripts/setup.py --plan` で、変更せずに手順を確認できます。既存の `.env` は読み込まず、途中の失敗では停止します。`--skip-models` は開発用で、導入完了にはなりません。
 
-`download_models` が初回のモデル取得で、インターネット接続が必要です（取得後の抽出はローカルで動作します）。`operations.models` が `models match manifest` を表示すれば準備完了です。http://127.0.0.1:8765 で開けます。仮想環境を有効にしなくても、各コマンドは同じPython環境を使用します。
+`download_models` が初回のモデル取得で、インターネット接続が必要です（取得後の抽出はローカルで動作します）。`operations.models` が `models match manifest` を表示すれば準備完了です。http://127.0.0.1:28765 で開けます。仮想環境を有効にしなくても、各コマンドは同じPython環境を使用します。
 
 ### Linux（Docker）
 
@@ -95,12 +95,12 @@ cd docling-desktop
 docker compose up -d --build --wait
 ```
 
-モデルはイメージのビルド時に取得するため、初回のビルドだけインターネット接続が必要です。起動後の抽出はモデルを取得しません。http://127.0.0.1:18765 で開けます。Linuxの原本プレビューはLibreOffice、OCRはTesseractで、いずれもイメージに含まれます。[Docker手順](docs/linux-docker.md)に動作確認と設定があります。
+モデルはイメージのビルド時に取得するため、初回のビルドだけインターネット接続が必要です。起動後の抽出はモデルを取得しません。http://127.0.0.1:28765 で開けます。Linuxの原本プレビューはLibreOffice、OCRはTesseractで、いずれもイメージに含まれます。[Docker手順](docs/linux-docker.md)に動作確認と設定があります。
 
 ### 起動後の確認と機能ごとの診断
 
 ```sh
-curl --fail http://127.0.0.1:8765/health/ready   # Dockerは18765
+curl --fail http://127.0.0.1:28765/health/ready
 .venv/bin/python -m docling_desk --diagnose       # Dockerは docker compose exec docling python -m docling_desk --diagnose
 ```
 
@@ -113,7 +113,8 @@ curl --fail http://127.0.0.1:8765/health/ready   # Dockerは18765
 ```sh
 git pull
 git submodule update --init --recursive
-.venv/bin/python -m pip install -r requirements-lock.txt
+.venv/bin/python -m pip install --no-deps --require-hashes -r requirements-torch.txt
+.venv/bin/python -m pip install --require-hashes -r requirements-lock.txt
 .venv/bin/python -m pip install --no-deps ./docling ./packages/docling-azure-ocr
 .venv/bin/python -m pip install --no-deps --no-build-isolation -e .
 corepack pnpm@10.24.0 --dir frontend install --frozen-lockfile
@@ -123,7 +124,7 @@ corepack pnpm@10.24.0 --dir frontend export:static
 ./run.sh
 ```
 
-`operations.models` が `models match manifest` 以外を表示したときだけ、`download_models` を実行してから再確認します。torchの版が変わった場合は、導入手順のtorch行を先に実行してください。
+`operations.models` が `models match manifest` 以外を表示したときだけ、`download_models` を実行してから再確認します。依存関係はハッシュで固定しており、`--require-hashes` で取得物を検証します。
 
 設定は `.env.example` を参考に、プロジェクト直下の `.env` に記入します。環境変数が優先され、ファイル内容をシェルとして実行しません。`./run.sh --port 8876` でポートを変更できます。macOSの原本プレビューはQuick Lookを使用し、PowerPointのPDF書き出しにはMicrosoft PowerPointが必要です。TeXの組版にはTectonicが必要です。
 
@@ -162,7 +163,7 @@ draw.ioは編集画面を開かず、図だけを表示します。圧縮形式�
 
 ## 機能と運用
 
-最大50 MiB、変換待ちは実行中を含め3件です。ページ数の固定上限は設けず、必要な場合は `DOCLING_MAX_PAGES` で変換・プレビュー共通の上限を指定できます。保存先の空き容量が2 GiB未満なら取り込みを拒否します。資料の削除は原本・成果物・実行状態・サムネイルの物理削除です。Wikiの削除は記事と索引を無効化し、公開済み本文と削除状態を復旧用に保持します。
+最大50 MiB、変換待ちは実行中を含め3件です。ページ数は既定で2000ページまでで、`DOCLING_MAX_PAGES` で変換・プレビュー共通の上限を変更できます。保存先の空き容量が2 GiB未満なら取り込みを拒否します。資料の削除は原本・成果物・実行状態・サムネイルの物理削除です。Wikiの削除は記事と索引を無効化し、公開済み本文と削除状態を復旧用に保持します。
 
 - [バックアップ・復元・診断](docs/operations.md)
 - [Wiki・本文検索](docs/wiki.md)

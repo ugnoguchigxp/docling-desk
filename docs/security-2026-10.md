@@ -132,3 +132,12 @@ Homebrewは当初依存先の一括更新も提案したため、適用前にそ
 ## 追跡検証（2026-10-22）
 
 ブラウザー失敗7件と型診断の追跡は[続報](security-followup-2026-10.md)を参照。最終ブラウザーは94件すべて成功。今回増えた型診断2件を解消し、既存1,652件は依頼範囲に従って切り分けた。上記の87成功・7失敗および型診断1,654件は初回調査時点の記録である。Bun内蔵CAや本番反映等の残作業は継続する。
+
+## 依存の脆弱性とハッシュ固定（2026-10-24）
+
+- Pythonの `requirements-lock.txt` と新しい `requirements-torch.txt` を、PyPIとPyTorch CPU indexのsha256で固定した。導入・Docker・CIは `--require-hashes` で検証する。macOS arm64で全117件をハッシュ照合付きで取得できることを確認した。
+- pip-audit 2.10.1で、filelock 4.2.1、opentelemetry-api 1.45.1、setuptools 84.1.0へ更新した。
+- pillow 12.3.0の既知の脆弱性37件は、doclingの一括更新で解消した。doclingサブモジュールをv2.142.1（`498c1b6`）、docling-slim 2.142.1、docling-core 2.104.0、docling-parse 7.22.4、docling-ibm-models 4.0.4、doclang 0.8.0、pillow 13.0.0へ更新し、PowerPoint変換に必要になったpylatexenc 2.11を追加した。pip-auditは0件で、CIは除外なしで監査する。
+- knowledge-apiは hono 4.13.13、zod 4.6.7へ更新した（bun auditで0件）。zod更新に伴うOpenAPIの差分は `anyOf` の表記と `format` 注記だけで、契約の意味は同じ。
+- frontendはpnpm overridesで、`@excalidraw/excalidraw` を0.18.1に統一し、配下のmermaid・dompurify・nanoid・lodash-esと、js-yaml・viteを修正版にした。配信物（`--prod`）の残りはKaTeXのlow 2件（0.18.2で修正、Plateの互換確認が必要）。開発時だけ使うjsdom配下のundiciのhighは、修正版の公開後日数が浅いため見送った。
+- CIはActionをcommit SHAで固定し、bun audit・pnpm audit（`--prod`、high以上）・pip-audit・`ruff format --check` を追加した。

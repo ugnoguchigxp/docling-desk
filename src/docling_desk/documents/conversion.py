@@ -17,6 +17,7 @@ from typing import Literal
 from uuid import uuid4
 from zipfile import BadZipFile, ZipFile
 
+import pypdfium2 as pdfium
 from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
 from docling.datamodel.backend_options import MarkdownBackendOptions
 from docling.datamodel.base_models import ConversionStatus, InputFormat
@@ -26,6 +27,7 @@ from docling.datamodel.pipeline_options import (
     TesseractCliOcrOptions,
 )
 from docling.document_converter import DocumentConverter, MarkdownFormatOption, PdfFormatOption
+from docling.utils.locks import pypdfium2_lock
 from docling_azure_ocr.config import OcrError, OcrProfile
 from docling_azure_ocr.options import AzureReadOcrOptions
 from docling_azure_ocr.runtime import OcrRuntime
@@ -69,6 +71,7 @@ from docling_desk.preview.editable_preview import (
 )
 from docling_desk.preview.hashing import digest
 from docling_desk.preview.office_linux import office_html
+from docling_desk.preview.pdfium_access import open_pdf
 from docling_desk.preview.powerpoint_export import export_powerpoint
 from docling_desk.preview.slides import export_slide_layout
 from docling_desk.storage import (
@@ -189,6 +192,32 @@ def save_job(folder: Path, job: Job) -> None:
     atomic_write_bytes(target, job.model_dump_json(indent=2).encode("utf-8"), create_parent=False)
 
 
+MAX_ZIP_ENTRY = 100 * 1024**2
+# Small entries may compress extremely well (a sparse sheet); the ratio only
+# matters once an entry is large enough to hurt.
+ZIP_RATIO_FLOOR = 10 * 1024**2
+MAX_ZIP_RATIO = 200
+
+
+def _check_pdf_pages(path: Path) -> None:
+    """Refuse a PDF over ``MAX_PAGES`` before it is queued; reads no page.
+
+    A PDF PDFium cannot open at all is left to the conversion, which reports it
+    exactly as before.
+    """
+    try:
+        with pypdfium2_lock:
+            document = open_pdf(path)
+            try:
+                pages = len(document)
+            finally:
+                document.close()
+    except (ValueError, pdfium.PdfiumError):
+        return
+    if pages > MAX_PAGES:
+        raise ValueError(f"ページ数が上限（{MAX_PAGES}ページ）を超えています（{pages}ページ）。")
+
+
 def validate_input(path: Path) -> None:
     if path.suffix.lower() not in SUPPORTED_SUFFIXES:
         raise ValueError(f"{SUPPORTED_LABEL}のみ対応しています。")
@@ -202,12 +231,23 @@ def validate_input(path: Path) -> None:
             header = stream.read(1024)
         if not header.lstrip().startswith(b"%PDF-"):
             raise ValueError("PDFヘッダーが見つかりません。")
+        _check_pdf_pages(path)
         return
     try:
         with ZipFile(path) as archive:
             entries = archive.infolist()
             if len(entries) > 10000 or sum(x.file_size for x in entries) > 250 * 1024**2:
                 raise ValueError("Office展開サイズの上限250 MiBまたは10000エントリを超えています。")
+            for entry in entries:
+                if entry.file_size > MAX_ZIP_ENTRY:
+                    raise ValueError("Office内の1ファイルの展開サイズが上限100 MiBを超えています。")
+                if (
+                    entry.file_size >= ZIP_RATIO_FLOOR
+                    and entry.file_size > max(entry.compress_size, 1) * MAX_ZIP_RATIO
+                ):
+                    raise ValueError(
+                        "Office内のファイルの圧縮率が異常に高く、ZIP爆弾の疑いがあります。"
+                    )
             names = archive.namelist()
             expected = {
                 ".pptx": "ppt/presentation.xml",
@@ -420,6 +460,34 @@ def convert_job(folder: Path, job: Job, *, ocr_runtime: OcrRuntime | None = None
         # The activity ends last, once the result is published or discarded.
         shutil.rmtree(work, ignore_errors=True)
         entry.end()
+
+
+def fail_job_last_resort(folder: Path, job: Job, exc: BaseException) -> bool:
+    """Best effort: leave a failed job.json when ``convert_job`` itself raised.
+
+    ``_publish`` falls back to saving a failed job, and that save can fail again
+    (for example ENOSPC), which would leave job.json at ``running`` until the next
+    restart and make the document undeletable. This runs after ``convert_job`` has
+    cleaned up its work directory, so the space it held is free again. The saved
+    state is re-read first: a job that already reached a final state is never
+    overwritten. Never raises; True when a failed job.json was written.
+    """
+    try:
+        LOGGER.error("Conversion of %s ended unexpectedly: %r", job.id, exc, exc_info=exc)
+        data = data_root(folder)
+        with exclusive_write(data, "convert"):
+            if read_job(folder).state not in {"queued", "running"}:
+                return False
+            job.state = "failed"
+            job.error = job.error or f"変換処理が異常終了しました: {exc}"
+            save_job(folder, job)
+            activity.attempt_record(data, folder.name).unlink(missing_ok=True)
+            return True
+    except Exception:
+        LOGGER.exception(
+            "The failure of %s could not be recorded; job.json may stay running", job.id
+        )
+        return False
 
 
 def _file_sha256(path: Path) -> str:

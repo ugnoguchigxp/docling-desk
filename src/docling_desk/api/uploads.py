@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import BinaryIO
 from uuid import uuid4
 
 from docling_azure_ocr.config import api_key
@@ -11,7 +12,13 @@ from starlette.concurrency import run_in_threadpool
 
 from docling_desk import config
 from docling_desk.config import MAX_BYTES, MIN_FREE
-from docling_desk.documents.conversion import Job, convert_job, save_job, validate_input
+from docling_desk.documents.conversion import (
+    Job,
+    convert_job,
+    fail_job_last_resort,
+    save_job,
+    validate_input,
+)
 from docling_desk.documents.diagram_store import SUFFIX as EXCALIDRAW_SUFFIX
 from docling_desk.documents.diagram_store import import_scene
 from docling_desk.documents.diagrams import (
@@ -46,7 +53,42 @@ router = APIRouter()
 
 def run_job(folder: Path, job: Job) -> None:
     # The slot is owned by the lease it was submitted with; it returns when this ends.
-    convert_job(folder, job)
+    # Nobody reads the Future, so anything escaping convert_job (a failed fallback
+    # save in _publish, for example) is recorded here instead of leaving the job running.
+    try:
+        convert_job(folder, job)
+    except Exception as exc:
+        fail_job_last_resort(folder, job, exc)
+
+
+def _check_destination(folder_id: str | None) -> None:
+    with LOCK:
+        destination_exists(load_library(config.DATA), folder_id)
+
+
+def _open_for_write(path: Path) -> BinaryIO:
+    return path.open("wb")
+
+
+def _write_chunk(stream: BinaryIO, chunk: bytes) -> None:
+    stream.write(chunk)
+
+
+async def _receive(file: UploadFile, source: Path) -> None:
+    """Copy the upload to ``source`` with every blocking file call off the event loop."""
+    total = 0
+    stream = await run_in_threadpool(_open_for_write, source)
+    try:
+        while chunk := await file.read(1024 * 1024):
+            total += len(chunk)
+            if total > MAX_BYTES:
+                raise HTTPException(413, "上限50 MiBを超えています。")
+            await run_in_threadpool(_write_chunk, stream, chunk)
+    finally:
+        # Synchronous on purpose: it must also run when the request is cancelled
+        # (an await here would be cancelled again), and an unbuffered 1 MiB write
+        # leaves nothing noticeable to flush.
+        stream.close()
 
 
 def publish_upload(
@@ -92,8 +134,9 @@ async def upload(
     ocr_provider: str | None = Form(default=None),
 ) -> Job:
     folder_id = folder_id or None
-    with LOCK:
-        destination_exists(load_library(config.DATA), folder_id)
+    # LOCK is a threading lock that library operations hold across copytree/rmtree;
+    # taking it on the event loop would freeze every request, /health/live included.
+    await run_in_threadpool(_check_destination, folder_id)
     filename = Path((file.filename or "").replace("\\", "/")).name
     suffix = Path(filename).suffix.lower()
     is_excalidraw = suffix == EXCALIDRAW_SUFFIX
@@ -111,7 +154,7 @@ async def upload(
         raise HTTPException(
             422, "OCR設定が無効です。Azureの送信許可と認証設定を確認してください。"
         ) from None
-    if shutil.disk_usage(config.DATA).free < MIN_FREE:
+    if (await run_in_threadpool(shutil.disk_usage, config.DATA)).free < MIN_FREE:
         raise HTTPException(507, "空き容量が2 GiB未満です。処理を開始しません。")
     worker = getattr(request.app.state, "worker", None)
     slots = getattr(request.app.state, "slots", None)
@@ -129,13 +172,7 @@ async def upload(
     try:
         with TemporaryDirectory(prefix="docling-upload-") as staging:
             source = Path(staging) / ("original" + suffix)
-            total = 0
-            with source.open("wb") as stream:
-                while chunk := await file.read(1024 * 1024):
-                    total += len(chunk)
-                    if total > MAX_BYTES:
-                        raise HTTPException(413, "上限50 MiBを超えています。")
-                    stream.write(chunk)
+            await _receive(file, source)
             if is_excalidraw:
                 raw = await run_in_threadpool(source.read_bytes)
                 return await run_in_threadpool(import_scene, config.DATA, filename, folder_id, raw)

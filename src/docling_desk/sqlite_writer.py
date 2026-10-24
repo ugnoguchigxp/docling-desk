@@ -304,11 +304,32 @@ def _session(sock, writer_lock):
                         raise sqlite3.ProgrammingError("Unsupported Writer operation")
                 except sqlite3.Error as exc:
                     result = {"error": type(exc).__name__, "message": str(exc)}
+                except Exception as exc:
+                    # OverflowError (an integer SQLite cannot bind), TypeError (an
+                    # unsupported parameter) and the like must not end the session
+                    # thread silently: answer them as the client's ProgrammingError.
+                    result = {
+                        "error": "ProgrammingError",
+                        "message": f"{type(exc).__name__}: {exc}",
+                    }
                 finally:
                     if held and (db is None or not db.in_transaction):
                         writer_lock.release()
                         held = False
-                stream.write((json.dumps(result) + "\n").encode())
+                try:
+                    payload = (json.dumps(result) + "\n").encode()
+                except (TypeError, ValueError) as exc:
+                    # e.g. a BLOB column: the statement ran, but its rows cannot be sent.
+                    payload = (
+                        json.dumps(
+                            {
+                                "error": "ProgrammingError",
+                                "message": f"結果をWriterから返せません: {type(exc).__name__}: {exc}",
+                            }
+                        )
+                        + "\n"
+                    ).encode()
+                stream.write(payload)
                 stream.flush()
     except (OSError, ValueError):
         pass

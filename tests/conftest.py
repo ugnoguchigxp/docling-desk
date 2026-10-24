@@ -9,6 +9,12 @@ from pathlib import Path
 import pytest
 
 os.environ.setdefault("DOCLING_ALLOWED_HOSTS", "localhost,127.0.0.1,testserver")
+# TestClient's "testserver" Host is not loopback; tests opt into each auth mode themselves.
+os.environ.setdefault("DOCLING_AUTH_ALLOW_INSECURE", "1")
+# A developer shell may export the shared LARM credential, which would enable auth.
+os.environ.pop("LARM_API_TOKEN", None)
+os.environ.pop("LARM_CONTROL_TOKEN", None)
+os.environ.pop("DOCLING_AUTH_MODE", None)
 
 from docling_desk.translation.provider import Profile, TranslationError
 

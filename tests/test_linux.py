@@ -98,7 +98,7 @@ def test_linux_office_failure_is_reported(tmp_path, monkeypatch, failure):
             raise subprocess.TimeoutExpired(args[0], 150)
         return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr(office_linux.subprocess, "run", run)
+    monkeypatch.setattr(office_linux, "run_in_group", run)
     with pytest.raises(RuntimeError):
         office_linux.convert_office(tmp_path / "original.docx", tmp_path / "out", "html")
 

@@ -5,7 +5,7 @@
 ## 構成
 
 ```text
-ブラウザー ── https://example.com/assessment/ ──▶ nginx ──▶ 127.0.0.1:18765（このアプリ）
+ブラウザー ── https://example.com/assessment/ ──▶ nginx ──▶ 127.0.0.1:28765（このアプリ）
                          └── https://example.com/ ──▶ 別アプリ
 ```
 
@@ -18,7 +18,7 @@ nginxは接頭辞を取り除いて転送します。アプリ側のルートは
 | `DOCLING_ROOT_PATH` | プロキシの接頭辞。`/assessment` のように先頭だけ `/` を付ける。未設定なら従来どおりルート直下 |
 | `DOCLING_ALLOWED_HOSTS` | 公開FQDNを追加する |
 | `DOCLING_ALLOWED_ORIGINS` | `https://公開FQDN` を指定する。nginxは `Host` を書き換えず転送する |
-| `DOCLING_AUTH_MODE` | `none`（既定）または `jwt` |
+| `DOCLING_AUTH_MODE` | `none`・`jwt`・`larm`。未指定なら、`LARM_API_TOKEN` があれば `larm`、なければ `none`（[LARM連携の認証](operations.md#larm連携の認証)） |
 | `DOCLING_AUTH_JWT_SECRET` / `DOCLING_AUTH_JWT_SECRET_FILE` | `jwt` で必須。ホストアプリがトークンの署名に使う共有シークレット（32バイト以上）。ファイル指定を推奨 |
 | `DOCLING_AUTH_COOKIE` | トークンを読むCookie名。既定 `mplm_access_token` |
 | `DOCLING_AUTH_TOKEN_TYPE` | `type` クレームの期待値。既定 `access`。空にすると検査しない |
@@ -46,7 +46,7 @@ Cookieはホスト単位で送られるため、ホストアプリと同じホ�
 
 ```nginx
 location /assessment/ {
-    proxy_pass http://127.0.0.1:18765/;      # 末尾の / で接頭辞を取り除く
+    proxy_pass http://127.0.0.1:28765/;      # 末尾の / で接頭辞を取り除く
     proxy_set_header Host $host;             # Originの照合に使う
     proxy_set_header X-Forwarded-Proto https;
     client_max_body_size 55m;                # 上限50 MiB＋余裕
@@ -78,7 +78,7 @@ limit_req_zone $docling_asset_key zone=docling_assets:10m rate=50r/s;
 location /docling/ {
     limit_req zone=docling_api burst=20 nodelay;
     limit_req zone=docling_assets burst=100 nodelay;
-    proxy_pass http://127.0.0.1:18765/;
+    proxy_pass http://127.0.0.1:28765/;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto https;
     client_max_body_size 55m;

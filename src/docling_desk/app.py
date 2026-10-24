@@ -6,7 +6,6 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from docling_desk import activity, config
 from docling_desk.api import (
@@ -20,7 +19,7 @@ from docling_desk.api import (
     translation,
     uploads,
 )
-from docling_desk.blob_mirror import MirrorWorker, create_mirror
+from docling_desk.blob_mirror import RESTORE_MARKER, MirrorWorker, create_mirror
 from docling_desk.documents.conversion import read_job, save_job
 from docling_desk.documents.diagram_store import repair_diagrams
 from docling_desk.execution import SlotPool
@@ -32,10 +31,11 @@ from docling_desk.storage import document_folders, migrate_layout
 from docling_desk.translation.service import TranslationManager
 from docling_desk.translation.store import interrupt_pending
 from docling_desk.web.auth import authenticate
+from docling_desk.web.auth import router as auth_router
 from docling_desk.web.body import BodyLimit
 from docling_desk.web.frontend import router as frontend_router
 from docling_desk.web.rootpath import prefix_urls
-from docling_desk.web.security import local_only
+from docling_desk.web.security import HostCheck, local_only
 
 
 @asynccontextmanager
@@ -53,17 +53,30 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if mirror is not None:
             # A new or rebuilt host starts empty: restore from the container first.
             if mirror.restore_incomplete() or not mirror.has_local_content():
-                restored = mirror.pull()
-                if restored.errors:
-                    # Served read-only data is better than nothing, but not silently:
-                    # /health/ready stays 503 and the worker keeps resuming the restore.
-                    logging.getLogger("docling_desk.blob").error(
-                        "restore incomplete: %s", restored.errors[:3]
-                    )
+                blob_log = logging.getLogger("docling_desk.blob")
+                try:
+                    restored = mirror.pull()
+                except Exception:
+                    # Azure unreachable or the listing failed: start degraded rather
+                    # than not at all. The marker keeps /health/ready at 503 and the
+                    # worker resumes the restore; make sure it exists even if pull()
+                    # failed before writing it.
+                    blob_log.exception("restore failed; starting without the blob restore")
+                    try:
+                        marker = config.DATA / "runtime" / RESTORE_MARKER
+                        marker.parent.mkdir(parents=True, exist_ok=True)
+                        marker.touch()
+                    except OSError:
+                        blob_log.exception("restore marker could not be written")
+                else:
+                    if restored.errors:
+                        # Served read-only data is better than nothing, but not silently:
+                        # /health/ready stays 503 and the worker keeps resuming the restore.
+                        blob_log.error("restore incomplete: %s", restored.errors[:3])
             app.state.blob_mirror = mirror
             app.state.blob_worker = MirrorWorker(mirror, config.BLOB_INTERVAL)
         with exclusive_write(config.DATA, "migration"):
-            migrate_layout(config.DATA)
+            app.state.migration_skipped = migrate_layout(config.DATA)
             repair_diagrams(config.DATA)
         interrupt_pending(config.DATA)
         explanation_recover(config.DATA)
@@ -107,13 +120,14 @@ def create_app() -> FastAPI:
     application = FastAPI(title="Docling Desk", lifespan=lifespan)
     application.include_router(frontend_router)
     application.include_router(knowledge_router(lambda: config.DATA))
-    application.add_middleware(TrustedHostMiddleware, allowed_hosts=config.ALLOWED_HOSTS)
+    application.add_middleware(HostCheck, allowed_hosts=config.ALLOWED_HOSTS)
     application.add_middleware(BodyLimit, limit=config.MAX_BYTES + 1024 * 1024)
     application.middleware("http")(prefix_urls)
     application.middleware("http")(local_only)
     # Registered last so it runs first: nothing is served before the login check.
     application.middleware("http")(authenticate)
     application.include_router(health.router)
+    application.include_router(auth_router)
     application.include_router(library.router)
     application.include_router(media.router)
     application.include_router(uploads.router)

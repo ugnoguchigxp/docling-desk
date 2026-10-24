@@ -7,7 +7,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Node.js 22.12以降（検証環境: 24.11.1）、pnpm 10.24.0を使う。開発画面は127.0.0.1:5173、FastAPIは127.0.0.1:8765。API・文書・既存CSSはHostを保つプロキシで取得し、Origin制限を維持する。Viteはポートが使用中なら停止する。
+Node.js 22.12以降（検証環境: 24.11.1）、pnpm 10.24.0を使う。開発画面は127.0.0.1:5173、FastAPIは127.0.0.1:28765。API・文書・既存CSSはHostを保つプロキシで取得し、Origin制限を維持する。Viteはポートが使用中なら停止する。
 
 ```sh
 pnpm typecheck
@@ -24,7 +24,7 @@ pnpm test:visual
 
 `build` はdistへ出力し、`export:static` が配信用ディレクトリだけを更新する。新資産を先に配置してから入口HTMLを置換し、表示中の画面が遅延取得できるよう古いハッシュ付き資産を保持する。配布ライセンスは `static/frontend/licenses.txt` に出力する。表のコードは初めて表タブを開くときに読み込む。文書内のHTML・CSS・フォント・SVG・画像はViteの処理対象にしない。
 
-ブラウザー検証は8876の専用サーバーと `.cache/frontend-migration-data-8876/` を自動起動する。開発プロキシ検証は8877/5187と専用コピーを使う。8765の通常サーバーを停止しない。翻訳・解説・アップロードの検証は固定応答を使い、LLMへ送信しない。
+ブラウザー検証は8876の専用サーバーと `.cache/frontend-migration-data-8876/` を自動起動する。開発プロキシ検証は8877/5187と専用コピーを使う。28765の通常サーバーを停止しない。翻訳・解説・アップロードの検証は固定応答を使い、LLMへ送信しない。
 
 初回の検証用原本は `.cache/frontend-migration-source/data/` に固定する。存在しない環境では `pnpm visual:prepare` が保存資料から初回コピーを作る。`visual:baseline` は旧画面を2回撮って再現性を確認する。`test:visual` は同じ旧画面と `/ui/` の画像・矩形・文字の行位置・描画方式・資産ハッシュを比較し、証拠を `../qa/frontend-migration/layout/` へ保存する。移行後の画像で旧画面の基準を上書きしない。
 

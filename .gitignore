@@ -42,6 +42,7 @@ knowledge-api/node_modules/
 
 # Editable OCR package build metadata
 packages/docling-azure-ocr/src/*.egg-info/
+packages/docling-azure-ocr/build/
 
 # Local Wiki, retrieval tasks and embedding cache
 /data/knowledge/

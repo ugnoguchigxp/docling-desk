@@ -5,14 +5,35 @@ from urllib.parse import urlparse
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, Response
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.types import Receive, Scope, Send
 
 from docling_desk import config
+
+# The app's own pages may be framed only by the app itself (clickjacking).
+SAME_ORIGIN_FRAMES = "frame-ancestors 'self'"
+
+
+class HostCheck(TrustedHostMiddleware):
+    """TrustedHostMiddleware, except for a caller that proved the LARM credential.
+
+    The Host allow-list stops DNS rebinding, which works only through a browser;
+    a browser cannot attach the Bearer, so a gateway may forward any Host it uses.
+    """
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope.get("state", {}).get("service_bearer"):
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
 
 
 async def local_only(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
-    if request.method in {"POST", "PATCH", "PUT", "DELETE"}:
+    # A Bearer is attached by the caller, never by a browser on its own: no CSRF.
+    bearer = getattr(request.state, "service_bearer", False)
+    if request.method in {"POST", "PATCH", "PUT", "DELETE"} and not bearer:
         origin = request.headers.get("origin")
         if origin:
             parsed = urlparse(origin)
@@ -86,8 +107,9 @@ async def local_only(
             "default-src 'none'; script-src 'none'; img-src 'self' data:; "
             "style-src 'self' 'unsafe-inline'; font-src 'self' data:; "
             "object-src 'none'; base-uri 'none'; form-action 'none'; "
-            "sandbox allow-same-origin allow-modals"
+            "sandbox allow-same-origin allow-modals; " + SAME_ORIGIN_FRAMES
         )
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
     elif request.url.path.startswith("/files/"):
         response.headers["Content-Security-Policy"] = (
             "default-src 'none'; frame-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; sandbox"
@@ -98,10 +120,16 @@ async def local_only(
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; "
             "font-src 'self' data:; style-src 'self'; script-src 'self'; "
-            "frame-src 'self' https:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"
+            "frame-src 'self' https:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; "
+            + SAME_ORIGIN_FRAMES
         )
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
     else:
+        # Document viewers below /view/ and /files/ keep their sandbox instead: their
+        # nested frames have an opaque-origin parent that 'self' would never match.
         response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"
+            "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; "
+            + SAME_ORIGIN_FRAMES
         )
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
     return response

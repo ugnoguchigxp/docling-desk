@@ -19,7 +19,7 @@ def health_live() -> dict[str, str]:
 
 
 @router.get("/health/ready")
-def health_ready() -> JSONResponse:
+def health_ready(request: Request) -> JSONResponse:
     reasons: list[str] = []
     try:
         if not (config.RESOURCES / "static/frontend/index.html").is_file():
@@ -39,6 +39,9 @@ def health_ready() -> JSONResponse:
     body: dict[str, object] = {"status": "ready" if ready else "unavailable"}
     if reasons:
         body["reasons"] = reasons
+    # Not a readiness failure: the other documents work. Operators still need to know.
+    if skipped := getattr(request.app.state, "migration_skipped", None):
+        body["warnings"] = [f"migration_skipped:{len(skipped)}"]
     return JSONResponse(body, status_code=200 if ready else 503)
 
 

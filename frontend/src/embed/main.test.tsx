@@ -124,8 +124,15 @@ beforeEach(() => {
       (ms === 1000 || ms === 2000) && String(fn).includes("poll") ? 0 : ms;
     return realSetTimeout(fn as () => void, delay, ...(args as []));
   }) as unknown as typeof setTimeout);
-  vi.spyOn(window, "postMessage").mockImplementation((data) => {
-    posted.push(data);
+  // Framed by a same-origin wrapper: host messages are addressed to it.
+  vi.stubGlobal("parent", {
+    postMessage: (data: unknown) => {
+      posted.push(data);
+    },
+  });
+  Object.defineProperty(document, "referrer", {
+    configurable: true,
+    value: location.origin + "/chat",
   });
   vi.stubGlobal(
     "ResizeObserver",

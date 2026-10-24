@@ -102,13 +102,9 @@
                             "maximum": 9007199254740991
                           },
                           "name": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           }
                         },
@@ -139,13 +135,9 @@
                             "maximum": 9007199254740991
                           },
                           "parent": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           },
                           "pages": {
@@ -157,13 +149,9 @@
                             }
                           },
                           "heading": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           }
                         },
@@ -486,13 +474,9 @@
                             "maximum": 9007199254740991
                           },
                           "parent": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           },
                           "pages": {
@@ -504,13 +488,9 @@
                             }
                           },
                           "heading": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           },
                           "text": {
@@ -1470,13 +1450,9 @@
                                 ]
                               },
                               "error_code": {
-                                "anyOf": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
+                                "type": [
+                                  "string",
+                                  "null"
                                 ]
                               }
                             },
@@ -1505,13 +1481,9 @@
                       }
                     },
                     "next_offset": {
-                      "anyOf": [
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "number",
+                        "null"
                       ]
                     }
                   },
@@ -1874,13 +1846,9 @@
                           ]
                         },
                         "error_code": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "string",
+                            "null"
                           ]
                         }
                       },
@@ -2130,13 +2098,9 @@
                           ]
                         },
                         "error_code": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "string",
+                            "null"
                           ]
                         }
                       },
@@ -2413,13 +2377,9 @@
                           ]
                         },
                         "error_code": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "string",
+                            "null"
                           ]
                         }
                       },
@@ -3083,13 +3043,9 @@
                       }
                     },
                     "next_offset": {
-                      "anyOf": [
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "number",
+                        "null"
                       ]
                     }
                   },
@@ -4217,13 +4173,9 @@
                           ]
                         },
                         "error_code": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "string",
+                            "null"
                           ]
                         }
                       },
@@ -5358,13 +5310,9 @@
                           "type": "string"
                         },
                         "indexed_at": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "string",
+                            "null"
                           ]
                         }
                       },
@@ -5451,6 +5399,7 @@
                           },
                           "source_url": {
                             "type": "string",
+                            "format": "starts_with",
                             "pattern": "^\\/api\\/v1\\/sources\\/.*"
                           }
                         },
@@ -5823,13 +5772,9 @@
                             "maxLength": 2000000
                           },
                           "parent_id": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           },
                           "source_sha256": {
@@ -6102,23 +6047,15 @@
                           "type": "string"
                         },
                         "project_id": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "string",
+                            "null"
                           ]
                         },
                         "region": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "string",
+                            "null"
                           ]
                         }
                       },
@@ -6851,13 +6788,9 @@
                       "type": "string"
                     },
                     "error_code": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "created_at": {
@@ -7189,13 +7122,9 @@
                       ]
                     },
                     "error_code": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "result": {

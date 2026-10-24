@@ -5,10 +5,29 @@ from __future__ import annotations
 from pathlib import Path
 
 from docling_core.types.doc import DoclingDocument, TableItem
-from pydantic import BaseModel
+from fastapi import HTTPException
+from pydantic import BaseModel, ValidationError
 
 from docling_desk.documents.pagination import sheet_names
 from docling_desk.documents.text import DOCUMENT_SUFFIXES
+
+TOO_LARGE = "document_too_large"
+
+
+def load_bounded(path: Path, detail: str = TOO_LARGE) -> DoclingDocument:
+    """Load a saved document; tables beyond docling-core's cell limit become 413.
+
+    docling-core refuses tables over DOCLINGCORE_MAX_TABLE_CELLS (1,000,000 by default)
+    at validation, before any grid is built. Documents saved by an older release may
+    hold such a table; they stay on disk but cannot be opened. Other invalid data
+    still raises, so a broken file is not mistaken for a large one.
+    """
+    try:
+        return DoclingDocument.load_from_json(path)
+    except ValidationError as error:
+        if any("exceeds the limit" in str(item.get("msg", "")) for item in error.errors()):
+            raise HTTPException(413, detail) from error
+        raise
 
 
 class TableView(BaseModel):

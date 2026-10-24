@@ -21,7 +21,7 @@ python3.12 scripts/setup.py
 
 `download_models` が初回のモデル取得で、インターネット接続が必要です。モデルはmanifestのrevisionを確認してから公開ディレクトリへ切り替えます。取得に失敗した途中ディレクトリは起動対象になりません。`.venv/bin/python -m docling_desk.operations.models` が `models match manifest` を出すまで、画面の `/health/ready` は `unavailable` です。理由は `missing:`、`revision:`、`incomplete:`、`unverified:`、`interrupted:`、`recover:`、`disk_space`、`frontend_missing` のいずれかです。`incomplete:` は必須の重み・設定・索引の欠落、空ファイル、設定の破損を区別します。`unverified:` はファイル名が揃っていても、更新時のヘッダ確認が済んでいない状態です。health確認は重み全体を読み直しません。差し替えの途中で止まった場合は `.venv/bin/python -m docling_desk.operations.models recover` が、manifestと一致する完了済みディレクトリだけを戻します。一致しなければ手順を表示し、`.previous` は確認前に消しません。
 
-ローカル画面は `./run.sh` で http://127.0.0.1:8765 だけを開きます。`./run.sh --port 8876` でポートを変更できます。設定は `.env.example` を参考にプロジェクト直下の `.env` に記入します。外部ナレッジAPIは別の保存領域 `.knowledge-api` を使います。資格情報は本文のバックアップに入れません。
+ローカル画面は `./run.sh` で http://127.0.0.1:28765 だけを開きます。`./run.sh --port 8876` でポートを変更できます。設定は `.env.example` を参考にプロジェクト直下の `.env` に記入します。外部ナレッジAPIは別の保存領域 `.knowledge-api` を使います。資格情報は本文のバックアップに入れません。
 
 ### Linux（Docker）
 
@@ -33,9 +33,28 @@ cd docling-desktop
 docker compose up -d --build --wait
 ```
 
-初回のモデル取得はイメージのビルド中に行われ、ビルド時だけインターネット接続が必要です（`Dockerfile` のmodelsステージが `download_models` を実行します）。実行時はモデルを取得しません。http://127.0.0.1:18765 で開けます。既存のcheckoutでサブモジュールが空なら、先に `git submodule update --init --recursive` を実行します。起動後の確認、設定、ボリューム、Azureへの持ち込みは[Linux・Docker手順](linux-docker.md)にあります。
+初回のモデル取得はイメージのビルド中に行われ、ビルド時だけインターネット接続が必要です（`Dockerfile` のmodelsステージが `download_models` を実行します）。実行時はモデルを取得しません。http://127.0.0.1:28765 で開けます。既存のcheckoutでサブモジュールが空なら、先に `git submodule update --init --recursive` を実行します。起動後の確認、設定、ボリューム、Azureへの持ち込みは[Linux・Docker手順](linux-docker.md)にあります。
 
 以下の `data/` は開発環境の例です。保存先を変更している場合は、実際の `DOCLING_DATA_DIR` に置き換えてください。内部は `content/`・`derived/`・`runtime/`・`cache/` に分かれます。[保存構成と旧配置の移行](content-storage.md)を参照してください。
+
+## LARM連携の認証
+
+`LARM_API_TOKEN`（空なら`LARM_CONTROL_TOKEN`）が環境にあり、`DOCLING_AUTH_MODE`が未指定なら、起動時に自動で`larm`認証になります。ほかの設定は不要です。トークンは24文字以上が必要で、短いと起動しません。値はログ・診断・応答に出しません。
+
+| 利用者 | 認証 |
+| --- | --- |
+| Eumenes等のbackend | `Authorization: Bearer <LARM_API_TOKEN>`。この要求に限りHost・Origin検査を通し、`X-Forwarded-Prefix`（例 `/apps/docling`）を配信パスの接頭辞として使う |
+| 端末から起動したブラウザー | 起動時に表示される「ブラウザーで開く」のURL（10分以内・1回限り）を開く。以後はセッションCookieで、最後の利用から14日まで再ログイン不要 |
+| backendが案内するブラウザー | backendがBearer付き `POST /auth/ui-tickets` で得た `url`（60秒・1回限り）を開く |
+
+- セッションの署名鍵は `runtime/keys/session.key`（0600）に自動生成します。トークンを変えると、既存のブラウザーセッションはすべて無効になります。
+- Cookieで来た更新要求にはOriginが必要です。Bearerの要求は検査しません（ブラウザーはBearerを付けられないため）。
+- トークンがあるまま認証を使わない場合は `DOCLING_AUTH_MODE=none` を明示します。起動時に警告を出します。
+- Bearerで中継する経路（Eumenesが `/apps/docling` などで中継し、各要求にBearerを付ける）は、Host・Originの追加設定が不要です。ブラウザーがCookieで直接、別のHostやhttpsの入口から開く場合は、その入口を `DOCLING_ALLOWED_HOSTS` と `DOCLING_ALLOWED_ORIGINS`（`https://入口`）に加えます。発行時の接頭辞はセッションに記録され、Cookieの `Path` もその接頭辞になります。
+- セッションCookieは `Secure`・`SameSite=None` です。http://127.0.0.1 ではChrome・Firefoxが受け付けます。SafariはhttpのSecure Cookieを保存しないため、ループバックのhttpでは使えません。
+- 認証なしでループバック以外のHostを `DOCLING_ALLOWED_HOSTS` に入れる構成と、`--host 0.0.0.0` のようにループバック以外で待ち受ける構成は、起動を拒否します。意図した公開であれば `DOCLING_AUTH_ALLOW_INSECURE=1` を指定します。Dockerイメージは `DOCLING_CONTAINER=1` を持ち、コンテナ内では全インターフェースで待ち受けます（Composeはホストの127.0.0.1だけに公開します）。
+- 旧配置からの移行で残した資料があると、`/health/ready` の `warnings` に `migration_skipped:<件数>` を出します。
+- 画面とAPIの応答は `frame-ancestors 'self'` で、同じorigin以外からの埋め込みを拒否します。Eumenesへの埋め込みは、同じoriginへ中継して行います。
 
 ## 診断
 
@@ -101,7 +120,39 @@ docker compose up -d --build --wait
 
 `.env`、`credentials.json`、拡張子 `.pem` と `.key`、区切ったファイル名が `api-key`、`apikey`、`secret`、`credential`、`password` であるもの、SQLiteの `-wal` と `-shm` は含めません。`keyboard.txt` のような通常の資料名は残します。取り込み済みの `content/wiki/revisions/` のMarkdown・CSVは、`password.md` などの記事名でも本文として保存します。
 
+終了コードは、0が成功、1が入力・検証の誤り、2が `status` で書き込み中、3がSQLite・Writer・ファイル操作の失敗です。ブラウザーセッションの署名鍵（`runtime/keys/session.key`）は含めません。復元後は新しい鍵が作られ、ブラウザーは開き直すだけです。
+
+### Docker
+
+コンテナ内の保存先は `/var/lib/docling/data` です。コンテナ内へ取得してからホストへ取り出します。
+
+```sh
+docker compose exec -T docling python -m docling_desk.operations.backup status --data /var/lib/docling/data
+docker compose exec -T docling python -m docling_desk.operations.backup backup --data /var/lib/docling/data --output /tmp/docling-backup
+docker compose cp docling:/tmp/docling-backup ./docling-backup-$(date +%Y%m%d)
+docker compose exec -T docling rm -rf /tmp/docling-backup
+```
+
+復元先のボリュームは空である必要があります。新しいホスト、または別のComposeプロジェクト名（空の `docling-data` ボリューム）で、サービスを起動する前に実行します。
+
+```sh
+docker compose -p docling-restore run --rm --no-deps \
+  -v "$PWD/docling-backup-YYYYMMDD:/backup:ro" docling \
+  python -m docling_desk.operations.backup restore --archive /backup --destination /var/lib/docling/data
+docker compose -p docling-restore up -d --wait
+```
+
+既存のボリュームを消してから戻す場合は、取り出したバックアップを別の場所で復元できることを確かめてからにしてください。
+
 復元先は空である必要があります。途中で失敗した復元先は空に戻します。復元はファイルを戻すだけで、OCRやembeddingを再送しません。復元後は原本、文書、親RAG、子RAG、Wiki本文が同じ世代であり、削除済み資料は検索に戻りません。旧配置のバックアップも復元でき、次の起動時に新配置へ移行します。
+
+## 入力の上限と起動時の縮退
+
+- PDFは既定で2000ページまでです。`DOCLING_MAX_PAGES` で変更できます。超えるとアップロードを422で拒否します。Officeの変換にも同じ上限が適用されます。
+- 表は1つ100万セル、1文書の合計500万セルまでです（docling-coreの `DOCLINGCORE_MAX_TABLE_CELLS`・`DOCLINGCORE_MAX_TOTAL_TABLE_CELLS`）。それを超える表は変換できません。旧版で保存した資料に超過した表がある場合、表・HTML・本文取得は413（`document_too_large`）を返します。原本とほかの資料は使えます。
+- Office文書（ZIP）は、展開後の合計250 MiB、1ファイル100 MiBまでです。10 MiB以上のファイルは圧縮率200倍までです。
+- Azure Blobからの復元に失敗しても起動は続けます。`/health/ready` は503（`blob_restore_incomplete`）のままで、バックグラウンドで復元を再開します。
+- 旧配置からの移行で問題のある資料は、その資料だけを残して移行を続けます。ログは `Layout migration skipped document <id>` で、次の起動で再試行します。資料のデータは削除も上書きもしません。
 
 ## 容量
 
@@ -137,7 +188,7 @@ macOS（ソース）：
 
 1. サーバーを停止し、バックアップを取得する。
 2. `git pull` と `git submodule update --init --recursive` で新しいソースを取得する。
-3. 導入手順のうち `pip install -r requirements-lock.txt` 以降のコマンドとfrontendのビルドを再実行する。torchの版が変わった場合は、導入手順のtorch行を先に実行する。
+3. 導入手順のうち `pip install --no-deps --require-hashes -r requirements-torch.txt` 以降のコマンドとfrontendのビルドを再実行する。
 4. `.venv/bin/python -m docling_desk.operations.models` を実行する。`models match manifest` 以外のとき、またはmanifestのrevisionが変わったときだけ `.venv/bin/python -m docling_desk.operations.download_models` を実行し、失敗した場合は直前のモデルディレクトリが残ることを確認する。途中でプロセスが落ちたときは `.venv/bin/python -m docling_desk.operations.models recover` を実行する。
 5. `.venv/bin/python -m docling_desk.operations.models` と `.venv/bin/python -m docling_desk.operations.verify` が成功してから `./run.sh` で起動する。
 6. 戻すときは、その時点のソースとmanifestに対応するモデルrevisionへ再度取得する。半端なモデルディレクトリのまま起動しません。旧revisionをmanifestと違うまま有効にはしません。

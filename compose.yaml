@@ -1,16 +1,25 @@
 services:
   docling:
-    image: docling-desk:linux
+    image: docling-desk:${DOCLING_IMAGE_TAG:-linux}
     build: .
     init: true
     ports:
-      - "127.0.0.1:${DOCLING_PORT:-18765}:8765"
+      - "127.0.0.1:${DOCLING_PORT:-28765}:28765"
     environment:
       DOCLING_ALLOWED_HOSTS: "${DOCLING_ALLOWED_HOSTS:-localhost,127.0.0.1}"
       DOCLING_ALLOWED_ORIGINS: "${DOCLING_ALLOWED_ORIGINS:-}"
       DOCLING_ROOT_PATH: "${DOCLING_ROOT_PATH:-}"
-      DOCLING_AUTH_MODE: "${DOCLING_AUTH_MODE:-none}"
+      # Empty: the LARM credential, when given, enables its login; otherwise none.
+      DOCLING_AUTH_MODE: "${DOCLING_AUTH_MODE:-}"
+      LARM_API_TOKEN: "${LARM_API_TOKEN:-}"
+      LARM_CONTROL_TOKEN: "${LARM_CONTROL_TOKEN:-}"
+      DOCLING_AUTH_JWT_SECRET: "${DOCLING_AUTH_JWT_SECRET:-}"
       DOCLING_AUTH_JWT_SECRET_FILE: "${DOCLING_AUTH_JWT_SECRET_FILE:-}"
+      DOCLING_AUTH_ISSUER: "${DOCLING_AUTH_ISSUER:-}"
+      DOCLING_AUTH_AUDIENCE: "${DOCLING_AUTH_AUDIENCE:-}"
+      DOCLING_AUTH_TOKEN_TYPE: "${DOCLING_AUTH_TOKEN_TYPE:-access}"
+      DOCLING_AUTH_USER_CLAIM: "${DOCLING_AUTH_USER_CLAIM:-userId}"
+      DOCLING_AUTH_LEEWAY_SECONDS: "${DOCLING_AUTH_LEEWAY_SECONDS:-30}"
       DOCLING_AUTH_LOGIN_URL: "${DOCLING_AUTH_LOGIN_URL:-}"
       DOCLING_AUTH_RETURN_PARAM: "${DOCLING_AUTH_RETURN_PARAM:-next}"
       DOCLING_AUTH_RETURN_FORMAT: "${DOCLING_AUTH_RETURN_FORMAT:-url}"
@@ -34,11 +43,26 @@ services:
       DOCLING_AZURE_OCR_CLIENT_ID: "${DOCLING_AZURE_OCR_CLIENT_ID:-}"
       AZURE_DOCUMENT_INTELLIGENCE_API_KEY: "${AZURE_DOCUMENT_INTELLIGENCE_API_KEY:-}"
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      DOCLING_AZURE_EMBEDDING_ENDPOINT: "${DOCLING_AZURE_EMBEDDING_ENDPOINT:-}"
+      DOCLING_AZURE_EMBEDDING_KEY: "${DOCLING_AZURE_EMBEDDING_KEY:-}"
+      DOCLING_AZURE_EMBEDDING_DEPLOYMENT: "${DOCLING_AZURE_EMBEDDING_DEPLOYMENT:-}"
+      DOCLING_AZURE_EMBEDDING_MODEL_VERSION: "${DOCLING_AZURE_EMBEDDING_MODEL_VERSION:-}"
+      DOCLING_AZURE_EMBEDDING_DIMENSIONS: "${DOCLING_AZURE_EMBEDDING_DIMENSIONS:-}"
+      DOCLING_EXPLANATION_WEB: "${DOCLING_EXPLANATION_WEB:-duckduckgo}"
+      BRAVE_SEARCH_API_KEY: "${BRAVE_SEARCH_API_KEY:-}"
+      DOCLING_MAX_PAGES: "${DOCLING_MAX_PAGES:-2000}"
     volumes:
       - docling-data:/var/lib/docling/data
     restart: unless-stopped
     stop_grace_period: 30s
     shm_size: 256mb
+    # The app runs as UID 10001 and needs no Linux capability or privilege change.
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # One large document must not exhaust the host; raise these for big batches.
+    mem_limit: "${DOCLING_MEMORY_LIMIT:-8g}"
+    cpus: "${DOCLING_CPUS:-4}"
+    pids_limit: 512
 
 volumes:
   docling-data:

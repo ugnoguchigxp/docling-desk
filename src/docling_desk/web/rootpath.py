@@ -45,7 +45,7 @@ async def prefix_urls(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
     response = await call_next(request)
-    root = config.ROOT_PATH
+    root = config.root()
     kind = response.headers.get("content-type", "").split(";")[0].strip().lower()
     if (
         not root

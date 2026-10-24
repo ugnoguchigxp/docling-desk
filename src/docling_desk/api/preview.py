@@ -3,7 +3,6 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from docling_core.types.doc import DoclingDocument
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, Response
 
@@ -12,7 +11,7 @@ from docling_desk.api.dependencies import job_detail, job_folder, json_job
 from docling_desk.api.translation import translated_html, translation_folder
 from docling_desk.documents.conversion import Job
 from docling_desk.documents.diagrams import read_diagram
-from docling_desk.documents.tables import TableView, project_tables
+from docling_desk.documents.tables import TableView, load_bounded, project_tables
 from docling_desk.documents.text import TEX_SUFFIXES, TEXT_DOCUMENT_SUFFIXES
 from docling_desk.preview.diagrams import diagram_html
 from docling_desk.preview.document_frames import interactive_html
@@ -141,7 +140,7 @@ def extracted_view(job_id: str) -> HTMLResponse:
     job = job_detail(job_id)
     if job.state not in {"success", "partial"} or not (folder / "document.json").is_file():
         raise HTTPException(409, "抽出完了後にHTMLを閲覧できます。")
-    doc = DoclingDocument.load_from_json(folder / "document.json")
+    doc = load_bounded(folder / "document.json", "表が大きすぎるためHTMLで表示できません。")
     return HTMLResponse(viewer_html(doc, job.filename, job.id))
 
 
@@ -242,4 +241,4 @@ def job_tables(job_id: str) -> list[TableView]:
     job = Job.model_validate_json((job_file(folder)).read_text())
     if job.state not in {"success", "partial"} or not (folder / "document.json").is_file():
         raise HTTPException(409, "抽出完了後に表を操作できます。")
-    return project_tables(DoclingDocument.load_from_json(folder / "document.json"), job.filename)
+    return project_tables(load_bounded(folder / "document.json"), job.filename)

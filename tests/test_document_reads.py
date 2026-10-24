@@ -174,7 +174,26 @@ def test_table_windows_preserve_merged_cells_csv_and_continuations(tmp_path):
     assert read(tmp_path, "tables", offset=1)["tables"] == []
 
 
-def test_large_sparse_table_reads_allocate_only_requested_rectangle(tmp_path):
+def raise_table_limits(monkeypatch):
+    # docling-core caps tables at 1,000,000 cells; these tests exercise our own windowing.
+    from docling_core.utils.settings import settings
+
+    monkeypatch.setattr(settings, "max_table_cells", 10**10)
+    monkeypatch.setattr(settings, "max_total_table_cells", 10**10)
+
+
+def test_tables_beyond_the_docling_limit_are_refused_without_loading(tmp_path):
+    artifact(tmp_path)
+    doc = json.loads((tmp_path / "document.json").read_text())
+    doc["tables"][0]["data"].update(num_rows=1001, num_cols=1000)
+    (tmp_path / "document.json").write_text(json.dumps(doc))
+    with pytest.raises(HTTPException) as error:
+        read(tmp_path, "tables")
+    assert error.value.status_code == 413 and error.value.detail == "document_too_large"
+
+
+def test_large_sparse_table_reads_allocate_only_requested_rectangle(tmp_path, monkeypatch):
+    raise_table_limits(monkeypatch)
     artifact(tmp_path)
     doc = json.loads((tmp_path / "document.json").read_text())
     doc["tables"][0]["data"].update(num_rows=100000, num_cols=100000)
@@ -276,6 +295,7 @@ def test_docling_title_is_a_level_zero_section_boundary(tmp_path):
 def test_section_rejects_large_table_before_materializing_grid(tmp_path, monkeypatch):
     from docling_core.types.doc import TableItem
 
+    raise_table_limits(monkeypatch)
     artifact(tmp_path)
     path = tmp_path / "document.json"
     data = json.loads(path.read_text())

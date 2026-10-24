@@ -126,6 +126,7 @@ class FakeEmbedding implements EmbeddingProvider {
     return texts.map((t) => (/在庫|stock/i.test(t) ? [1, 0] : [0, 1]));
   }
 }
+const OTHER_SCOPE = { collection_id: "assessment", project_id: "p2", region: "US" };
 const fixtures: { root: string; store: Store }[] = [];
 async function fixture(
   options: {
@@ -788,7 +789,7 @@ describe("review ingestion and provider boundaries", () => {
     const saved = await f.upload("replay", {}, undefined, { "idempotency-key": key });
     expect(saved.status).toBe(202);
     await f.upload("second");
-    await f.upload("third");
+    await f.upload("third", OTHER_SCOPE, undefined, {}, other);
     const replay = await f.upload("replay", {}, undefined, { "idempotency-key": key });
     expect(replay.status).toBe(202);
     expect(((await replay.json()) as { source_id: string }).source_id).toBe(
@@ -1628,5 +1629,98 @@ describe("bounded versioned document reads", () => {
     const unavailable = await f.req(route, "POST", f.ref);
     expect(unavailable.status).toBe(409);
     expect((await unavailable.json()).error.code).toBe("document_read_not_ready");
+  });
+});
+
+describe("pre-production hardening", () => {
+  const answer: AnswerProvider = {
+    async generate(_q, e) {
+      return { answer: "回答", citation_ids: [e[0]?.evidence_id ?? ""], unknowns: [] };
+    },
+  };
+  test("one client cannot take the whole extraction queue and starve others", async () => {
+    const f = await fixture();
+    expect((await f.upload("a1")).status).toBe(202);
+    expect((await f.upload("a2")).status).toBe(202);
+    const refused = await f.upload("a3");
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get("retry-after")).toBe("60");
+    expect(((await refused.json()) as { error: { code: string } }).error.code).toBe("queue_full");
+    expect((await f.upload("b1", OTHER_SCOPE, undefined, {}, other)).status).toBe(202);
+    // The global limit still applies to everyone.
+    expect((await f.upload("b2", OTHER_SCOPE, undefined, {}, other)).status).toBe(429);
+  });
+  test("one client cannot take the whole answer queue and starve others", async () => {
+    const f = await fixture({ answer });
+    await f.ready();
+    const ask = (c: Client, scope: unknown) =>
+      f.req("/api/v1/answers", "POST", { query: "在庫", scope }, c);
+    const mine = { collection_ids: ["wiki"] };
+    expect((await ask(client, mine)).status).toBe(202);
+    expect((await ask(client, mine)).status).toBe(202);
+    const refused = await ask(client, mine);
+    expect(refused.status).toBe(429);
+    expect(((await refused.json()) as { error: { code: string } }).error.code).toBe(
+      "answer_queue_full",
+    );
+    const theirs = { collection_ids: ["assessment"], project_id: "p2", region: "US" };
+    expect((await ask(other, theirs)).status).toBe(202);
+    expect((await ask(other, theirs)).status).toBe(429);
+  });
+  test("prune removes expired terminal answer jobs with their query and grants", async () => {
+    const f = await fixture({ answer });
+    await f.ready();
+    const accepted = await f.req("/api/v1/answers", "POST", {
+      query: "秘密の質問",
+      scope: { collection_ids: ["wiki"] },
+    });
+    const { answer_id } = (await accepted.json()) as { answer_id: string };
+    f.store.prune();
+    expect(f.store.job(answer_id)).toBeDefined(); // queued: still needed
+    await f.worker.tick();
+    expect(f.store.job(answer_id)?.state).toBe("completed");
+    f.store.prune();
+    expect(f.store.job(answer_id)).toBeDefined(); // not yet expired
+    f.store.db.run("UPDATE answers SET expires=? WHERE id=?", [Date.now() - 1, answer_id]);
+    f.store.prune();
+    expect(f.store.job(answer_id)).toBeNull();
+    expect(
+      f.store.db.query("SELECT count(*) n FROM jobs WHERE payload LIKE '%秘密の質問%'").get(),
+    ).toEqual({ n: 0 });
+  });
+  test("unexpected exceptions are logged with the request id but not exposed", async () => {
+    const f = await fixture({
+      searchGate: async () => {
+        throw new Error("database exploded");
+      },
+    });
+    const logged: unknown[][] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => {
+      logged.push(args);
+    };
+    let response: Response;
+    try {
+      response = await f.app.request("/api/v1/search?token=hidden", {
+        method: "POST",
+        headers: { ...headers(), "content-type": "application/json" },
+        body: JSON.stringify({ query: "在庫", mode: "text", scope: { collection_ids: ["wiki"] } }),
+      });
+    } finally {
+      console.error = original;
+    }
+    expect(response.status).toBe(500);
+    const payload = (await response.json()) as {
+      request_id: string;
+      error: { code: string; message: string };
+    };
+    expect(payload.error.code).toBe("internal_error");
+    expect(JSON.stringify(payload)).not.toContain("exploded");
+    expect(logged).toHaveLength(1);
+    const line = String(logged[0]?.[0]);
+    expect(line).toContain(payload.request_id);
+    expect(line).toContain("database exploded");
+    expect(line).not.toContain("hidden");
+    expect(line).not.toContain(client.token);
   });
 });

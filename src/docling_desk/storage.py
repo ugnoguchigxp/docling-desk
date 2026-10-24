@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import shutil
 from pathlib import Path
 
@@ -16,6 +17,8 @@ from docling_desk import activity
 from docling_desk.atomic_files import atomic_write_bytes
 from docling_desk.blob_mirror import notify
 from docling_desk.sqlite_writer import connect
+
+LOGGER = logging.getLogger(__name__)
 
 
 def safe_path(data: Path, path: Path) -> bool:
@@ -247,9 +250,44 @@ def migrate_database(source: Path, target: Path) -> None:
     marker.unlink(missing_ok=True)
 
 
-def migrate_layout(data: Path) -> None:
-    """Run at startup, under the shared write lock and before starting workers."""
+def _migrate_document(data: Path, folder: Path) -> None:
+    """Move one document into the current layout. Raises for this document only."""
     from docling_desk.documents.conversion import read_job
+
+    if (folder / "job.json").is_file():
+        _move(folder / "job.json", job_file(folder))
+    record = read_job(folder)
+    if record.error_code == "metadata_corrupt":
+        return
+    job = record.model_dump()
+    # The database snapshot goes first: it is the step most likely to fail on a
+    # damaged document, and failing before any original moves leaves the rest as it was.
+    migrate_database(folder / "explanations" / "index.sqlite", explanation_database(folder))
+    for source in folder.glob("original.*"):
+        target = data / "content" / "documents" / folder.name / source.name
+        _move(source, target)
+    if not (folder / "manifest.json").exists():
+        record_artifacts(folder, job)
+    source = original_file(folder, Path(job["filename"]).suffix.lower())
+    if source.is_file() and not (source.parent / "manifest.json").exists():
+        record_original(folder, job["filename"], job["created"])
+
+
+def migrate_layout(data: Path) -> list[str]:
+    """Run at startup, under the shared write lock and before starting workers.
+
+    One damaged document (an ID present in both the old and the new location, an
+    original whose bytes differ from the migrated copy, a broken explanation
+    database, ...) must not stop the others: it is logged and skipped, nothing of
+    it is deleted or overwritten, and the next startup tries it again. Returns the
+    IDs of the documents that were skipped, in the order they were met.
+    """
+    skipped: list[str] = []
+
+    def skip(identifier: str) -> None:
+        LOGGER.exception("Layout migration skipped document %s; its data was kept", identifier)
+        if identifier not in skipped:
+            skipped.append(identifier)
 
     for name in ("content", "derived", "runtime"):
         if not safe_path(data, data / name):
@@ -259,30 +297,25 @@ def migrate_layout(data: Path) -> None:
         _move(data / "library.json", data / "content" / "manifests" / "library.json")
     for old in data.glob("*/job.json"):
         folder = old.parent
-        if folder.is_symlink():
-            raise ValueError("資料の保存先が不正です。")
-        target = document_root(data) / folder.name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if target.exists():
-            raise ValueError("新旧の保存領域に同じ資料IDがあります。")
-        folder.replace(target)
+        try:
+            if folder.is_symlink():
+                raise ValueError("資料の保存先が不正です。")
+            target = document_root(data) / folder.name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if target.exists():
+                raise ValueError("新旧の保存領域に同じ資料IDがあります。")
+            folder.replace(target)
+        except Exception:
+            skip(folder.name)
     for folder in document_folders(data):
-        if (folder / "job.json").is_file():
-            _move(folder / "job.json", job_file(folder))
-        record = read_job(folder)
-        if record.error_code == "metadata_corrupt":
+        if folder.name in skipped:
             continue
-        job = record.model_dump()
-        for source in folder.glob("original.*"):
-            target = data / "content" / "documents" / folder.name / source.name
-            _move(source, target)
-        migrate_database(folder / "explanations" / "index.sqlite", explanation_database(folder))
-        if not (folder / "manifest.json").exists():
-            record_artifacts(folder, job)
-        source = original_file(folder, Path(job["filename"]).suffix.lower())
-        if source.is_file() and not (source.parent / "manifest.json").exists():
-            record_original(folder, job["filename"], job["created"])
+        try:
+            _migrate_document(data, folder)
+        except Exception:
+            skip(folder.name)
     migrate_database(data / "knowledge" / "local.sqlite", knowledge_database(data))
     # Conversions that died leave a work directory, an attempt record and possibly
     # artifacts of an unpublished document. Live ones are recognised by their lock.
     activity.clear_stale(data)
+    return skipped

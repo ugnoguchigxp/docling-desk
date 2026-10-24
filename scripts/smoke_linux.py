@@ -111,7 +111,7 @@ def check(base: str, samples: Path) -> list[dict]:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base-url", default="http://127.0.0.1:8765")
+    parser.add_argument("--base-url", default="http://127.0.0.1:28765")
     parser.add_argument("--samples", type=Path, required=True)
     arguments = parser.parse_args()
     check(arguments.base_url.rstrip("/"), arguments.samples)

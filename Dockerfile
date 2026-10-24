@@ -42,10 +42,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr tesseract-ocr-jpn tesseract-ocr-eng \
     fonts-noto-cjk fonts-liberation libglib2.0-0 libgomp1 \
     && rm -rf /var/lib/apt/lists/*
-COPY requirements-lock.txt ./
-RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
-    torch==2.14.1 torchvision==0.29.1 \
-    && pip install --no-cache-dir -r requirements-lock.txt
+COPY requirements-torch.txt requirements-lock.txt ./
+RUN pip install --no-cache-dir --no-deps --require-hashes -r requirements-torch.txt \
+    && pip install --no-cache-dir --require-hashes -r requirements-lock.txt
 COPY docling/ /opt/docling-source/
 RUN pip install --no-cache-dir --no-deps /opt/docling-source
 COPY packages/docling-azure-ocr/ /opt/docling-azure-ocr/
@@ -62,7 +61,9 @@ RUN groupadd --gid 10001 docling && useradd --uid 10001 --gid 10001 --create-hom
     && mkdir -p /var/lib/docling/data /var/lib/docling/cache \
     && chown -R docling:docling /var/lib/docling /home/docling
 USER 10001:10001
-EXPOSE 8765
+EXPOSE 28765
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health/ready', timeout=4)"
-CMD ["python", "-m", "docling_desk", "--host", "0.0.0.0", "--port", "8765"]
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:28765/health/ready', timeout=4)"
+# Listens on all interfaces inside the container; Compose publishes 127.0.0.1 only.
+ENV DOCLING_CONTAINER=1
+CMD ["python", "-m", "docling_desk", "--host", "0.0.0.0", "--port", "28765"]

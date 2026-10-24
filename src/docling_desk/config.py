@@ -2,7 +2,7 @@
 
 import os
 import re
-import sys
+from contextvars import ContextVar
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -55,14 +55,32 @@ def _root_path() -> str:
 
 
 ROOT_PATH = _root_path()
+# Set per request from X-Forwarded-Prefix, only for a caller holding the LARM credential.
+REQUEST_ROOT: ContextVar[str | None] = ContextVar("docling_request_root", default=None)
+
+
+def root() -> str:
+    """The prefix this request is served below: the forwarded one, else DOCLING_ROOT_PATH."""
+    forwarded = REQUEST_ROOT.get()
+    return ROOT_PATH if forwarded is None else forwarded
 
 
 def url(path: str) -> str:
     """Public URL of an app path when served below a reverse-proxy prefix."""
-    return ROOT_PATH + path if path.startswith("/") else path
+    return root() + path if path.startswith("/") else path
 
 
-AUTH_MODE = os.environ.get("DOCLING_AUTH_MODE", "none").strip().lower()
+# The shared LARM credential, resolved in the same order as Eumenes' resolveLarmToken.
+LARM_TOKEN = (
+    os.environ.get("LARM_API_TOKEN", "").strip() or os.environ.get("LARM_CONTROL_TOKEN", "").strip()
+)
+MIN_LARM_TOKEN = 24
+# Unset means: the LARM credential, when present, is the login; otherwise none.
+AUTH_MODE_EXPLICIT = bool(os.environ.get("DOCLING_AUTH_MODE", "").strip())
+AUTH_MODE = os.environ.get("DOCLING_AUTH_MODE", "").strip().lower() or (
+    "larm" if LARM_TOKEN else "none"
+)
+AUTH_ALLOW_INSECURE = os.environ.get("DOCLING_AUTH_ALLOW_INSECURE", "").strip() == "1"
 AUTH_COOKIE = os.environ.get("DOCLING_AUTH_COOKIE", "mplm_access_token").strip()
 # This app's own copy of the verified token; empty disables it. See web/auth.py.
 AUTH_SESSION_COOKIE = os.environ.get("DOCLING_AUTH_SESSION_COOKIE", "docling_session").strip()
@@ -90,8 +108,22 @@ def _auth_secret() -> bytes:
 
 
 AUTH_JWT_SECRET = _auth_secret()
-if AUTH_MODE not in {"none", "jwt"}:
-    raise RuntimeError("DOCLING_AUTH_MODEは none か jwt を指定してください。")
+if AUTH_MODE not in {"none", "jwt", "larm"}:
+    raise RuntimeError("DOCLING_AUTH_MODEは none・jwt・larm のいずれかを指定してください。")
+if AUTH_MODE == "larm" and len(LARM_TOKEN) < MIN_LARM_TOKEN:
+    raise RuntimeError(
+        f"DOCLING_AUTH_MODE=larm には{MIN_LARM_TOKEN}文字以上の LARM_API_TOKEN"
+        "（または LARM_CONTROL_TOKEN）が必要です。"
+    )
+LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1", "[::1]"}
+if AUTH_MODE == "none" and not AUTH_ALLOW_INSECURE:
+    exposed = [host for host in ALLOWED_HOSTS if host.lower() not in LOOPBACK_HOSTS]
+    if exposed:
+        raise RuntimeError(
+            "認証なし（DOCLING_AUTH_MODE=none）ではループバック以外のHostを許可できません: "
+            + ", ".join(exposed)
+            + "。認証を設定するか、DOCLING_AUTH_ALLOW_INSECURE=1 で明示的に許可してください。"
+        )
 if AUTH_MODE == "jwt" and len(AUTH_JWT_SECRET) < 32:
     raise RuntimeError(
         "DOCLING_AUTH_MODE=jwt には32バイト以上の DOCLING_AUTH_JWT_SECRET"
@@ -123,7 +155,11 @@ if STORAGE_BACKEND == "azure-blob":
         )
 MAX_BYTES = 50 * 1024 * 1024
 MIN_FREE = 2 * 1024**3
-MAX_PAGES = int(os.environ.get("DOCLING_MAX_PAGES", str(sys.maxsize)))
+# Pages per document (PDF, and what Docling counts for Office files). A scan of a
+# whole book can exhaust memory and the 3-slot queue, so the default is bounded;
+# raise it with DOCLING_MAX_PAGES when larger documents are expected.
+DEFAULT_MAX_PAGES = 2000
+MAX_PAGES = int(os.environ.get("DOCLING_MAX_PAGES", str(DEFAULT_MAX_PAGES)))
 if MAX_PAGES < 1:
     raise ValueError("DOCLING_MAX_PAGES は1以上にしてください。")
 for name, value in {

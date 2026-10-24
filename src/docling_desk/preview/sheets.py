@@ -6,9 +6,9 @@ import html as escape_html
 import json
 import re
 from pathlib import Path, PurePosixPath
-from xml.etree import ElementTree as etree
 from zipfile import ZipFile
 
+from defusedxml import ElementTree as etree
 from lxml import html
 
 from docling_desk.storage import original_file

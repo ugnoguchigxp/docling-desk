@@ -12,7 +12,6 @@ from typing import Literal
 from docling_core.types.doc import (
     DocItem,
     DocItemLabel,
-    DoclingDocument,
     SectionHeaderItem,
     TableItem,
     TextItem,
@@ -23,7 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from docling_desk.documents.conversion import Job
 from docling_desk.documents.pagination import sheet_names
-from docling_desk.documents.tables import table_header_rows, table_rows
+from docling_desk.documents.tables import load_bounded, table_header_rows, table_rows
 from docling_desk.preview.pdf_view import render_pdf_page
 from docling_desk.preview.thumbnails import encode_thumbnail, thumbnail
 from docling_desk.storage import job_file, original_file
@@ -102,7 +101,7 @@ def read_document(folder: Path, options: ReadOptions) -> dict:
 
     if (folder / "document.json").is_symlink():
         raise HTTPException(409, "document_read_not_ready")
-    doc = DoclingDocument.load_from_json(folder / "document.json")
+    doc = load_bounded(folder / "document.json")
     entries, items = [], []
     for item, level in doc.iterate_items():
         if not isinstance(item, DocItem):
