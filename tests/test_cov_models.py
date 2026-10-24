@@ -776,7 +776,10 @@ def test_download_publish_and_main(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(download_models, "MODELS", tmp_path / "downloaded")
     monkeypatch.setattr(download_models, "MODEL_MANIFEST", manifest)
     monkeypatch.setattr(download_models, "snapshot_download", fake_download)
+    installed = []
+    monkeypatch.setattr(download_models, "install_encodings", installed.append)
     assert download_models.main() is None
+    assert installed == [tmp_path / "downloaded"]
     assert (tmp_path / "downloaded" / name / "config.json").is_file()
     manifest.write_text("[]", encoding="utf-8")
     assert download_models.main() is None

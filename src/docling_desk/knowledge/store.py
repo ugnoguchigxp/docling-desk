@@ -11,9 +11,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
-import tiktoken
-
 from docling_desk.documents.library import LOCK, snapshot
+from docling_desk.knowledge import tokens
 from docling_desk.knowledge.article_images import with_body_image
 from docling_desk.knowledge.article_info import ArticleInfo
 from docling_desk.knowledge.catalog import (
@@ -55,7 +54,7 @@ class WikiChanged(ValueError):
 
 def split_text(text: str, maximum: int = 1000) -> list[str]:
     # Split at Unicode character boundaries (slicing token IDs can corrupt Japanese).
-    encoding = tiktoken.get_encoding("cl100k_base")
+    encoding = tokens.encoding("cl100k_base")
     if len(encoding.encode(text, disallowed_special=())) <= maximum:
         return [text]
     parts = []

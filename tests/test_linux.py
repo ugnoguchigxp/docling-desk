@@ -99,6 +99,9 @@ def test_linux_office_failure_is_reported(tmp_path, monkeypatch, failure):
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(office_linux, "run_in_group", run)
+    # Inside the container image bubblewrap is unavailable by design.
+    monkeypatch.setenv("DOCLING_CONTAINER", "1")
+    (tmp_path / "original.docx").write_bytes(b"x")
     with pytest.raises(RuntimeError):
         office_linux.convert_office(tmp_path / "original.docx", tmp_path / "out", "html")
 

@@ -86,8 +86,8 @@ docker compose up -d --build --wait
 | --- | --- | --- |
 | ローカル閲覧・全文検索（`local_viewing`） | 画面の構築物、書込み可能な保存先、空き容量2 GiB以上、Blob復元が未完了でないこと | モデル、Office、TeX、すべてのクラウド設定 |
 | 資料の変換（`conversion`） | 検証済みモデル（manifest一致）、空き容量、Docling本体、ローカルOCR（macOSはApple、LinuxはTesseract） | Azure OCR |
-| PowerPointの原本プレビュー（`office_presentation`） | macOS：Microsoft PowerPoint。Linux：LibreOffice | 他のOffice形式 |
-| Excel・Wordの原本プレビュー（`office_documents`） | macOS：Quick Look。Linux：LibreOffice | PowerPoint |
+| PowerPointの原本プレビュー（`office_presentation`） | macOS：Microsoft PowerPoint。Linux：LibreOfficeとbubblewrap（コンテナ内はLibreOfficeのみ） | 他のOffice形式 |
+| Excel・Wordの原本プレビュー（`office_documents`） | macOS：Quick Look。Linux：LibreOfficeとbubblewrap（コンテナ内はLibreOfficeのみ） | PowerPoint |
 | TeXの組版表示（`tex_preview`） | Tectonic。隔離環境（macOSはsandbox-exec、Linuxはbubblewrap）。Dockerイメージには含まれない | TeXソースの閲覧は不要 |
 | 意味検索（`semantic_search`） | `DOCLING_AZURE_EMBEDDING_ENDPOINT`・`_KEY`・`_DEPLOYMENT`・`_MODEL_VERSION` の4つすべて | 全文検索は不要 |
 | 翻訳（`translation`） | 選択した接続先の設定（Codex SDKとログインまたは `OPENAI_API_KEY`。Azure OpenAIはHTTPS接続先・デプロイ名・APIキー） | 他の機能の設定 |
@@ -145,6 +145,14 @@ docker compose -p docling-restore up -d --wait
 既存のボリュームを消してから戻す場合は、取り出したバックアップを別の場所で復元できることを確かめてからにしてください。
 
 復元先は空である必要があります。途中で失敗した復元先は空に戻します。復元はファイルを戻すだけで、OCRやembeddingを再送しません。復元後は原本、文書、親RAG、子RAG、Wiki本文が同じ世代であり、削除済み資料は検索に戻りません。旧配置のバックアップも復元でき、次の起動時に新配置へ移行します。
+
+## Office文書の隔離とスクリプト
+
+- マクロ・スクリプトは実行しません。VBAプロジェクト（`vbaProject.bin` など）やマクロ有効の型を含むOffice文書は、拡張子が `.pptx`・`.xlsx`・`.docx` でもアップロード時に拒否します。
+- LinuxのLibreOfficeは、bubblewrapの中で実行します。ネットワークなし、システム領域は読み取り専用、原本の複製だけを見せ、環境変数（資格情報を含む）は渡しません。専用プロファイルでマクロの実行と信頼できない参照先へのリンクを無効にします。bubblewrapがないホストでは原本プレビューを作らず、診断に `bubblewrap_missing` を出します。Dockerイメージ内はcapabilityを外しているためbubblewrapを使わず、コンテナを境界とします。
+- LinuxホストにDockerなしで導入する場合は、`libreoffice-impress libreoffice-writer libreoffice-calc fonts-noto-cjk bubblewrap` を入れます。Ubuntuなどで非特権のユーザー名前空間が制限されている場合は、bubblewrapに許可されているか `bwrap --unshare-all --ro-bind / / true` で確認してください。
+- PPTX・XLSX・DOCXの抽出は子プロセスで行い、既定300秒（`DOCLING_OFFICE_TIMEOUT_SECONDS`）で打ち切って失敗として記録します。
+- トークン辞書（tiktokenの `cl100k_base`・`o200k_base`）は `download_models` がモデルと一緒に取得し、固定のSHA-256で照合して `<models>/tiktoken` に置きます。実行中に外部から取得することはなく、無い場合は検索・回答がエラーになります。
 
 ## 入力の上限と起動時の縮退
 

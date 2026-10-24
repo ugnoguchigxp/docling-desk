@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import quote, urlencode
 
-import tiktoken
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -19,6 +18,7 @@ from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
 from docling_desk.documents.library import LOCK
+from docling_desk.knowledge import tokens
 from docling_desk.knowledge.article_info import ArticleInfo
 from docling_desk.knowledge.authoring import create_router as authoring_router
 from docling_desk.knowledge.catalog import evidence_body, manifest_metadata
@@ -355,8 +355,7 @@ def create_router(data: Callable[[], Path]) -> APIRouter:
         value.query = value.query.strip()
         if any(ord(c) < 32 and c not in "\n\r\t" for c in value.query) or (
             not value.query
-            or len(tiktoken.get_encoding("cl100k_base").encode(value.query, disallowed_special=()))
-            > 1000
+            or len(tokens.encoding("cl100k_base").encode(value.query, disallowed_special=())) > 1000
         ):
             raise HTTPException(422, "検索文は空にせず、1000トークン以内で入力してください。")
         try:

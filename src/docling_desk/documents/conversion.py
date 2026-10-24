@@ -47,6 +47,7 @@ from docling_desk.documents.ocr_profiles import (
     load_profile,
     make_runtime,
 )
+from docling_desk.documents.office_isolation import OFFICE_SUFFIXES, convert_office
 from docling_desk.documents.pagination import export_paginated_html
 from docling_desk.documents.rag import export_rag
 from docling_desk.documents.text import (
@@ -218,6 +219,27 @@ def _check_pdf_pages(path: Path) -> None:
         raise ValueError(f"ページ数が上限（{MAX_PAGES}ページ）を超えています（{pages}ページ）。")
 
 
+# Macro projects in any OOXML package, whatever the extension claims.
+MACRO_PARTS = {"vbaproject.bin", "vbadata.xml"}
+
+
+def has_macros(archive: ZipFile, names: list[str]) -> bool:
+    """True for a macro-enabled package renamed to .pptx/.xlsx/.docx.
+
+    Office and LibreOffice open a package by its content, not its name, so a
+    workbook with a VBA project would still carry its scripts. Nothing that can
+    run code is accepted: no previewer then ever sees a macro.
+    """
+    if any(name.lower().rsplit("/", 1)[-1] in MACRO_PARTS for name in names):
+        return True
+    try:
+        with archive.open("[Content_Types].xml") as stream:
+            types = stream.read(1024 * 1024).lower()
+    except KeyError:
+        return False
+    return b"macroenabled" in types or b"vbaproject" in types
+
+
 def validate_input(path: Path) -> None:
     if path.suffix.lower() not in SUPPORTED_SUFFIXES:
         raise ValueError(f"{SUPPORTED_LABEL}のみ対応しています。")
@@ -256,6 +278,10 @@ def validate_input(path: Path) -> None:
             }[path.suffix.lower()]
             if expected not in names:
                 raise ValueError("拡張子に対応するOffice構造が見つかりません。")
+            if has_macros(archive, names):
+                raise ValueError(
+                    "マクロを含むOffice文書は受け付けません。マクロなしで保存し直してください。"
+                )
     except BadZipFile as exc:
         raise ValueError("Office ZIP形式として読み込めません。") from exc
 
@@ -705,13 +731,17 @@ def _convert_job(
             doc = plain_document(source, source_text)
             job.state = "success"
         else:
-            result = (
-                converter().convert_string(source_text, format=InputFormat.MD, name=source.name)
-                if source.suffix in MARKDOWN_SUFFIXES
-                else job_converter(profile, runtime).convert(
+            if source.suffix in MARKDOWN_SUFFIXES:
+                result = converter().convert_string(
+                    source_text, format=InputFormat.MD, name=source.name
+                )
+            elif source.suffix in OFFICE_SUFFIXES:
+                # Office backends have no time limit; a child process can be stopped.
+                result = convert_office(source, MAX_PAGES, MAX_BYTES)
+            else:
+                result = job_converter(profile, runtime).convert(
                     source, raises_on_error=False, max_num_pages=MAX_PAGES, max_file_size=MAX_BYTES
                 )
-            )
             if runtime.error:
                 raise runtime.error
             if result.status not in {ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS}:

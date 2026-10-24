@@ -8,6 +8,7 @@ from pathlib import Path
 from huggingface_hub import snapshot_download
 
 from docling_desk.config import MODEL_MANIFEST, MODELS
+from docling_desk.knowledge.tokens import install as install_encodings
 
 
 def _tools():
@@ -60,6 +61,8 @@ def main() -> None:
     manifest = json.loads((MODEL_MANIFEST).read_text(encoding="utf-8"))
     for model in manifest:
         publish(model, destination)
+    # Token encodings too: nothing is fetched while serving.
+    install_encodings(destination)
 
 
 if __name__ == "__main__":

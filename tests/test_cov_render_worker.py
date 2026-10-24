@@ -442,6 +442,10 @@ def test_conversion_validation_previews_and_jobs(tmp_path, monkeypatch):
 
         monkeypatch.setattr(conversion, "job_converter", lambda profile, runtime: Converter())
         monkeypatch.setattr(conversion, "converter", lambda: Converter())
+        # Office files are converted in a child process; the same fake stands in for it.
+        monkeypatch.setattr(
+            conversion, "convert_office", lambda source, pages, size: Converter().convert()
+        )
 
     monkeypatch.setattr(conversion, "enrich_pdf_evidence", lambda doc, runtime: None)
     monkeypatch.setattr(conversion, "enrich_office_images", lambda doc, runtime: ["図を補完"])

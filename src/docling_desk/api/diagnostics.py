@@ -123,10 +123,20 @@ def _models() -> Check:
 
 
 def _libreoffice(ident: str) -> Check:
+    found = bool(_which("libreoffice") or _which("soffice"))
+    if found and os.environ.get("DOCLING_CONTAINER") != "1" and not _which("bwrap"):
+        # Untrusted Office files are opened only inside bubblewrap outside a container.
+        return _tool(
+            ident,
+            "LibreOffice",
+            False,
+            "bubblewrap_missing",
+            "LibreOfficeを隔離して実行するため、bubblewrap（bwrap）を導入してください。",
+        )
     return _tool(
         ident,
         "LibreOffice",
-        bool(_which("libreoffice") or _which("soffice")),
+        found,
         "libreoffice_missing",
         "LibreOffice（Impress・Writer・Calc）を導入してください。Dockerイメージには同梱されています。",
     )

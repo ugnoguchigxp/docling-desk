@@ -6,11 +6,11 @@ import json
 import os
 import re
 
-import tiktoken
 from pydantic import BaseModel, ConfigDict, Field
 
 from docling_desk.explanation.codex import CodexExplanationProvider
 from docling_desk.explanation.provider import ExplanationError, Profile
+from docling_desk.knowledge import tokens
 
 INSTRUCTIONS = (
     "Answer in Japanese using only supplied reference data. "
@@ -38,7 +38,7 @@ class AnswerProvider(CodexExplanationProvider):
 
     def decision(self, payload: dict, instructions: str, schema) -> dict:
         size = len(
-            tiktoken.get_encoding("o200k_base").encode(
+            tokens.encoding("o200k_base").encode(
                 json.dumps(payload, ensure_ascii=False) + INSTRUCTIONS + instructions,
                 disallowed_special=(),
             )

@@ -17,9 +17,9 @@ from docling_desk.explanation.provider import (
 
 @lru_cache(maxsize=1)
 def encoding():
-    import tiktoken
+    from docling_desk.knowledge.tokens import encoding as pinned
 
-    return tiktoken.get_encoding("o200k_base")
+    return pinned("o200k_base")
 
 
 def input_tokens(task: str, payload: dict) -> int:

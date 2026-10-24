@@ -161,6 +161,10 @@ jobs:
       - name: Install the browser
         working-directory: frontend
         run: pnpm exec playwright install --with-deps chromium
+      - name: Install pinned token encodings
+        env:
+          PYTHONPATH: src:packages/docling-azure-ocr/src
+        run: python -c "from docling_desk.knowledge.tokens import install; install()"
       - name: HTTP upload, search, context, and delete
         id: http
         env:

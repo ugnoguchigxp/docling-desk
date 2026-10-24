@@ -153,11 +153,10 @@ def test_shared_search_short_japanese_terms_and_context_citations(client):
     doc = next(c for c in value.json()["citations"] if c["kind"] == "document")
     assert doc["unit"] == 2 and doc["locator"]["refs"] == ["#/texts/2"]
     assert value.json()["tokens"] <= 1000
-    import tiktoken
+    from docling_desk.knowledge import tokens
 
     assert (
-        len(tiktoken.get_encoding("cl100k_base").encode(value.json()["text"]))
-        == value.json()["tokens"]
+        len(tokens.encoding("cl100k_base").encode(value.json()["text"])) == value.json()["tokens"]
     )
     assert (
         client.post(
@@ -236,9 +235,9 @@ def test_without_azure_text_search_and_idempotency_remain_available(client):
 def test_oversized_multibyte_chunks_preserve_text_and_fit_embedding_limit():
     original = "日本語の断片😃" * 1800
     parts = split_text(original)
-    import tiktoken
+    from docling_desk.knowledge import tokens
 
-    encoding = tiktoken.get_encoding("cl100k_base")
+    encoding = tokens.encoding("cl100k_base")
     assert "".join(parts) == original
     assert all(len(encoding.encode(p, disallowed_special=())) <= 1000 for p in parts)
 

@@ -12,9 +12,8 @@ from collections.abc import Callable
 from pathlib import Path
 from uuid import uuid4
 
-import tiktoken
-
 from docling_desk.documents.library import LOCK, ancestors, load
+from docling_desk.knowledge import tokens as token_encodings
 from docling_desk.knowledge.answer import AnswerProvider
 from docling_desk.knowledge.embedding_azure import EmbeddingError, EmbeddingProvider, paced_request
 from docling_desk.knowledge.store import Store, digest, normalized
@@ -601,7 +600,7 @@ class Knowledge:
         with LOCK:
             chunks = {c["id"]: c for c in self.selected_chunks(task["input"], chunk_ids)}
             used, seen, citations, text = 0, set(), [], []
-            encoding = tiktoken.get_encoding("cl100k_base")
+            encoding = token_encodings.encoding("cl100k_base")
             for cid in dict.fromkeys(chunk_ids):
                 if cid not in chunks:
                     raise ValueError("出典が更新されました。検索をやり直してください。")
